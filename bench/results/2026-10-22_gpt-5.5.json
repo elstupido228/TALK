@@ -1,0 +1,40 @@
+{
+  "model": "gpt-5.5",
+  "at": "2026-10-22T03:50:37.943Z",
+  "packages": [
+    {
+      "id": "A",
+      "ok": 60,
+      "total": 60,
+      "datesOk": true,
+      "diffs": [],
+      "seconds": 118,
+      "errors": []
+    },
+    {
+      "id": "B",
+      "ok": 60,
+      "total": 60,
+      "datesOk": true,
+      "diffs": [],
+      "seconds": 118,
+      "errors": []
+    },
+    {
+      "id": "C",
+      "ok": 60,
+      "total": 60,
+      "datesOk": true,
+      "diffs": [],
+      "seconds": 123,
+      "errors": []
+    }
+  ],
+  "usage": {
+    "calls": 30,
+    "inp": 179535,
+    "outp": 31598,
+    "ms": 354406
+  },
+  "pass": true
+}
