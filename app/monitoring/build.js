@@ -31,6 +31,6 @@ function build() {
 }
 
 let cached = null;
-const monitoringPage = (user) => withBar((cached ??= build()), user, "Мониторинг");
+const monitoringPage = (user) => withBar((cached ??= build()), user, "monitoring");
 
 module.exports = { build, monitoringPage, demoPayload };

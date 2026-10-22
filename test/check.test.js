@@ -119,7 +119,9 @@ test("страница «Проверка по ИНН» и «Источники 
   assert.strictEqual(st, 200);
   assert.match(html, /ООО «Альфа-Пример»/);
   assert.match(html, /<span class="cls cls-1">1<\/span>/);
-  assert.match(html, /Открыть в калькуляторе/);
+  assert.match(html, /Открыть годовую отчётность в калькуляторе/);
+  assert.match(html, /href="\/calc#upload"/);
+  assert.match(html, /<a href="\/check" aria-current="page">/);
   assert.match(html, /talk-calc-import/);
   assert.ok(!/<\/script>[^]*"docs"[^]*<\/script>/.test(html.split("talk-calc-import")[1].split("location.href")[0]), "данные не обрывают скрипт");
   for (const t of ["Контур.Фокус", "СПАРК", "1С", "CRM"]) assert.ok(html.includes(t), t);
@@ -129,7 +131,7 @@ test("страница «Проверка по ИНН» и «Источники 
   for (const t of ["Банк России", "DaData", "ГИР БО", "Контур.Фокус", "СПАРК", "1С", "CRM", "Распознавание PDF"]) assert.ok(html.includes(t), t);
   assert.strictEqual((html.match(/Только интерфейс/g) || []).length, 4);
   assert.match(html, /dadata\/party/);
-  const lc = (await get("/"))[1];
+  const lc = (await get("/process"))[1];
   assert.match(lc, /href="\/check">Проверка по ИНН →/);
 });
 

@@ -867,6 +867,9 @@ function useData(data, label, fname) {
     let t = null; try { t = localStorage.getItem("talk-ews-tab"); } catch (e) {}
     const h = (location.hash || "").slice(1);
     showTab(["portfolio", "card", "model", "upload"].includes(h) ? h : t && ["portfolio", "card", "model", "upload"].includes(t) ? t : "portfolio");
+    // /monitoring#card=<код клиента> — сразу карточка клиента (ссылки «Требуют внимания» с главной портала)
+    const mc = h.startsWith("card=") ? decodeURIComponent(h.slice(5)) : null;
+    if (mc && STATE.clients.some((c) => c.cl.client === mc)) { $("cardSel").value = mc; renderCard(mc); showTab("card"); }
   } catch (e) { $("bootStatus").textContent = "Не удалось загрузить данные: " + (e && e.message || e); $("bootStatus").className = "status err"; }
 })();
 // Ключевая ставка Банка России — коннектор портала /api/connectors/cbr/key-rate (кэш, при сбое сети — последний ответ)

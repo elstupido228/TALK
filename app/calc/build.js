@@ -21,6 +21,6 @@ function build() {
 }
 
 let cached = null;
-const calcPage = (user) => withBar((cached ??= build()), user, "Оценка клиента");
+const calcPage = (user) => withBar((cached ??= build()), user, "calc");
 
 module.exports = { build, calcPage };

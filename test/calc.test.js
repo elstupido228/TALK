@@ -69,7 +69,8 @@ test("страница /calc и библиотеки отдаются порта
   assert.strictEqual(page.status, 200);
   const html = await page.text();
   assert.match(html, /Расчёт класса кредитоспособности лизингополучателя/);
-  assert.match(html, /← Жизненный цикл сделки/);
+  assert.match(html, /aria-label="Меню портала"/, "меню портала вокруг модуля");
+  assert.match(html, /<a href="\/calc" aria-current="page">/, "в меню подсвечен расчёт класса");
   for (const f of ["jszip.min.js", "pdf.min.js", "pdf.worker.min.js"]) {
     const r = await fetch(`${base}/vendor/${f}`);
     assert.strictEqual(r.status, 200, f);

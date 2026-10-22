@@ -9,6 +9,7 @@ const V = require("./views");
 const { calcPage } = require("./calc/build");
 const { createGateway } = require("./extract/gateway");
 const { monitoringPage } = require("./monitoring/build");
+const { portfolioSummary } = require("./monitoring/summary");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
 const { toDocs, annualClasses } = require("./check");
@@ -40,6 +41,31 @@ function createApp(db, opts = {}) {
   const sourcesList = () => [...connectors.describe(), { id: "extract", title: "Распознавание PDF (OpenAI)", what: "Страницы отчётности → значения по кодам строк на все даты документа", mode: "live", ops: null }];
   const demoInns = (process.env.DEMO_INNS || "").split(",").map((s) => s.trim()).filter((s) => /^\d{10}(\d{2})?$/.test(s));
 
+  // Последние проверки пользователя: ИНН из журнала коннектора отчётности, название и класс — из кэша ответов
+  const q = {
+    recentFin: db.prepare("SELECT request FROM connector_log WHERE connector = 'fin' AND user_id = ? ORDER BY id DESC LIMIT 50"),
+    cache: db.prepare("SELECT value FROM connector_cache WHERE key = ?"),
+  };
+  function recentChecks(user) {
+    const inns = [];
+    for (const { request } of q.recentFin.all(user.id)) {
+      const inn = (request.match(/"inn":"(\d+)"/) || [])[1];
+      if (inn && !inns.includes(inn)) inns.push(inn);
+      if (inns.length === 5) break;
+    }
+    const cached = (key) => { const r = q.cache.get(key); return r ? JSON.parse(r.value) : null; };
+    return inns.map((inn) => {
+      const party = cached(`dadata:party:${JSON.stringify({ inn })}`);
+      const fin = cached(`fin:reports:${JSON.stringify({ inn })}`);
+      const y = fin?.reports?.length ? annualClasses(fin)[0] : null;
+      return { inn, name: party?.name || fin?.org?.name || null, cls: y ? y.cls : null, year: y?.year || null };
+    });
+  }
+  async function homeModel(user) {
+    const keyRate = await connectors.call("cbr", "key-rate", {}, { userId: user.id }).catch(() => null);
+    return { summary: portfolioSummary(), keyRate, recent: recentChecks(user), demo: demoInns };
+  }
+
   // «Проверка по ИНН»: DaData + отчётность + песочницы; классы — по формулам core.js
   async function checkModel(user, url) {
     const inn = (url.searchParams.get("inn") || "").replace(/\D/g, "");
@@ -55,7 +81,8 @@ function createApp(db, opts = {}) {
 
   // Страницы для вошедших: [путь, право, рендер]
   const PAGES = {
-    "/": ["pages.view", (u) => V.lifecyclePage(u)],
+    "/": ["pages.view", async (u) => V.homePage(u, await homeModel(u))],
+    "/process": ["pages.view", (u) => V.processPage(u)],
     "/calc": ["calc.use", (u) => calcPage(u)],
     "/monitoring": ["pages.view", (u) => monitoringPage(u)],
     "/sources": ["pages.view", (u) => V.sourcesPage(u, sourcesList(), can(u, "connectors.log") ? recentLog.all() : [])],

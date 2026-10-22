@@ -2,6 +2,7 @@
 const { esc } = require("./http");
 const { can, ROLE_TITLES } = require("./auth");
 const STAGES = require("./stages");
+const shell = require("./shell");
 
 const PROJECT = "Контур контроля лизинговой сделки";
 
@@ -12,12 +13,6 @@ const STATUS = {
 };
 
 function layout({ title, user, active = "", body }) {
-  const nav = [
-    ["/", "Жизненный цикл", "lifecycle"],
-    ["/sources", "Источники данных", "sources"],
-    ["/about", "О проекте", "about"],
-    ...(can(user, "users.view") ? [["/admin/users", "Пользователи", "users"]] : []),
-  ];
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -25,27 +20,66 @@ function layout({ title, user, active = "", body }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>${esc(title)} — ${PROJECT}</title>
+${shell.FONTS}
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-${
-  user
-    ? `<header class="top">
-  <a class="brand" href="/">${PROJECT}<span class="proto">прототип</span></a>
-  <nav>${nav.map(([href, label, id]) => `<a href="${href}"${id === active ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>
-  <form class="who" method="post" action="/logout">
-    <span title="${esc(user.email)}">${esc(user.name || user.email)} · ${esc(ROLE_TITLES[user.role])}</span>
-    <button type="submit">Выйти</button>
-  </form>
-</header>`
-    : ""
-}
-<main>
+${user ? shell.open(user, active) : ""}
+<main class="page">
 ${body}
 </main>
 <footer>Демонстрационный прототип. Все данные на страницах условные.</footer>
+${user ? shell.close() : ""}
 </body>
 </html>`;
+}
+
+const nf = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("ru-RU"));
+const fdate = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
+const innForm = (inn = "", big = false) => `<form class="inn-form${big ? " big" : ""}" method="get" action="/check">
+  <label for="inn">ИНН клиента</label>
+  <div class="inn-row"><input id="inn" name="inn" inputmode="numeric" autocomplete="off" pattern="\\d{10}|\\d{12}" title="10 или 12 цифр" required placeholder="10 или 12 цифр" value="${esc(inn)}"><button type="submit">Проверить клиента</button></div>
+</form>`;
+const clsBadge = (c) => (c === null || c === undefined ? `<span class="muted small">нет данных</span>` : `<span class="cls cls-${c}" title="класс ${c}">${c}</span>`);
+const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
+
+// Главная: рабочий стол. m: {summary, keyRate, recent:[{inn, name, cls, year}], demo:[inn]}
+function homePage(user, m) {
+  const s = m.summary, z = s.zones;
+  const pct = (n) => Math.round((100 * n) / s.total);
+  const recent = m.recent.length
+    ? `<ul class="list">${m.recent.map((r) => `<li><a href="/check?inn=${esc(r.inn)}"><span>${esc(r.name || r.inn)}<br><span class="muted small">ИНН ${esc(r.inn)}${r.year ? ` · отчётность за ${r.year}` : ""}</span></span>${clsBadge(r.cls)}</a></li>`).join("")}</ul>`
+    : `<p class="muted small">Здесь появятся клиенты, которых вы проверили по ИНН. Для пробы:</p><p>${(m.demo.length ? m.demo : ["0000000001"]).map((i) => `<a href="/check?inn=${esc(i)}">${esc(i)}${i === "0000000001" ? " (условная компания)" : ""}</a>`).join(" · ")}</p>`;
+  const kr = m.keyRate?.data;
+  return layout({
+    title: "Главная",
+    user,
+    active: "home",
+    body: `<h1>С чего начнём?</h1>
+${innForm("", true)}
+<div class="tasks">
+  <a class="task" href="/check"><b>Новый клиент</b><span>Карточка организации, годовая отчётность из ГИР БО, предварительный класс</span><em>Проверить по ИНН →</em></a>
+  <a class="task" href="/calc#upload"><b>Пакет отчётности</b><span>PDF балансов и отчётов за пять дат → класс и заключение по п. 14.1</span><em>Загрузить PDF →</em></a>
+  <a class="task" href="/monitoring"><b>Портфель</b><span>${z.red} ${plural(z.red, "клиент", "клиента", "клиентов")} в красной зоне из ${s.total} с действующими договорами</span><em>Открыть мониторинг →</em></a>
+</div>
+<div class="dash">
+  <section class="panel"><h2>Ваши последние проверки</h2>${recent}</section>
+  <section class="panel">
+    <h2>Портфель на ${fdate(s.today)}</h2>
+    <div class="zbar" role="img" aria-label="Зоны: красная ${z.red}, жёлтая ${z.yellow}, зелёная ${z.green}, просрочка ${z.grey}">
+      <i class="z-red" style="width:${pct(z.red)}%"></i><i class="z-yellow" style="width:${pct(z.yellow)}%"></i><i class="z-green" style="width:${pct(z.green)}%"></i><i class="z-grey" style="width:${pct(z.grey)}%"></i>
+    </div>
+    <p class="zleg"><span><i class="z-red"></i>красная ${z.red}</span><span><i class="z-yellow"></i>жёлтая ${z.yellow}</span><span><i class="z-green"></i>зелёная ${z.green}</span><span><i class="z-grey"></i>просрочка 30+ ${z.grey}</span></p>
+    <h3>Требуют внимания</h3>
+    <ul class="list">${s.worst.map((w) => `<li><a href="/monitoring#card=${encodeURIComponent(w.client)}"><span>${esc(w.client)}<br><span class="muted small">${esc(w.sector)}</span></span><span class="score" title="балл">${w.score}</span></a></li>`).join("")}</ul>
+    <p class="muted small">Условный портфель: данные синтетические.</p>
+  </section>
+  <section class="panel">
+    <h2>Ключевая ставка ЦБ</h2>
+    ${kr ? `<p class="big">${kr.rate.toFixed(2).replace(".", ",")} %</p><p class="muted small">действует с ${fdate(kr.since)}${kr.sandbox_note ? " · условное значение" : ""}</p>` : `<p class="muted">Нет данных</p>`}
+  </section>
+</div>`,
+  });
 }
 
 function loginPage({ error = "", email = "", next = "/" } = {}) {
@@ -65,7 +99,7 @@ function loginPage({ error = "", email = "", next = "/" } = {}) {
   });
 }
 
-function lifecyclePage(user) {
+function processPage(user) {
   const cards = STAGES.map((s, i) => {
     const [label, cls] = STATUS[s.status];
     const head = `<span class="n">${i + 1}</span><h2>${esc(s.title)}</h2><span class="badge ${cls}">${label}</span>`;
@@ -77,12 +111,12 @@ function lifecyclePage(user) {
 </li>`;
   }).join("\n");
   return layout({
-    title: "Жизненный цикл сделки",
+    title: "Схема процесса",
     user,
-    active: "lifecycle",
-    body: `<h1>Жизненный цикл лизинговой сделки</h1>
-<p class="lead">Семь стадий от заявки до работы с просрочкой. В прототипе работают две: <b>оценка клиента</b> и <b>мониторинг</b>.
-Остальные показаны как целевая схема и бэклог.</p>
+    active: "process",
+    body: `<h1>Схема процесса: жизненный цикл сделки</h1>
+<p class="lead">Семь стадий от заявки до работы с просрочкой. В прототипе работают две — <b>оценка клиента</b> и <b>мониторинг</b>,
+их карточки ведут в модули. Остальные стадии — целевая схема и бэклог.</p>
 <ol class="ribbon">
 ${cards}
 </ol>
@@ -131,13 +165,9 @@ ${journal}`,
 
 // m: {inn, error, demo:[inn], party, fin, classes, docs, side:{kontur, spark, onec, crm}} — ответы коннекторов {data, source, …}
 function checkPage(user, m) {
-  const nf = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("ru-RU"));
   const SRC = { live: "получено из источника", cache: "из кэша", sandbox: "песочница — условные значения" };
   const srcLine = (r) => r ? `<p class="muted small">${esc(r.data?.sandbox_note ? SRC.sandbox : SRC[r.source])}${r.stale ? ", источник недоступен — показан сохранённый ответ" : ""}${r.fallback ? ", источник недоступен" : ""} · ${new Date(r.fetched_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : "";
-  const form = `<form class="inn-form" method="get" action="/check">
-  <label>ИНН организации<input name="inn" inputmode="numeric" pattern="\\d{10}|\\d{12}" required value="${esc(m.inn || "")}"></label>
-  <button type="submit">Проверить</button>
-</form>
+  const form = `${innForm(m.inn || "")}
 ${m.demo?.length ? `<p class="muted small">Подготовленные для показа: ${m.demo.map((i) => `<a href="/check?inn=${esc(i)}">${esc(i)}</a>`).join(" · ")} · условные: <a href="/check?inn=0000000001">0000000001</a></p>` : ""}`;
   let body = "";
   if (m.error) body = `<p class="error">${esc(m.error)}</p>`;
@@ -152,7 +182,8 @@ ${m.demo?.length ? `<p class="muted small">Подготовленные для �
 ${srcLine(m.party)}</div>`;
     const f = m.fin?.data;
     let fin = "";
-    if (!f || f.found === false || !m.classes?.length) fin = `<h2>Отчётность</h2><p class="muted">${f?.found === false ? "В ГИР БО отчётность по этому ИНН не найдена или не раскрыта (организации вправе ограничить доступ к своей отчётности)." : "Годовой отчётности нет."}</p>${srcLine(m.fin)}`;
+    if (!f || f.found === false || !m.classes?.length) fin = `<h2>Отчётность</h2><p class="muted">${f?.found === false ? "В ГИР БО отчётность по этому ИНН не найдена или не раскрыта (организации вправе ограничить доступ к своей отчётности)." : "Годовой отчётности нет."}</p>${srcLine(m.fin)}
+<section class="next"><h2>Что дальше</h2><p>Запросите у клиента баланс и отчёт о финансовых результатах за пять последних квартальных дат.</p><div class="actions"><a class="btn primary" href="/calc#upload">Загрузить отчётность (PDF)</a></div></section>`;
     else {
       const ys = m.classes;
       const row = (label, key) => `<tr><td>${label}</td>${ys.map((y) => `<td class="r">${nf(y[key])}</td>`).join("")}</tr>`;
@@ -164,8 +195,11 @@ ${row("Выручка (2110)", "revenue")}${row("Чистая прибыль (24
 <tr><td><b>Класс кредитоспособности</b></td>${ys.map((y) => `<td class="r">${y.cls === null ? `<span class="muted small">недостаточно данных</span>` : `<span class="cls cls-${y.cls}">${y.cls}</span>`}${y.missing.length ? `<br><span class="muted small">нет строк: ${y.missing.join(", ")}</span>` : ""}${y.variant === "simplified" ? `<br><span class="muted small">упрощённая форма</span>` : ""}</td>`).join("")}</tr>
 </tbody></table></div>
 ${srcLine(m.fin)}
-<p class="notice">Открытые источники содержат только годовую отчётность. Заключение по п. 14.1.6 требует четырёх квартальных дат — их запрашивают у клиента. Калькулятор покажет, каких данных не хватает.</p>
-<p><button type="button" id="toCalc">Открыть в калькуляторе</button></p>
+<section class="next">
+  <h2>Что дальше</h2>
+  <p>В открытых источниках только годовая отчётность. Для заключения по п. 14.1 нужны четыре квартальные даты — их запрашивают у клиента.</p>
+  <div class="actions"><button type="button" id="toCalc">Открыть годовую отчётность в калькуляторе</button><a class="btn" href="/calc#upload">Загрузить квартальную отчётность (PDF)</a></div>
+</section>
 <script>
 document.getElementById("toCalc").onclick = () => {
   try { sessionStorage.setItem("talk-calc-import", ${JSON.stringify(JSON.stringify({ inn: m.inn, name: p.name || f.org?.name, source: f.provider, docs: m.docs })).split("<").join("\\u003c")}); } catch (e) {}
@@ -185,11 +219,10 @@ ${sb("CRM", side.crm, (d) => `<p>${d.applications.map((a) => `${esc(a.id)}: ${es
     body = card + fin + sides;
   }
   return layout({
-    title: "Проверка по ИНН",
+    title: m.party?.data?.name ? `${m.party.data.name} — проверка по ИНН` : "Проверка по ИНН",
     user,
-    active: "lifecycle",
-    body: `<p class="crumbs"><a href="/">Жизненный цикл</a> / Оценка клиента</p>
-<h1>Проверка по ИНН</h1>
+    active: "check",
+    body: `<h1>Проверка по ИНН</h1>
 <p class="lead">Карточка организации (DaData) и годовая отчётность (ГИР БО) → предварительный класс по формулам калькулятора.</p>
 ${form}
 ${body}`,
@@ -244,4 +277,4 @@ function errorPage(user, status, message) {
   return layout({ title: String(status), user, body: `<h1>${status}</h1><p>${esc(message)}</p><p><a href="/">На главную</a></p>` });
 }
 
-module.exports = { loginPage, lifecyclePage, sourcesPage, checkPage, aboutPage, usersPage, errorPage, PROJECT };
+module.exports = { loginPage, homePage, processPage, sourcesPage, checkPage, aboutPage, usersPage, errorPage, PROJECT };

@@ -622,7 +622,7 @@ setMode("demo");
 // Годовая отчётность со страницы «Проверка по ИНН» (передаётся через sessionStorage)
 (function(){
   let imp=null; try{ imp=JSON.parse(sessionStorage.getItem("talk-calc-import")||"null"); sessionStorage.removeItem("talk-calc-import"); }catch(e){}
-  if(!imp||!imp.docs||!imp.docs.length) return;
+  if(!imp||!imp.docs||!imp.docs.length){ if(location.hash==="#upload") setMode("live"); return; } // /calc#upload — сразу «Новый пакет»
   setMode("live"); S.docs=imp.docs; S.cons=consolidate(S.docs);
   if(!S.cons.dates.length) return;
   buildFromCons(); $("nameIn").value=imp.name||""; $("innIn").value=imp.inn||""; fill1370(false);

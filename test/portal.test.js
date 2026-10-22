@@ -37,7 +37,7 @@ test("/healthz отвечает ok", async () => {
 });
 
 test("без входа страницы перенаправляют на /login", async () => {
-  for (const p of ["/", "/sources", "/about", "/calc", "/monitoring", "/admin/users"]) {
+  for (const p of ["/", "/check", "/process", "/sources", "/about", "/calc", "/monitoring", "/admin/users"]) {
     const r = await req(p);
     assert.strictEqual(r.status, 303, p);
     assert.match(r.headers.get("location"), /^\/login\?next=/, p);
@@ -52,8 +52,8 @@ test("вход под каждой ролью и доступ к страниц�
     assert.match(r.headers.get("set-cookie"), /HttpOnly; SameSite=Lax/);
     const home = await req("/", { cookie });
     assert.strictEqual(home.status, 200, role);
-    assert.match(await home.text(), /Жизненный цикл лизинговой сделки/);
-    for (const p of ["/sources", "/about", "/calc", "/monitoring"]) assert.strictEqual((await req(p, { cookie })).status, 200, `${role} ${p}`);
+    assert.match(await home.text(), /С чего начнём\?/);
+    for (const p of ["/process", "/sources", "/about", "/calc", "/monitoring"]) assert.strictEqual((await req(p, { cookie })).status, 200, `${role} ${p}`);
     const users = await req("/admin/users", { cookie });
     assert.strictEqual(users.status, role === "admin" ? 200 : 403, `${role} /admin/users`);
     const sources = await (await req("/sources", { cookie })).text();
@@ -61,9 +61,21 @@ test("вход под каждой ролью и доступ к страниц�
   }
 });
 
-test("лента: семь стадий, рабочие — оценка клиента и мониторинг", async () => {
-  const cookie = sid(await login("curator@example.test", PASS, "10.0.0.2"));
+test("главная — рабочий стол: ИНН, три задачи, сводка портфеля, меню", async () => {
+  const cookie = sid(await login("curator@example.test", PASS, "10.0.0.3"));
   const html = await (await req("/", { cookie })).text();
+  assert.match(html, /<form class="inn-form big" method="get" action="\/check">/);
+  for (const href of ["/check", "/calc#upload", "/monitoring"]) assert.ok(html.includes(`class="task" href="${href}"`), href);
+  assert.match(html, /34 клиента в красной зоне из 176/);
+  assert.match(html, /href="\/monitoring#card=/);
+  assert.match(html, /<a href="\/" aria-current="page">/);
+  for (const t of ["Схема процесса", "Источники данных", "О проекте"]) assert.ok(html.includes(t), t);
+  assert.ok(!html.includes(">Пользователи<"), "куратору пункт «Пользователи» не показывается");
+});
+
+test("схема процесса: семь стадий, рабочие — оценка клиента и мониторинг", async () => {
+  const cookie = sid(await login("curator@example.test", PASS, "10.0.0.2"));
+  const html = await (await req("/process", { cookie })).text();
   assert.strictEqual((html.match(/<li class="stage /g) || []).length, 7);
   assert.deepStrictEqual([...html.matchAll(/<li class="stage working" id="(\w+)"/g)].map((m) => m[1]), ["assessment", "monitoring"]);
 });

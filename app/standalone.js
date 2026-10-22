@@ -1,9 +1,8 @@
 // Автономные страницы модулей (калькулятор, мониторинг): исходник — фрагмент <title>…<style>…</style> + разметка + скрипты.
-// Оборачивается в полный документ; на место BAR при каждом запросе подставляется панель портала с пользователем.
-const { esc } = require("./http");
-const { ROLE_TITLES } = require("./auth");
+// Оборачивается в полный документ; при каждом запросе вокруг модуля подставляется меню портала (app/shell.js).
+const shell = require("./shell");
 
-const BAR = "<!--__PORTAL_BAR__-->";
+const OPEN = "<!--__SHELL_OPEN__-->", CLOSE = "<!--__SHELL_CLOSE__-->";
 
 // JSON внутри <script>: «</script>» и разделители строк U+2028/U+2029 не должны оборвать скрипт.
 const LS = String.fromCharCode(0x2028), PS = String.fromCharCode(0x2029), BS = String.fromCharCode(92);
@@ -31,21 +30,20 @@ function wrap(fragment) {
 ${fragment.slice(0, cut)}
 <style>
 [hidden]{display:none!important} /* как в исходной обёртке test_page.py: атрибут hidden сильнее display в стилях модуля */
-.portal-bar{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;justify-content:space-between;padding:8px 20px;background:var(--surface);border-bottom:1px solid var(--line);font-size:13px}
-.portal-bar a{color:var(--accent);text-decoration:none;font-weight:500}
-.portal-bar span{color:var(--muted)}
+body{margin:0}
 </style>
 </head>
 <body>
-${BAR}
+${OPEN}
 ${fragment.slice(cut)}
+${CLOSE}
 </body>
 </html>`;
 }
 
-function withBar(html, user, label) {
-  const bar = `<div class="portal-bar"><a href="/">← Жизненный цикл сделки</a><span>${esc(label)} · ${esc(user.name || user.email)} · ${esc(ROLE_TITLES[user.role])}</span></div>`;
-  return html.replace(BAR, () => bar);
+// Меню портала вокруг модуля; active — пункт меню, который подсвечивается
+function withBar(html, user, active) {
+  return html.replace(OPEN, () => shell.open(user, active)).replace(CLOSE, () => shell.close());
 }
 
 module.exports = { wrap, withBar, fill, jsonForScript };
