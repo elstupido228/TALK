@@ -8,6 +8,9 @@ const H = require("./http");
 const V = require("./views");
 const { calcPage } = require("./calc/build");
 const { createGateway } = require("./extract/gateway");
+const { monitoringPage } = require("./monitoring/build");
+const { createConnectors } = require("./connectors/core");
+const CONNECTORS = [require("./connectors/cbr")];
 
 const PUB = path.join(__dirname, "public");
 const JS = "text/javascript; charset=utf-8";
@@ -17,6 +20,7 @@ const STATIC = {
   "/vendor/jszip.min.js": [path.join(PUB, "vendor", "jszip.min.js"), JS, "public, max-age=86400"],
   "/vendor/pdf.min.js": [path.join(PUB, "vendor", "pdf.min.js"), JS, "public, max-age=86400"],
   "/vendor/pdf.worker.min.js": [path.join(PUB, "vendor", "pdf.worker.min.js"), JS, "public, max-age=86400"],
+  "/vendor/xlsx.full.min.js": [path.join(PUB, "vendor", "xlsx.full.min.js"), JS, "public, max-age=86400"],
 };
 
 // Безопасный адрес возврата после входа: только локальный путь.
@@ -30,12 +34,13 @@ function createApp(db, opts = {}) {
   const auth = createAuth(db);
   const recentLog = db.prepare("SELECT * FROM connector_log ORDER BY at DESC LIMIT 100");
   const gateway = opts.gateway || createGateway({ db });
+  const connectors = opts.connectors || createConnectors(db, CONNECTORS);
 
   // Страницы для вошедших: [путь, право, рендер]
   const PAGES = {
     "/": ["pages.view", (u) => V.lifecyclePage(u)],
     "/calc": ["calc.use", (u) => calcPage(u)],
-    "/monitoring": ["pages.view", (u) => V.modulePage(u, { title: "Мониторинг — раннее предупреждение", step: 5 })],
+    "/monitoring": ["pages.view", (u) => monitoringPage(u)],
     "/sources": ["pages.view", (u) => V.sourcesPage(u, can(u, "connectors.log") ? recentLog.all() : [])],
     "/about": ["pages.view", (u) => V.aboutPage(u)],
     "/admin/users": ["users.view", (u) => V.usersPage(u, auth.listUsers())],
@@ -77,6 +82,16 @@ function createApp(db, opts = {}) {
       if (p === "/api/extract" && req.method === "POST") {
         if (!can(user, "calc.extract")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });
         return gateway.handle(req, res, user);
+      }
+      if (p === "/api/connectors" && req.method === "GET") return H.sendJson(res, 200, { connectors: connectors.describe() });
+      const m = p.match(/^\/api\/connectors\/([a-z0-9_-]+)\/([a-z0-9_-]+)$/);
+      if (m && req.method === "GET" && connectors.has(m[1])) {
+        try {
+          return H.sendJson(res, 200, await connectors.call(m[1], m[2], Object.fromEntries(url.searchParams), { userId: user.id }));
+        } catch (e) {
+          if (!e.code) throw e;
+          return H.sendJson(res, e.status || 500, { error: { code: e.code, message: e.message } });
+        }
       }
       return H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такого метода." } });
     }

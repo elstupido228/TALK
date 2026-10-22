@@ -32,9 +32,8 @@ secrets/
 !bench/pdf/**/*.pdf
 
 # --- Производные артефакты seed (пересоздаются скриптами) ---
-seed/ews/data/demo.json
+# demo.json и py_scores_test.csv хранятся: страница «Мониторинг» и check_parity.js работают без Python
 seed/ews/data/snapshots.json
-seed/ews/data/py_scores_test.csv
 seed/ews/*.html
 !seed/ews/page_src.html
 seed/calc/in/

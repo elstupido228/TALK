@@ -93,6 +93,42 @@ docker compose exec app node scripts/bench-extract.js --models gpt-5.4-mini,gpt-
 Скрипт сначала проверяет каждую модель запросом `GET /v1/models/{id}` (404 — модель пропускается). Один прогон — около 30 вызовов на модель
 (`--max-calls` — предохранитель, по умолчанию 120). Результаты в JSON — в `/data/bench-results` тома приложения.
 
+## Мониторинг — раннее предупреждение (`/monitoring`)
+
+Страница собирается сервером (`app/monitoring/build.js`, как `build_page.py`) из `seed/ews`: шаблон `page_src.html`,
+расчёт признаков и баллов `features.js` (тот же код, что при обучении), балльная карта `data/model.json`, условный
+портфель `data/demo.json` (420 клиентов, 607 договоров). В шапке — ключевая ставка Банка России (коннектор `cbr`).
+Метрики модели (Gini 0,69 на проверочном периоде) получены на условных данных и подаются только с этой оговоркой.
+
+Сверка баллов страницы с Python (требование — без расхождений):
+
+```bash
+docker compose exec -w /app/seed/ews app node check_parity.js
+```
+
+Переобучение (вне контейнера, Python 3.10+). На Windows обязателен режим UTF-8 (`-X utf8`): иначе `gen_data.py`
+пишет `demo.json` в cp1251, названия событий не распознаются и модель получается другой.
+
+```bash
+cd seed/ews
+pip install optbinning lightgbm "pandas<3" "scikit-learn<1.8"
+python -X utf8 gen_data.py && node build_features.js data/demo.json data/snapshots.json
+python -X utf8 train.py 2024-03-31 && node check_parity.js
+```
+
+Проверено 2026-10-22 (Python 3.14, optbinning 1.0.0, scikit-learn 1.7.2, pandas 2.3.3, numpy 2.5.4): данные и модель
+воспроизводятся точно (отличается только поле `version`). С pandas 3 и scikit-learn 1.8+ `train.py` не работает.
+
+## Коннекторы (`/api/connectors/*`)
+
+`app/connectors/core.js`: единый вызов `GET /api/connectors/{id}/{метод}`, кэш ответов (`connector_cache`), журнал
+(`connector_log`, виден на «Источниках данных»). При недоступности внешнего API — последний ответ из кэша с пометкой
+`stale`, без кэша — ответ песочницы с пометкой `fallback`. Режим переключается переменной `CONNECTOR_<ID>_MODE=sandbox`.
+
+| Коннектор | Методы | Источник |
+|---|---|---|
+| `cbr` | `key-rate`, `curs?date=ГГГГ-ММ-ДД&codes=USD,EUR` | Банк России, DailyInfoWebServ (SOAP), без ключа |
+
 ## Учётные записи
 
 Вход по email и паролю. Роли: `admin`, `curator`, `sber2b`, `talk`, `team` (права — `PERMISSIONS` в `app/auth.js`).

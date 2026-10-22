@@ -10,9 +10,7 @@ tmp/
 !bench/pdf/**/*.pdf
 *.sqlite*
 *.db
-seed/ews/data/demo.json
 seed/ews/data/snapshots.json
-seed/ews/data/py_scores_test.csv
 seed/ews/*.html
 !seed/ews/page_src.html
 docs/

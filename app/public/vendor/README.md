@@ -6,6 +6,7 @@
 |---|---|---|
 | `jszip.min.js` | jszip 3.10.1 | MIT или GPLv3 (выбор MIT) |
 | `pdf.min.js`, `pdf.worker.min.js` | pdfjs-dist 3.11.174 | Apache-2.0 |
+| `xlsx.full.min.js` | SheetJS xlsx 0.20.3 (официальный дистрибутив cdn.sheetjs.com; в npm — только 0.18.5 с известными уязвимостями) | Apache-2.0 |
 
 pdf.js 3.11.174 подвержен GHSA-wgrm-67xf-hhpq (выполнение JS из вредоносного PDF).
 Обходное решение из бюллетеня применено: `getDocument({ isEvalSupported: false })` в странице калькулятора.

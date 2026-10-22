@@ -157,7 +157,7 @@ details.explain .body p{color:var(--ink)}
       <span class="eyebrow">Проект ТАЛК · мониторинг действующих договоров · прототип</span>
       <h1>Раннее предупреждение о просрочке</h1>
       <p class="muted small">Балльная карта оценивает, насколько вероятен выход клиента в просрочку 60+ дней или расторжение договора в ближайшие 12 месяцев, и показывает, какие факторы снижают балл.</p>
-      <div class="srcline"><span class="chip warn" id="srcChip">Демонстрационные данные</span><span class="muted small" id="srcMeta"></span></div>
+      <div class="srcline"><span class="chip warn" id="srcChip">Демонстрационные данные</span><span class="muted small" id="srcMeta"></span><span class="chip" id="keyRate" hidden></span></div>
     </div>
     <div class="seg" role="tablist" aria-label="Разделы">
       <button role="tab" data-tab="portfolio" aria-pressed="true">Портфель и зоны</button>
@@ -350,7 +350,7 @@ details.explain .body p{color:var(--ink)}
 </div>
 <div id="tip" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/vendor/xlsx.full.min.js"></script>
 <script>
 /*FEATURES_JS*/
 </script>
@@ -758,10 +758,12 @@ $("tplTbl").innerHTML = `<thead><tr><th>Лист</th><th>Столбец</th><th>
 async function saveFile(name, wb) {
   const st = $("dlStatus");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  let dl = null; try { dl = window.claude ? await window.claude.use("downloads") : null; } catch (e) {}
-  if (!dl) { st.textContent = "Скачивание недоступно в этом окне."; st.className = "status err"; return; }
-  try { await dl.save({ filename: name, data: new Uint8Array(buf) }); st.textContent = "Файл передан на сохранение."; st.className = "status"; }
-  catch (e) { st.textContent = e && e.code === "declined" ? "Сохранение отменено." : "Не удалось сохранить файл: " + (e && e.message || e); st.className = "status" + (e && e.code === "declined" ? "" : " err"); }
+  try {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    st.textContent = "Файл сформирован."; st.className = "status";
+  } catch (e) { st.textContent = "Не удалось сформировать файл: " + (e && e.message || e); st.className = "status err"; }
 }
 function buildWorkbook(data) {
   const wb = XLSX.utils.book_new();
@@ -867,4 +869,13 @@ function useData(data, label, fname) {
     showTab(["portfolio", "card", "model", "upload"].includes(h) ? h : t && ["portfolio", "card", "model", "upload"].includes(t) ? t : "portfolio");
   } catch (e) { $("bootStatus").textContent = "Не удалось загрузить данные: " + (e && e.message || e); $("bootStatus").className = "status err"; }
 })();
+// Ключевая ставка Банка России — коннектор портала /api/connectors/cbr/key-rate (кэш, при сбое сети — последний ответ)
+fetch("/api/connectors/cbr/key-rate").then((r) => (r.ok ? r.json() : null)).then((j) => {
+  if (!j || !j.data) return;
+  const k = j.data, el = $("keyRate");
+  const src = { live: "получено с cbr.ru", cache: "из кэша", sandbox: "песочница, условные значения" }[j.source] + (j.stale ? ", данные устарели" : "");
+  el.textContent = `Ключевая ставка Банка России ${k.rate.toFixed(2).replace(".", ",")} % с ${fdate(k.since)}`;
+  el.title = `На ${fdate(k.date)} · ${src} · обновлено ${new Date(j.fetched_at).toLocaleString("ru-RU")}`;
+  el.hidden = false;
+}).catch(() => {});
 </script>

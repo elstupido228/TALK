@@ -91,17 +91,6 @@ ${cards}
   });
 }
 
-function modulePage(user, { title, active = "lifecycle", step }) {
-  return layout({
-    title,
-    user,
-    active,
-    body: `<p class="crumbs"><a href="/">Жизненный цикл</a> / ${esc(title)}</p>
-<h1>${esc(title)}</h1>
-<p class="notice">Модуль подключается к порталу на шаге ${step} работ.</p>`,
-  });
-}
-
 function sourcesPage(user, log) {
   const MODE = { live: ["Живой", "ok"], sandbox: ["Песочница", "target"] };
   const rows = CONNECTORS.map((c) => {
@@ -185,4 +174,4 @@ function errorPage(user, status, message) {
   return layout({ title: String(status), user, body: `<h1>${status}</h1><p>${esc(message)}</p><p><a href="/">На главную</a></p>` });
 }
 
-module.exports = { loginPage, lifecyclePage, modulePage, sourcesPage, aboutPage, usersPage, errorPage, PROJECT };
+module.exports = { loginPage, lifecyclePage, sourcesPage, aboutPage, usersPage, errorPage, PROJECT };
