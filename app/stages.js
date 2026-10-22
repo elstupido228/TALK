@@ -4,7 +4,8 @@ module.exports = [
   {
     id: "application",
     title: "Заявка",
-    status: "backlog",
+    status: "working",
+    href: "/deals",
     summary: "Приём заявки: клиент (ИНН), предмет лизинга, сумма, срок, канал продаж.",
     sources: ["DaData (карточка организации)", "CRM"],
   },

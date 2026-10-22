@@ -10,6 +10,8 @@ const { calcPage } = require("./calc/build");
 const { createGateway } = require("./extract/gateway");
 const { monitoringPage } = require("./monitoring/build");
 const { portfolioSummary } = require("./monitoring/summary");
+const { createDeals } = require("./deals");
+const W = require("./views-work");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
 const { toDocs, annualClasses } = require("./check");
@@ -61,9 +63,30 @@ function createApp(db, opts = {}) {
       return { inn, name: party?.name || fin?.org?.name || null, cls: y ? y.cls : null, year: y?.year || null };
     });
   }
+  const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary() });
   async function homeModel(user) {
     const keyRate = await connectors.call("cbr", "key-rate", {}, { userId: user.id }).catch(() => null);
-    return { summary: portfolioSummary(), keyRate, recent: recentChecks(user), demo: demoInns };
+    return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit") };
+  }
+
+  // Запуск сделки: заявка; если указан ИНН — сразу проверка клиента (DaData, ГИР БО) и предварительный класс
+  async function launchDeal(user, f) {
+    const inn = String(f.inn || "").replace(/\D/g, "");
+    if (inn && !/^(\d{10}|\d{12})$/.test(inn)) throw Object.assign(new Error("ИНН — 10 или 12 цифр."), { status: 400 });
+    const amount = f.amount ? Number(String(f.amount).replace(/\s/g, "").replace(",", ".")) : null;
+    if (amount !== null && !(amount > 0)) throw Object.assign(new Error("Сумма — положительное число, млн руб."), { status: 400 });
+    const asset = W.ASSETS.includes(f.asset) ? f.asset : null;
+    let title = inn ? `ИНН ${inn}` : `Новая заявка${asset ? ` · ${asset}` : ""}`, cls = null, note = inn ? null : "ИНН ещё не указан";
+    if (inn) {
+      const call = (id, op) => connectors.call(id, op, { inn }, { userId: user.id }).catch(() => null);
+      const [party, fin] = await Promise.all([call("dadata", "party"), call("fin", "reports")]);
+      if (party?.data?.found) title = party.data.name;
+      const y = fin?.data?.reports?.length ? annualClasses(fin.data)[0] : null;
+      if (y) { cls = y.cls; note = y.cls ? `Предварительный класс по годовой отчётности за ${y.year} (ГИР БО)` : `Отчётность за ${y.year}: нет итоговых строк, класс не рассчитан`; }
+      else note = fin ? "Годовая отчётность в ГИР БО не найдена или не раскрыта" : "Отчётность не получена: источник недоступен";
+      if (party?.data && party.data.status && party.data.status !== "ACTIVE") note = `Статус: ${party.data.status_label}. ${note}`;
+    }
+    return deals.create({ title, inn: inn || null, asset, amount_mln: amount, cls, note, userId: user.id });
   }
 
   // «Проверка по ИНН»: DaData + отчётность + песочницы; классы — по формулам core.js
@@ -81,7 +104,8 @@ function createApp(db, opts = {}) {
 
   // Страницы для вошедших: [путь, право, рендер]
   const PAGES = {
-    "/": ["pages.view", async (u) => V.homePage(u, await homeModel(u))],
+    "/": ["pages.view", async (u) => W.dashboardPage(u, await homeModel(u))],
+    "/deals": ["pages.view", (u) => W.dealsBoard(u, { deals: deals.list(), canEdit: can(u, "deals.edit") })],
     "/process": ["pages.view", (u) => V.processPage(u)],
     "/calc": ["calc.use", (u) => calcPage(u)],
     "/monitoring": ["pages.view", (u) => monitoringPage(u)],
@@ -128,6 +152,15 @@ function createApp(db, opts = {}) {
         if (!can(user, "calc.extract")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });
         return gateway.handle(req, res, user);
       }
+      const dm = p.match(/^\/api\/deals\/(\d+)\/stage$/);
+      if (dm && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });
+        let body = {};
+        try { body = JSON.parse((await H.readBody(req, 4096)).toString("utf8") || "{}"); } catch { return H.sendJson(res, 400, { error: { code: "bad_request", message: "Нужен JSON." } }); }
+        if (!deals.STAGE_IDS.includes(body.stage)) return H.sendJson(res, 400, { error: { code: "bad_request", message: "Неизвестная стадия." } });
+        const d = deals.move(+dm[1], body.stage, user.id);
+        return d ? H.sendJson(res, 200, { deal: d }) : H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
+      }
       if (p === "/api/connectors" && req.method === "GET") return H.sendJson(res, 200, { connectors: connectors.describe() });
       const m = p.match(/^\/api\/connectors\/([a-z0-9_-]+)\/([a-z0-9_-]+)$/);
       if (m && req.method === "GET" && connectors.has(m[1])) {
@@ -139,6 +172,34 @@ function createApp(db, opts = {}) {
         }
       }
       return H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такого метода." } });
+    }
+
+    // Сделки: создание (форма с дашборда), смена стадии (форма карточки), карточка
+    if (p === "/deals" && req.method === "POST") {
+      if (!user) return H.redirect(res, "/login");
+      if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Создавать сделки могут администратор, команда проекта и ТАЛК."));
+      try {
+        const id = await launchDeal(user, await H.readForm(req));
+        return H.redirect(res, `/deals/${id}`);
+      } catch (e) {
+        if (!e.status) throw e;
+        return H.send(res, e.status, V.errorPage(user, e.status, e.message));
+      }
+    }
+    const dp = p.match(/^\/deals\/(\d+)(\/stage)?$/);
+    if (dp) {
+      if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
+      const deal = deals.get(+dp[1]);
+      if (!deal) return H.send(res, 404, V.errorPage(user, 404, "Сделка не найдена."));
+      if (dp[2] && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const f = await H.readForm(req);
+        const stage = f.stage === "__any" ? f.stage_any : f.stage;
+        if (!deals.STAGE_IDS.includes(stage)) return H.send(res, 400, V.errorPage(user, 400, "Неизвестная стадия."));
+        deals.move(deal.id, stage, user.id);
+        return H.redirect(res, `/deals/${deal.id}`);
+      }
+      if (!dp[2] && req.method === "GET") return H.send(res, 200, W.dealPage(user, { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit") }));
     }
 
     if (p === "/logout" && req.method === "POST") {

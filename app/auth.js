@@ -15,6 +15,7 @@ const ROLE_TITLES = {
 const PERMISSIONS = {
   "pages.view": ROLES,
   "calc.use": ROLES,
+  "deals.edit": ["admin", "team", "talk"], // создание сделок и смена стадий; кураторы и Sber2B — просмотр
   "calc.extract": ROLES, // расход ограничен дневным лимитом шлюза
   "connectors.log": ["admin", "sber2b", "team"],
   "users.view": ["admin"],

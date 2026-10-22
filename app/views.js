@@ -43,45 +43,6 @@ const innForm = (inn = "", big = false) => `<form class="inn-form${big ? " big" 
 const clsBadge = (c) => (c === null || c === undefined ? `<span class="muted small">нет данных</span>` : `<span class="cls cls-${c}" title="класс ${c}">${c}</span>`);
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
 
-// Главная: рабочий стол. m: {summary, keyRate, recent:[{inn, name, cls, year}], demo:[inn]}
-function homePage(user, m) {
-  const s = m.summary, z = s.zones;
-  const pct = (n) => Math.round((100 * n) / s.total);
-  const recent = m.recent.length
-    ? `<ul class="list">${m.recent.map((r) => `<li><a href="/check?inn=${esc(r.inn)}"><span>${esc(r.name || r.inn)}<br><span class="muted small">ИНН ${esc(r.inn)}${r.year ? ` · отчётность за ${r.year}` : ""}</span></span>${clsBadge(r.cls)}</a></li>`).join("")}</ul>`
-    : `<p class="muted small">Здесь появятся клиенты, которых вы проверили по ИНН. Для пробы:</p><p>${(m.demo.length ? m.demo : ["0000000001"]).map((i) => `<a href="/check?inn=${esc(i)}">${esc(i)}${i === "0000000001" ? " (условная компания)" : ""}</a>`).join(" · ")}</p>`;
-  const kr = m.keyRate?.data;
-  return layout({
-    title: "Главная",
-    user,
-    active: "home",
-    body: `<h1>С чего начнём?</h1>
-${innForm("", true)}
-<div class="tasks">
-  <a class="task" href="/check"><b>Новый клиент</b><span>Карточка организации, годовая отчётность из ГИР БО, предварительный класс</span><em>Проверить по ИНН →</em></a>
-  <a class="task" href="/calc#upload"><b>Пакет отчётности</b><span>PDF балансов и отчётов за пять дат → класс и заключение по п. 14.1</span><em>Загрузить PDF →</em></a>
-  <a class="task" href="/monitoring"><b>Портфель</b><span>${z.red} ${plural(z.red, "клиент", "клиента", "клиентов")} в красной зоне из ${s.total} с действующими договорами</span><em>Открыть мониторинг →</em></a>
-</div>
-<div class="dash">
-  <section class="panel"><h2>Ваши последние проверки</h2>${recent}</section>
-  <section class="panel">
-    <h2>Портфель на ${fdate(s.today)}</h2>
-    <div class="zbar" role="img" aria-label="Зоны: красная ${z.red}, жёлтая ${z.yellow}, зелёная ${z.green}, просрочка ${z.grey}">
-      <i class="z-red" style="width:${pct(z.red)}%"></i><i class="z-yellow" style="width:${pct(z.yellow)}%"></i><i class="z-green" style="width:${pct(z.green)}%"></i><i class="z-grey" style="width:${pct(z.grey)}%"></i>
-    </div>
-    <p class="zleg"><span><i class="z-red"></i>красная ${z.red}</span><span><i class="z-yellow"></i>жёлтая ${z.yellow}</span><span><i class="z-green"></i>зелёная ${z.green}</span><span><i class="z-grey"></i>просрочка 30+ ${z.grey}</span></p>
-    <h3>Требуют внимания</h3>
-    <ul class="list">${s.worst.map((w) => `<li><a href="/monitoring#card=${encodeURIComponent(w.client)}"><span>${esc(w.client)}<br><span class="muted small">${esc(w.sector)}</span></span><span class="score" title="балл">${w.score}</span></a></li>`).join("")}</ul>
-    <p class="muted small">Условный портфель: данные синтетические.</p>
-  </section>
-  <section class="panel">
-    <h2>Ключевая ставка ЦБ</h2>
-    ${kr ? `<p class="big">${kr.rate.toFixed(2).replace(".", ",")} %</p><p class="muted small">действует с ${fdate(kr.since)}${kr.sandbox_note ? " · условное значение" : ""}</p>` : `<p class="muted">Нет данных</p>`}
-  </section>
-</div>`,
-  });
-}
-
 function loginPage({ error = "", email = "", next = "/" } = {}) {
   return layout({
     title: "Вход",
@@ -115,7 +76,7 @@ function processPage(user) {
     user,
     active: "process",
     body: `<h1>Схема процесса: жизненный цикл сделки</h1>
-<p class="lead">Семь стадий от заявки до работы с просрочкой. В прототипе работают две — <b>оценка клиента</b> и <b>мониторинг</b>,
+<p class="lead">Семь стадий от заявки до работы с просрочкой. В прототипе работают три — <b>заявка</b> (сделки и канбан), <b>оценка клиента</b> и <b>мониторинг</b>,
 их карточки ведут в модули. Остальные стадии — целевая схема и бэклог.</p>
 <ol class="ribbon">
 ${cards}
@@ -277,4 +238,4 @@ function errorPage(user, status, message) {
   return layout({ title: String(status), user, body: `<h1>${status}</h1><p>${esc(message)}</p><p><a href="/">На главную</a></p>` });
 }
 
-module.exports = { loginPage, homePage, processPage, sourcesPage, checkPage, aboutPage, usersPage, errorPage, PROJECT };
+module.exports = { layout, nf, fdate, clsBadge, innForm, loginPage, processPage, sourcesPage, checkPage, aboutPage, usersPage, errorPage, PROJECT };

@@ -52,7 +52,7 @@ test("вход под каждой ролью и доступ к страниц�
     assert.match(r.headers.get("set-cookie"), /HttpOnly; SameSite=Lax/);
     const home = await req("/", { cookie });
     assert.strictEqual(home.status, 200, role);
-    assert.match(await home.text(), /С чего начнём\?/);
+    assert.match(await home.text(), /<h1>Дашборд<\/h1>/);
     for (const p of ["/process", "/sources", "/about", "/calc", "/monitoring"]) assert.strictEqual((await req(p, { cookie })).status, 200, `${role} ${p}`);
     const users = await req("/admin/users", { cookie });
     assert.strictEqual(users.status, role === "admin" ? 200 : 403, `${role} /admin/users`);
@@ -61,23 +61,26 @@ test("вход под каждой ролью и доступ к страниц�
   }
 });
 
-test("главная — рабочий стол: ИНН, три задачи, сводка портфеля, меню", async () => {
+test("дашборд: показатели, сделки по стадиям, портфель; запуск сделки — только с правом", async () => {
   const cookie = sid(await login("curator@example.test", PASS, "10.0.0.3"));
   const html = await (await req("/", { cookie })).text();
-  assert.match(html, /<form class="inn-form big" method="get" action="\/check">/);
-  for (const href of ["/check", "/calc#upload", "/monitoring"]) assert.ok(html.includes(`class="task" href="${href}"`), href);
-  assert.match(html, /34 клиента в красной зоне из 176/);
+  assert.match(html, /Сделок в работе/);
+  assert.strictEqual((html.match(/<li><a href="\/deals#/g) || []).length, 7, "воронка по семи стадиям");
+  assert.match(html, /34 клиентов портфеля в красной зоне/);
+  assert.ok(!html.includes('action="/deals"'), "куратору форма запуска сделки не показывается");
+  const team = sid(await login("team@example.test", PASS, "10.0.0.4"));
+  assert.match(await (await req("/", { cookie: team })).text(), /<form class="launch" method="post" action="\/deals">/);
   assert.match(html, /href="\/monitoring#card=/);
   assert.match(html, /<a href="\/" aria-current="page">/);
   for (const t of ["Схема процесса", "Источники данных", "О проекте"]) assert.ok(html.includes(t), t);
   assert.ok(!html.includes(">Пользователи<"), "куратору пункт «Пользователи» не показывается");
 });
 
-test("схема процесса: семь стадий, рабочие — оценка клиента и мониторинг", async () => {
+test("схема процесса: семь стадий, рабочие — заявка, оценка клиента и мониторинг", async () => {
   const cookie = sid(await login("curator@example.test", PASS, "10.0.0.2"));
   const html = await (await req("/process", { cookie })).text();
   assert.strictEqual((html.match(/<li class="stage /g) || []).length, 7);
-  assert.deepStrictEqual([...html.matchAll(/<li class="stage working" id="(\w+)"/g)].map((m) => m[1]), ["assessment", "monitoring"]);
+  assert.deepStrictEqual([...html.matchAll(/<li class="stage working" id="(\w+)"/g)].map((m) => m[1]), ["application", "assessment", "monitoring"]);
 });
 
 test(`неверный пароль: блокировка после ${LOCK.max_per_email} попыток, даже с верным паролем`, async () => {
