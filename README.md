@@ -90,7 +90,7 @@ docker compose exec app node -e "const d=require('./app/db').open();console.tabl
 docker compose exec app node scripts/bench-extract.js --models gpt-5.4-mini,gpt-5.5,gpt-5.6-luna
 ```
 
-Скрипт сначала проверяет `/v1/models`, недоступные модели пропускает. Один прогон — около 30 вызовов на модель
+Скрипт сначала проверяет каждую модель запросом `GET /v1/models/{id}` (404 — модель пропускается). Один прогон — около 30 вызовов на модель
 (`--max-calls` — предохранитель, по умолчанию 120). Результаты в JSON — в `/data/bench-results` тома приложения.
 
 ## Учётные записи

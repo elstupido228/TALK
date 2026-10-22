@@ -60,12 +60,14 @@ async function main() {
   const gw = createGateway({ db });
   if (!gw.config.key) throw new Error("не задан OPENAI_API_KEY");
 
-  // Доступность моделей: GET /v1/models
-  const r = await fetch(`${gw.config.base}/models`, { headers: { authorization: `Bearer ${gw.config.key}` } });
-  const ids = r.ok ? new Set((await r.json()).data.map((m) => m.id)) : null;
+  // Доступность моделей: GET /v1/models/{id} по каждой (общий список /v1/models у OpenAI бывает недоступен — 500/504)
   const models = o.models || [gw.config.model];
-  console.log(`/v1/models: ${r.status}${ids ? `, моделей ${ids.size}` : ""}`);
-  for (const m of models) console.log(`  ${m}: ${ids ? (ids.has(m) ? "доступна" : "НЕТ в списке") : "не проверено"}`);
+  const avail = new Map();
+  for (const m of models) {
+    const r = await fetch(`${gw.config.base}/models/${encodeURIComponent(m)}`, { headers: { authorization: `Bearer ${gw.config.key}` } });
+    avail.set(m, r.status);
+    console.log(`GET /v1/models/${m}: ${r.status} — ${r.ok ? "доступна" : r.status === 404 ? "НЕТ" : "не проверено, замер выполняется"}`);
+  }
 
   const pkgs = demo.packages.filter((p) => !o.packages || o.packages.includes(p.id));
   const usedBefore = db.prepare("SELECT count(*) n FROM openai_usage").get().n;
@@ -73,7 +75,7 @@ async function main() {
   fs.mkdirSync(o.out, { recursive: true });
 
   for (const model of models) {
-    if (ids && !ids.has(model)) { summary.push({ model, skipped: "нет в /v1/models" }); continue; }
+    if (avail.get(model) === 404) { summary.push({ model, skipped: "модель не найдена (404)" }); continue; }
     const res = { model, at: new Date().toISOString(), packages: [] };
     for (const pkg of pkgs) {
       const dir = path.join(ROOT, "bench", "pdf", pkg.id);

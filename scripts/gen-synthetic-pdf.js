@@ -200,6 +200,7 @@ function footer(doc) {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
+    doc.page.margins.bottom = 0; // сноска ниже поля страницы не должна порождать новую страницу
     doc.font("R").fontSize(6.5).fillColor("#777")
       .text("Условный документ для тестирования распознавания. Организация и значения вымышлены, не является отчётностью реальной организации.", M, 812, { width: W, align: "center", lineBreak: false });
     doc.fillColor("black");
