@@ -145,3 +145,10 @@ test("пустые строки ГИР БО (null) — нули, пропуск 
   const noTotal = annualClasses({ reports: [{ ...f.reports[0], pnl: { current: { ...pnl, "2110": null }, previous: pnl } }] })[0];
   assert.deepStrictEqual(noTotal.missing, ["2110"]);
 });
+
+test("без итоговых строк (НКО: нет выручки и раздела «Капитал») класс не рассчитывается", () => {
+  const bal = { "1200": 500, "1230": 1, "1240": 0, "1250": 2, "1300": null, "1370": null, "1500": 200, "1530": 0, "1540": 0, "1550": 0, "1600": 900, "1700": 900 };
+  const f = { reports: [{ year: 2025, variant: "standard", balance: { current: bal, previous: bal, beforePrevious: bal }, pnl: { current: { "2110": null, "2200": null, "2400": 5 }, previous: {} } }] };
+  const [y] = annualClasses(f);
+  assert.deepStrictEqual([y.cls, y.S, y.missing.sort()], [null, null, ["1300", "2110", "2200"]]);
+});

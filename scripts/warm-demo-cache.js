@@ -21,7 +21,7 @@ if (!inns.length) {
     try {
       const p = await c.call("dadata", "party", { inn });
       const f = await c.call("fin", "reports", { inn });
-      const cls = annualClasses(f.data).map((y) => `${y.year}: класс ${y.cls} (S ${y.S.toFixed(2)})${y.missing.length ? `, нет строк ${y.missing.join(",")}` : ""}`);
+      const cls = annualClasses(f.data).map((y) => `${y.year}: ${y.cls === null ? "класс не рассчитан — нет итоговых строк" : `класс ${y.cls} (S ${y.S.toFixed(2)})`}${y.missing.length ? `, нет строк ${y.missing.join(",")}` : ""}`);
       const ok = p.source !== "sandbox" && f.source !== "sandbox" && p.data.found !== false && f.data.found !== false;
       if (!ok) bad++;
       console.log(`${inn} · ${p.data.name || "не найдена"} · ${p.data.status_label || ""} · DaData: ${p.source} · отчётность: ${f.source}/${f.data.provider}, лет ${f.data.reports?.length ?? 0}${ok ? "" : " · ВНИМАНИЕ: нет живого ответа"}`);

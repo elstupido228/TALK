@@ -160,8 +160,8 @@ ${srcLine(m.party)}</div>`;
 <p class="muted small">Источник: ${f.provider === "girbo" ? "ГИР БО (bo.nalog.gov.ru)" : f.provider === "parser-api" ? "parser-api.com (данные ГИР БО)" : "песочница"} · тыс. руб. · отрасль не указана — пороги К4 торговли и лизинга</p>
 <div class="scroll"><table><thead><tr><th>Показатель</th>${ys.map((y) => `<th class="r">31.12.${y.year}</th>`).join("")}</tr></thead><tbody>
 ${row("Выручка (2110)", "revenue")}${row("Чистая прибыль (2400)", "net")}${row("Капитал (1300)", "equity")}${row("Баланс (1600)", "assets")}
-<tr><td>Сумма баллов S</td>${ys.map((y) => `<td class="r">${y.S.toFixed(2).replace(".", ",")}</td>`).join("")}</tr>
-<tr><td><b>Класс кредитоспособности</b></td>${ys.map((y) => `<td class="r"><span class="cls cls-${y.cls}">${y.cls}</span>${y.missing.length ? `<br><span class="muted small">нет строк: ${y.missing.join(", ")}</span>` : ""}${y.variant === "simplified" ? `<br><span class="muted small">упрощённая форма</span>` : ""}</td>`).join("")}</tr>
+<tr><td>Сумма баллов S</td>${ys.map((y) => `<td class="r">${y.S === null ? "—" : y.S.toFixed(2).replace(".", ",")}</td>`).join("")}</tr>
+<tr><td><b>Класс кредитоспособности</b></td>${ys.map((y) => `<td class="r">${y.cls === null ? `<span class="muted small">недостаточно данных</span>` : `<span class="cls cls-${y.cls}">${y.cls}</span>`}${y.missing.length ? `<br><span class="muted small">нет строк: ${y.missing.join(", ")}</span>` : ""}${y.variant === "simplified" ? `<br><span class="muted small">упрощённая форма</span>` : ""}</td>`).join("")}</tr>
 </tbody></table></div>
 ${srcLine(m.fin)}
 <p class="notice">Открытые источники содержат только годовую отчётность. Заключение по п. 14.1.6 требует четырёх квартальных дат — их запрашивают у клиента. Калькулятор покажет, каких данных не хватает.</p>

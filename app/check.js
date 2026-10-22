@@ -38,7 +38,9 @@ function annualClasses(fin, { lease = true } = {}) {
       V[row] = v ?? 0;
     }
     const res = C.calcColumn(V, {}, lease);
-    return { year: r.year, variant: r.variant, cls: res.cls, S: res.S, K: res.K, missing,
+    // без итоговых строк (например, у НКО нет выручки и раздела «Капитал») расчёт по нулям дал бы класс из пустоты
+    const ok = missing.length === 0;
+    return { year: r.year, variant: r.variant, cls: ok ? res.cls : null, S: ok ? res.S : null, K: ok ? res.K : null, missing,
       revenue: r.pnl.current["2110"], net: r.pnl.current["2400"], assets: r.balance.current["1600"], equity: r.balance.current["1300"] };
   });
 }
