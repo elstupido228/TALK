@@ -1,0 +1,624 @@
+<title>Класс кредитоспособности ТАЛК</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Макет: одна колонка рабочего листа аналитика — сводка сверху, далее данные, проверки, расчёт */
+:root{
+  --bg:#F4F6F4; --surface:#FFFFFF; --sunken:#EDF0EE; --ink:#15201B; --muted:#5B6862; --line:#D8DED9;
+  --accent:#1B6446; --accent-soft:#E2EFE8; --accent-ink:#FFFFFF;
+  --good:#1E7442; --good-soft:#E3F2E8; --warn:#8F5A06; --warn-soft:#FBF0DA; --bad:#A42A22; --bad-soft:#F9E3E0;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101614; --surface:#171F1C; --sunken:#1D2723; --ink:#E4EBE7; --muted:#9AA8A1; --line:#2C3833;
+  --accent:#5DBB8E; --accent-soft:#1D3329; --accent-ink:#0C1511;
+  --good:#6CC894; --good-soft:#18301F; --warn:#E3AE55; --warn-soft:#352812; --bad:#F08A80; --bad-soft:#3A1C19; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101614; --surface:#171F1C; --sunken:#1D2723; --ink:#E4EBE7; --muted:#9AA8A1; --line:#2C3833;
+  --accent:#5DBB8E; --accent-soft:#1D3329; --accent-ink:#0C1511;
+  --good:#6CC894; --good-soft:#18301F; --warn:#E3AE55; --warn-soft:#352812; --bad:#F08A80; --bad-soft:#3A1C19; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body)}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:24px 64px;display:flex;flex-direction:column;gap:20px}
+h1{font-size:24px;font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:17px;font-weight:600;margin:0;text-wrap:balance}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:flex-end;border-bottom:1px solid var(--line);padding-bottom:16px}
+header.top .meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;color:var(--ink);font:500 13.5px var(--f-body);padding:8px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:baseline}
+.btn{font:500 14px var(--f-body);border-radius:var(--r);padding:9px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,.seg button:focus-visible,input:focus-visible,select:focus-visible,td.cell:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* Сводка */
+.verdict{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2fr);gap:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:var(--surface)}
+.verdict .v-main{padding:20px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line)}
+.verdict .v-main.ok{background:var(--good-soft)} .verdict .v-main.no{background:var(--bad-soft)} .verdict .v-main.pend{background:var(--warn-soft)}
+.v-title{font-size:21px;font-weight:600}
+.ok .v-title{color:var(--good)} .no .v-title{color:var(--bad)} .pend .v-title{color:var(--warn)}
+.v-dates{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.v-date{padding:18px 16px;display:flex;flex-direction:column;gap:6px;border-right:1px solid var(--line)}
+.v-date:last-child{border-right:0}
+.cls{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;font:600 20px var(--f-num)}
+.cls-1{background:var(--good-soft);color:var(--good)} .cls-2{background:var(--warn-soft);color:var(--warn)} .cls-3{background:var(--bad-soft);color:var(--bad)}
+/* Таблицы */
+.tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+thead th{background:var(--sunken);font-weight:500;color:var(--muted);font-size:12.5px;white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+td.code{font-family:var(--f-num);color:var(--muted);white-space:nowrap}
+tr.group td{background:var(--sunken);font-weight:500;font-size:12.5px;color:var(--muted)}
+td.cell{padding:3px 6px;cursor:pointer;position:relative}
+td.cell input{width:100%;min-width:92px;border:1px solid transparent;background:transparent;color:var(--ink);font:13.5px var(--f-num);text-align:right;padding:4px 6px;border-radius:4px}
+td.cell input:hover{border-color:var(--line)}
+td.cell.conflict input{background:var(--warn-soft);border-color:var(--warn)}
+td.cell.missing input{background:var(--bad-soft);border-color:var(--bad)}
+td.cell.edited input{background:var(--accent-soft);border-color:var(--accent)}
+td.cell.mismatch::after{content:"";position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--bad)}
+td.cell.sel{box-shadow:inset 0 0 0 2px var(--accent)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px;border:1px solid}
+.two{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;align-items:start}
+.detail{border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--sunken);min-width:0}
+.detail img{border:1px solid var(--line);border-radius:4px;background:#fff}
+.src{display:flex;justify-content:space-between;gap:8px;font-size:13px;border-top:1px solid var(--line);padding-top:8px}
+.src .v{font-family:var(--f-num);white-space:nowrap}
+/* Документы */
+.docs{display:flex;flex-direction:column}
+.doc{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.doc:last-child{border-bottom:0}
+.doc .name{font-weight:500;overflow-wrap:anywhere}
+.chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--sunken);color:var(--muted);white-space:nowrap}
+.chip.good{background:var(--good-soft);color:var(--good)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)} .chip.acc{background:var(--accent-soft);color:var(--accent)}
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:22px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;background:var(--sunken)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.checks{display:flex;flex-direction:column}
+.check{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line)}
+.check:last-child{border-bottom:0}
+.mark{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:600 13px var(--f-num)}
+.mark.ok{background:var(--good-soft);color:var(--good)} .mark.no{background:var(--bad-soft);color:var(--bad)} .mark.na{background:var(--warn-soft);color:var(--warn)}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
+select,input.t{font:14px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink)}
+input.t.num{font-family:var(--f-num)}
+.notes{display:flex;flex-direction:column;gap:10px;padding-left:18px;margin:0}
+.notes li{padding-left:2px}
+.status{font-size:13.5px;color:var(--muted);min-height:1.5em}
+.status.err{color:var(--bad)}
+.bar{height:6px;background:var(--sunken);border-radius:99px;overflow:hidden}
+.bar>span{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+#dataTbl td:first-child{min-width:190px}
+@media (max-width:1100px){.two{grid-template-columns:1fr}}
+@media (max-width:860px){
+  .verdict{grid-template-columns:1fr}.verdict .v-main{border-right:0;border-bottom:1px solid var(--line)}
+  .v-dates{grid-template-columns:repeat(2,minmax(0,1fr))}.v-date:nth-child(2){border-right:0}.v-date:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .two{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="meta">
+      <span class="eyebrow">Проект ТАЛК · TALK-5, TALK-6 · прототип</span>
+      <h1>Расчёт класса кредитоспособности лизингополучателя</h1>
+      <p class="muted small">Пакет «стандарт» (РСБУ, формы 0710001 и 0710002). Методика — Приложение 5 к Регламенту 285, расчёт по формулам файла «Пробивка».</p>
+    </div>
+    <div class="seg" role="group" aria-label="Режим">
+      <button id="modeDemo" aria-pressed="true">Пример: условный пакет</button>
+      <button id="modeLive" aria-pressed="false">Новый пакет</button>
+    </div>
+  </header>
+
+  <section class="verdict" id="verdict" aria-live="polite"></section>
+
+  <section class="panel" id="alertsPanel">
+    <div class="panel-head"><h2>Предупреждения по пакету</h2><span class="muted small" id="alMeta"></span></div>
+    <div class="legend"><span><i style="background:var(--bad-soft);border-color:var(--bad)"></i>Требует реакции</span><span><i style="background:var(--warn-soft);border-color:var(--warn)"></i>К сведению</span><span><i style="background:var(--good-soft);border-color:var(--good)"></i>Подтверждено</span></div>
+    <div class="checks" id="alerts"></div>
+    <p class="muted small">На этапе прототипа предупреждения не останавливают расчёт.</p>
+  </section>
+
+  <section class="panel" id="docsPanel">
+    <div class="panel-head"><h2>Документы пакета</h2><span class="muted small" id="docsMeta"></span></div>
+    <div id="liveBox" hidden>
+      <div class="drop" id="drop">
+        <strong>Перетащите PDF бухгалтерской отчётности сюда</strong>
+        <span class="muted small">Балансы и отчёты о финансовых результатах за пять отчётных дат. Скан или электронная форма.</span>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <label class="btn ghost" for="fileIn" style="cursor:pointer">Выбрать файлы</label>
+          <input type="file" id="fileIn" accept="application/pdf" multiple hidden>
+          <button class="btn" id="runBtn" disabled>Извлечь данные</button>
+        </div>
+      </div>
+      <div class="bar" style="margin-top:12px"><span id="prog"></span></div>
+      <p class="status" id="status"></p>
+    </div>
+    <div class="docs" id="docs"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Показатели отчётности по кодам строк</h2><span class="muted small">тыс. руб.</span></div>
+    <div class="legend">
+      <span><i style="background:var(--warn-soft);border-color:var(--warn)"></i>Значения в документах расходятся</span>
+      <span><i style="background:var(--bad-soft);border-color:var(--bad)"></i>Не найдено</span>
+      <span><i style="background:var(--accent-soft);border-color:var(--accent)"></i>Исправлено вручную</span>
+      <span><i style="background:var(--bad);border-color:var(--bad);border-radius:50%;width:8px;height:8px"></i>Отличается от ручной «Пробивки»</span>
+    </div>
+    <div class="two">
+      <div class="tscroll"><table id="dataTbl"></table></div>
+      <aside class="detail" id="detail"><span class="muted small">Выберите ячейку, чтобы увидеть, из каких документов взято значение.</span></aside>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Контрольные проверки извлечённых данных</h2><span class="muted small" id="chkMeta"></span></div>
+    <div class="checks" id="checks"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Сверка с ручной «Пробивкой»</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="btn ghost" for="refIn" style="cursor:pointer;font-size:13px;padding:6px 12px">Загрузить заполненную «Пробивку»</label>
+        <input type="file" id="refIn" accept=".xlsx" hidden>
+      </div>
+    </div>
+    <div id="refBox"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Дополнительные расшифровки и параметры</h2><span class="muted small">В отчётности отсутствуют. Отрасль и сезонность в целевой схеме указывает сотрудник клиента при загрузке</span></div>
+    <div class="form-grid">
+      <label class="f" for="nameIn">Наименование участника сделки (D4)<input class="t" id="nameIn"></label>
+      <label class="f" for="innIn">ИНН лизингополучателя из заявки<input class="t num" id="innIn" inputmode="numeric"></label>
+      <label class="f" for="indSel">Категория отрасли (D5, влияет на пороги К4)
+        <select id="indSel">
+          <option value="blank">Не указана (как в текущем файле: пороги торговли и лизинга)</option>
+          <option value="lease">Торговля или лизинг</option>
+          <option value="other">Прочие отрасли</option>
+        </select></label>
+      <label class="f" for="seasSel">Сезонность деятельности (п. 14.1.11)
+        <select id="seasSel"><option value="">Не указана</option><option value="0">Не подвержена сезонным колебаниям</option><option value="1">Сезонная или цикличная</option></select></label>
+      <label class="f" for="t12In">Нераспределённая прибыль, стр. 1370, предпоследняя дата (T12)<input class="t num" id="t12In" inputmode="numeric"></label>
+      <label class="f" for="u12In">Нераспределённая прибыль, стр. 1370, последняя дата (U12)<input class="t num" id="u12In" inputmode="numeric"></label>
+    </div>
+    <div class="tscroll"><table id="manTbl"></table></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Расчёт класса кредитоспособности</h2><span class="muted small">Строки 45–53 листа «Класс кредитоспособности»</span></div>
+    <div class="tscroll"><table id="calcTbl"></table></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Условия п. 14.1 Регламента</h2>
+      <button class="btn" id="dlBtn">Скачать заполненную «Пробивку»</button></div>
+    <div class="checks" id="rules"></div>
+    <p class="status" id="dlStatus"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Замечания к шаблону расчёта</h2>
+    <ol class="notes small">
+      <li>Строка 28 «Резервы предстоящих расходов» имеет код 1550 (прочие краткосрочные обязательства). По методике в знаменателе К1–К3 вычитаются стр. 1530 и 1540 (оценочные обязательства). Инструмент заполняет 1550, как ассистент, и показывает значение 1540 для сравнения.</li>
+      <li>Формула К4 в файле: (1300 + 1530 + «1550») / 1600. В методике: (1300 − задолженность учредителей − 1320 + 1530) / 1700.</li>
+      <li>Пороги К4 для торговли и лизинга выбираются по ссылкам Torg и Lease на внешнюю книгу «9_3_Мониторинг заемщика_072013.xls», которая недоступна. При пустом поле D5 пороги торговли и лизинга применяются к любой компании.</li>
+      <li>Сохранённые в файле значения формул устарели: без пересчёта в ячейках G51–M51 записан класс 3. Инструмент сохраняет файл с принудительным пересчётом при открытии.</li>
+      <li>Источник значений T12 и U12 (п. 14.1.8, нераспределённая прибыль) в файле не указан. В пакете «упрощёнка» в них внесена стр. 1300 «Капитал», в пакете «стандарт» — числа, которых нет в документах пакета. Инструмент подставляет стр. 1370 на две последние даты; правило требует согласования с владельцем шаблона.</li>
+      <li>При нулевом знаменателе К1–К4 получают категорию 1 (лучшую): в формулах шаблона ошибка деления заменяется пустой строкой, а пустая строка в сравнении больше любого числа.</li>
+    </ol>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script>
+/*__CORE__*/
+const DEMO_DOCS = /*__DEMO__*/;
+const TEMPLATE_B64 = "/*__TPL__*/";
+const DEMO_META = /*__META__*/;
+const DEMO_REF = /*__REF__*/;
+</script>
+<script>
+(function(){
+const $=s=>document.getElementById(s);
+const useCap=n=>(window.claude&&window.claude.use)?window.claude.use(n):Promise.resolve(null);
+const tplBytes=Uint8Array.from(atob(TEMPLATE_B64),c=>c.charCodeAt(0));
+const ROW_LABEL={10:"Выручка",11:"Прибыль (убыток) от продаж",12:"Чистая прибыль (убыток)",18:"Дебиторская задолженность",19:"Краткосрочные финансовые вложения",20:"Денежные средства",21:"Итого по разделу II",25:"Итого по разделу III",27:"Доходы будущих периодов",28:"Прочие краткосрочные обязательства (в шаблоне — «резервы»)",29:"Итого по разделу V",30:"Баланс"};
+const ROW_ORDER=[10,11,12,18,19,20,21,25,27,28,29,30];
+const EXTRA=[["1540","Оценочные обязательства (по методике)"],["1370","Нераспределённая прибыль (справочно)"],["1700","Баланс, пассив (для проверки)"]];
+const fmt=n=>n===null||n===undefined||n===""?"—":Number(n).toLocaleString("ru-RU");
+const fk=(x,d=3)=>x===""?"ошибка деления":Number(x).toLocaleString("ru-RU",{minimumFractionDigits:d,maximumFractionDigits:d});
+
+let S={mode:"demo", docs:[], cons:null, V:{}, extra:{}, M:{}, ref:null, sel:null, pageImgs:{}, name:"", files:[]};
+
+function refFromTemplate(bytes){ // значения ячеек ввода из заполненного файла «Пробивка»
+  return JSZip.loadAsync(bytes).then(z=>z.file("xl/worksheets/sheet1.xml").async("string")).then(x=>{
+    const out={}; TPL_COLS.forEach(c=>{out[c]={}; ROW_ORDER.forEach(r=>{const m=x.match(new RegExp(`<c r="${c}${r}"[^>]*?>(?:<f>[^<]*</f>)?<v>([^<]*)</v>`)); out[c][r]=m?+m[1]:null;});});
+    const d=x.match(/<c r="L9"[^>]*><v>(\d+)<\/v>/); out._L9=d?+d[1]:null; return out;});
+}
+function buildFromCons(){
+  const {cells}=S.cons; S.V={}; S.extra={};
+  TPL_COLS.forEach(c=>{S.V[c]={}; S.extra[c]={};
+    ROW_ORDER.forEach(r=>S.V[c][r]=cells[c][TPL_ROWS[r]].value);
+    EXTRA.forEach(([code])=>S.extra[c][code]=cells[c][code].value);});
+}
+function fill1370(force){ // T12/U12 = стр. 1370 на предпоследнюю и последнюю даты
+  if(!S.cons) return; const a=S.cons.cells.J["1370"].value, b=S.cons.cells.L["1370"].value;
+  if(force||$("t12In").value==="") $("t12In").value=a??""; if(force||$("u12In").value==="") $("u12In").value=b??"";
+}
+function setMode(m){
+  S.mode=m; $("modeDemo").setAttribute("aria-pressed",m==="demo"); $("modeLive").setAttribute("aria-pressed",m==="live");
+  $("liveBox").hidden=m!=="live"; S.sel=null;
+  if(m==="demo"){
+    S.docs=DEMO_DOCS; S.cons=consolidate(S.docs); buildFromCons(); S.M={};
+    $("indSel").value="blank"; $("seasSel").value="0";
+    $("innIn").value=DEMO_META.inn; $("nameIn").value=DEMO_META.name; fill1370(true);
+    S.ref={src:DEMO_META.refSrc,vals:DEMO_REF};
+  } else {
+    S.docs=[]; S.cons=null; S.V={}; S.extra={}; S.M={}; S.ref=null; S.files=[]; S.pageImgs={};
+    $("nameIn").value=""; $("innIn").value=""; $("t12In").value=""; $("u12In").value=""; $("indSel").value="blank"; $("seasSel").value="";
+    $("status").textContent=""; $("prog").style.width="0";
+  }
+  renderAll();
+}
+$("modeDemo").onclick=()=>setMode("demo"); $("modeLive").onclick=()=>setMode("live");
+
+// ---------- Документы ----------
+function renderDocs(){
+  const el=$("docs"); el.innerHTML="";
+  const list=S.mode==="live"&&!S.docs.length? S.files.map(f=>({name:f.name,pending:true})) : S.docs;
+  if(!list.length){el.innerHTML='<p class="muted small" style="padding:8px 0">Документы не загружены.</p>'; $("docsMeta").textContent=""; return;}
+  list.forEach(d=>{
+    const row=document.createElement("div"); row.className="doc";
+    const kinds=d.pending?'<span class="chip">ожидает обработки</span>':(d.error?`<span class="chip bad">${d.error}</span>`:
+      d.columns.filter(c=>c.primary).map(c=>`<span class="chip acc">${c.kind==="balance"?"Баланс на "+fmtDate(c.date):"ОПиУ за "+c.months+" мес. по "+fmtDate(c.date)}</span>`).join(" "));
+    const comp=(d.columns?d.columns.filter(c=>!c.primary).map(c=>c.header).join(", "):"")+(d.confirmation?(d.columns&&d.columns.some(c=>!c.primary)?" · ":"")+"Подтверждение: "+CONF[d.confirmation]:"");
+    row.innerHTML=`<div style="min-width:0"><div class="name"></div><div class="muted small">${comp?"Сравнительные графы: "+comp:""}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start">${kinds}</div>`;
+    row.querySelector(".name").textContent=d.name;
+    el.append(row);});
+  $("docsMeta").textContent=S.mode==="demo"?"Значения распознаны моделью по изображениям страниц без доступа к ручной «Пробивке»":`${list.length} файл(ов)`;
+}
+
+// ---------- Таблица данных ----------
+function refMismatch(c,r){ if(!S.ref) return false; const a=S.ref.vals[c]?.[r], b=S.V[c]?.[r]; return a!==null&&a!==undefined&&b!==null&&b!==undefined&&+a!==+b; }
+function renderData(){
+  const t=$("dataTbl"); if(!S.cons){t.innerHTML='<tbody><tr><td class="muted">Данные появятся после обработки пакета.</td></tr></tbody>'; return;}
+  const d=S.cons.dates;
+  let h=`<thead><tr><th>Показатель</th><th>Код</th>${d.map((x,i)=>`<th class="r">${fmtDate(x)}${i===0?'<br><span style="font-weight:400">только LTM</span>':""}</th>`).join("")}</tr></thead><tbody>`;
+  const grp={10:"Отчёт о финансовых результатах (нарастающим итогом)",18:"Бухгалтерский баланс"};
+  ROW_ORDER.forEach(r=>{
+    if(grp[r]) h+=`<tr class="group"><td colspan="${2+d.length}">${grp[r]}</td></tr>`;
+    h+=`<tr><td>${ROW_LABEL[r]}</td><td class="code">${TPL_ROWS[r]}</td>`;
+    TPL_COLS.forEach(c=>{const cell=S.cons.cells[c][TPL_ROWS[r]]; const v=S.V[c][r];
+      const cls=["cell"]; if(cell.edited) cls.push("edited"); else if(cell.conflict) cls.push("conflict"); if(v===null||v===undefined) cls.push("missing");
+      if(refMismatch(c,r)) cls.push("mismatch"); if(S.sel&&S.sel.c===c&&S.sel.code===TPL_ROWS[r]) cls.push("sel");
+      h+=`<td class="${cls.join(" ")}" data-c="${c}" data-r="${r}" data-code="${TPL_ROWS[r]}"><input id="in_${c}${r}" value="${v===null||v===undefined?"":v}" inputmode="numeric" aria-label="${ROW_LABEL[r]} ${fmtDate(d[TPL_COLS.indexOf(c)])}"></td>`;});
+    h+="</tr>";});
+  h+=`<tr class="group"><td colspan="${2+d.length}">Справочно, в расчёт не передаётся</td></tr>`;
+  EXTRA.forEach(([code,label])=>{h+=`<tr><td>${label}</td><td class="code">${code}</td>`;
+    TPL_COLS.forEach(c=>{const cell=S.cons.cells[c][code];const cls=["cell"]; if(cell.conflict) cls.push("conflict"); if(S.sel&&S.sel.c===c&&S.sel.code===code) cls.push("sel");
+      h+=`<td class="${cls.join(" ")}" data-c="${c}" data-code="${code}"><input value="${fmt(cell.value)}" readonly tabindex="-1" aria-label="${label}"></td>`;}); h+="</tr>";});
+  t.innerHTML=h+"</tbody>";
+  t.querySelectorAll("td.cell").forEach(td=>{
+    td.addEventListener("click",()=>{S.sel={c:td.dataset.c,code:td.dataset.code}; t.querySelectorAll("td.sel").forEach(x=>x.classList.remove("sel")); td.classList.add("sel"); renderDetail();});
+    const inp=td.querySelector("input"); if(inp.readOnly) return;
+    inp.addEventListener("focus",()=>td.click());
+    inp.addEventListener("change",()=>{const c=td.dataset.c,r=td.dataset.r; const raw=inp.value.replace(/\s/g,"").replace(",","."); const n=raw===""?null:Number(raw.replace(/^\((.*)\)$/,"-$1"));
+      if(raw!==""&&!isFinite(n)){inp.value=S.V[c][r]??"";return;}
+      S.V[c][r]=n; S.cons.cells[c][TPL_ROWS[r]].edited=true; renderAll(true);});
+  });
+}
+function renderDetail(){
+  const el=$("detail"); if(!S.sel||!S.cons){return;}
+  const {c,code}=S.sel; const cell=S.cons.cells[c][code]; const date=S.cons.dates[TPL_COLS.indexOf(c)];
+  let h=`<div><div class="eyebrow">Код ${code} · ${fmtDate(date)}</div><div class="num" style="font-size:20px;font-weight:500">${fmt(ROW_ORDER.some(r=>TPL_ROWS[r]===code)?S.V[c][ROW_ORDER.find(r=>TPL_ROWS[r]===code)]:cell.value)}</div></div>`;
+  if(cell.conflict) h+=`<span class="chip warn">Значения в документах расходятся — проверьте по скану</span>`;
+  if(cell.edited) h+=`<span class="chip acc">Исправлено вручную</span>`;
+  const r=ROW_ORDER.find(r=>TPL_ROWS[r]===code);
+  if(r&&S.ref){const a=S.ref.vals[c]?.[r]; h+=`<div class="src"><span>Ручная «Пробивка»</span><span class="v">${fmt(a)}</span></div>`;}
+  if(!cell.sources.length) h+=`<p class="small muted">В документах пакета значение не найдено.</p>`;
+  cell.sources.forEach((s,i)=>{h+=`<div class="src"><span style="min-width:0"><span class="srcname"></span><br><span class="muted">${s.primary?"основная графа":"сравнительная графа"} «${s.header}»${s.page?", стр. "+s.page:""}</span></span><span class="v">${fmt(s.value)}</span></div>`;});
+  el.innerHTML=h;
+  el.querySelectorAll(".srcname").forEach((n,i)=>n.textContent=cell.sources[i].doc);
+  const s0=cell.sources.find(s=>s.page&&S.pageImgs[s.doc]?.[s.page-1]);
+  if(s0){const img=document.createElement("img"); img.src=S.pageImgs[s0.doc][s0.page-1]; img.alt=`${s0.doc}, стр. ${s0.page}`; el.append(img);}
+  else if(S.mode==="demo"&&cell.sources.length){const p=document.createElement("p");p.className="small muted";p.textContent="В режиме примера изображения страниц не хранятся. При загрузке нового пакета здесь показывается страница скана.";el.append(p);}
+}
+
+// ---------- Контрольные проверки ----------
+function dataChecks(){
+  if(!S.cons) return [];
+  const out=[]; const d=S.cons.dates; const X=(c,code)=>{const r=ROW_ORDER.find(r=>TPL_ROWS[r]===code); return r?S.V[c][r]:S.cons.cells[c][code].value;};
+  const miss=[]; TPL_COLS.forEach((c,i)=>ROW_ORDER.forEach(r=>{if(S.V[c][r]===null||S.V[c][r]===undefined) miss.push(`${TPL_ROWS[r]} на ${fmtDate(d[i])}`);}));
+  out.push({t:"Полнота: 12 кодов строк по пяти датам",ok:!miss.length,v:miss.length?"Не найдено: "+miss.join(", "):"60 из 60 значений"});
+  const bal=[],sec2=[],sec5=[],pnl=[];
+  TPL_COLS.forEach((c,i)=>{const dt=fmtDate(d[i]);
+    const a=X(c,"1600"),p=X(c,"1700"); if(a!=null&&p!=null&&+a!==+p) bal.push(`${dt}: ${fmt(a)} ≠ ${fmt(p)}`);
+    const s2=(+X(c,"1230")||0)+(+X(c,"1240")||0)+(+X(c,"1250")||0); if(X(c,"1200")!=null&&s2>+X(c,"1200")) sec2.push(dt);
+    const s5=(+X(c,"1530")||0)+(+X(c,"1540")||0)+(+X(c,"1550")||0); if(X(c,"1500")!=null&&s5>+X(c,"1500")) sec5.push(dt);
+    if(X(c,"2110")!=null&&X(c,"2200")!=null&&+X(c,"2200")>+X(c,"2110")) pnl.push(dt);});
+  out.push({t:"Актив равен пассиву (стр. 1600 = стр. 1700)",ok:!bal.length,v:bal.length?bal.join("; "):"Выполняется на всех датах"});
+  out.push({t:"Итог раздела II не меньше суммы стр. 1230, 1240, 1250",ok:!sec2.length,v:sec2.length?"Нарушено: "+sec2.join(", "):"Выполняется на всех датах"});
+  out.push({t:"Итог раздела V не меньше суммы стр. 1530, 1540, 1550",ok:!sec5.length,v:sec5.length?"Нарушено: "+sec5.join(", "):"Выполняется на всех датах"});
+  out.push({t:"Прибыль от продаж не больше выручки",ok:!pnl.length,v:pnl.length?"Нарушено: "+pnl.join(", "):"Выполняется на всех датах"});
+  let multi=0,conf=[]; TPL_COLS.forEach((c,i)=>Object.entries(S.cons.cells[c]).forEach(([code,cell])=>{if(cell.sources.length>1) multi++; if(cell.conflict) conf.push(`${code} на ${fmtDate(d[i])}`);}));
+  out.push({t:"Сквозная сверка: одна дата в нескольких документах",ok:!conf.length,v:conf.length?"Расхождения: "+conf.join(", "):`${multi} значений подтверждены вторым документом, расхождений нет`});
+  return out;
+}
+function renderChecks(){
+  const el=$("checks"); const cs=dataChecks();
+  if(!cs.length){el.innerHTML='<p class="muted small">Проверки выполняются после обработки пакета.</p>'; $("chkMeta").textContent=""; return;}
+  el.innerHTML=cs.map(c=>`<div class="check"><span class="mark ${c.ok?"ok":"no"}">${c.ok?"✓":"!"}</span><div><div>${c.t}</div><div class="muted small">${c.v}</div></div><span></span></div>`).join("");
+  $("chkMeta").textContent=`${cs.filter(c=>c.ok).length} из ${cs.length} пройдено`;
+}
+function renderRef(){
+  const el=$("refBox");
+  if(!S.ref||!S.cons){el.innerHTML='<p class="muted small">Загрузите «Пробивку», заполненную ассистентом по этому же пакету, чтобы измерить долю совпавших значений.</p>'; return;}
+  let tot=0,ok=0; const diff=[];
+  TPL_COLS.forEach((c,i)=>ROW_ORDER.forEach(r=>{tot++; const a=S.ref.vals[c]?.[r], b=S.V[c][r]; if(a!==null&&a!==undefined&&b!==null&&+a===+b) ok++; else diff.push({c,r,a,b,date:S.cons.dates[i]});}));
+  let h=`<p><span class="num" style="font-size:22px;font-weight:500">${ok} из ${tot}</span> <span class="muted">значений совпали с ручным вводом</span></p><p class="muted small">Источник: ${S.ref.src}</p>`;
+  if(diff.length){h+=`<div class="tscroll"><table><thead><tr><th>Дата</th><th>Код</th><th class="r">Ручной ввод</th><th class="r">Инструмент</th><th>Значение в отчётности</th></tr></thead><tbody>`+
+    diff.map(x=>{const cell=S.cons.cells[x.c][TPL_ROWS[x.r]]; const src=cell.sources.filter(s=>s.value!==null); const agree=src.length&&src.every(s=>+s.value===+x.b);
+      return `<tr><td>${fmtDate(x.date)}</td><td class="code">${TPL_ROWS[x.r]}</td><td class="r num">${fmt(x.a)}</td><td class="r num">${fmt(x.b)}</td><td class="small">${agree?`Совпадает с инструментом в ${src.length} док.`:"Требует проверки по скану"}</td></tr>`;}).join("")+`</tbody></table></div>`;
+    if(S.mode==="demo") h+=`<p class="small muted">Расхождение в ячейке E21: ассистент ввёл итог баланса (стр. 1600) вместо итога раздела II. Столбец E используется только для LTM-рентабельности, на класс не влияет.</p>`;}
+  el.innerHTML=h;
+}
+
+// ---------- Ручные поля ----------
+function renderManual(){
+  const t=$("manTbl"); const d=S.cons?S.cons.dates:null;
+  if(!d){t.innerHTML=""; return;}
+  let h=`<thead><tr><th>Расшифровка</th>${CLASS_COLS.map(c=>`<th class="r">${fmtDate(d[TPL_COLS.indexOf(c)])}</th>`).join("")}</tr></thead><tbody>`;
+  Object.entries(MANUAL_ROWS).forEach(([r,l])=>{h+=`<tr><td>${l}</td>`+CLASS_COLS.map(c=>`<td class="cell"><input id="m_${c}${r}" data-c="${c}" data-r="${r}" value="${S.M[c]?.[r]??0}" inputmode="numeric" aria-label="${l}"></td>`).join("")+"</tr>";});
+  t.innerHTML=h+"</tbody>";
+  t.querySelectorAll("input").forEach(i=>i.addEventListener("change",()=>{const n=Number(i.value.replace(/\s/g,"").replace(",","."));
+    if(!isFinite(n)){i.value=S.M[i.dataset.c]?.[i.dataset.r]??0;return;} (S.M[i.dataset.c]??={})[i.dataset.r]=n; renderAll(true);}));
+}
+["indSel","seasSel","t12In","u12In","nameIn","innIn"].forEach(id=>$(id).addEventListener("change",()=>renderAll(true)));
+
+// ---------- Расчёт и заключение ----------
+function compute(){
+  if(!S.cons) return null;
+  const ind=$("indSel").value; const lease=ind!=="other";
+  const res=CLASS_COLS.map(c=>calcColumn(S.V[c],S.M[c]||{},lease));
+  const classes=res.map(r=>r.cls);
+  const rules=sideChecks(S.V,$("t12In").value,$("u12In").value,$("seasSel").value==="1",classes);
+  const alt=CLASS_COLS.map(c=>calcColumn(Object.assign({},S.V[c],{28:S.extra[c]?.["1540"]??0}),S.M[c]||{},lease).cls);
+  return {res,classes,rules,alt};
+}
+function renderCalc(R){
+  const t=$("calcTbl"); if(!R){t.innerHTML='<tbody><tr><td class="muted">Расчёт выполняется после обработки пакета.</td></tr></tbody>'; return;}
+  const d=S.cons.dates; const names=["К1 абсолютная ликвидность","К2 промежуточная ликвидность","К3 текущая ликвидность","К4 соотношение собственных и заёмных средств","К5 рентабельность продукции","К6 рентабельность деятельности"];
+  const w=[0.05,0.10,0.40,0.20,0.15,0.10];
+  let h=`<thead><tr><th>Коэффициент</th><th class="r">Вес</th>${CLASS_COLS.map(c=>`<th class="r" colspan="2">${fmtDate(d[TPL_COLS.indexOf(c)])}</th>`).join("")}</tr>
+  <tr><th></th><th></th>${CLASS_COLS.map(()=>`<th class="r">Значение</th><th class="r">Категория</th>`).join("")}</tr></thead><tbody>`;
+  names.forEach((n,k)=>{h+=`<tr><td>${n}</td><td class="r num">${w[k].toFixed(2).replace(".",",")}</td>`+R.res.map(r=>`<td class="r num">${fk(r.K[k])}</td><td class="r num">${r.cat[k]}</td>`).join("")+"</tr>";});
+  h+=`<tr><td><strong>Сумма баллов S</strong></td><td></td>`+R.res.map(r=>`<td class="r num"><strong>${r.S.toFixed(2).replace(".",",")}</strong></td><td></td>`).join("")+"</tr>";
+  h+=`<tr><td>Проверка для первого класса (К5 ≥ 0,10 и S ≤ 1,25)</td><td></td>`+R.res.map(r=>`<td class="r" colspan="2">${r.chk1}</td>`).join("")+"</tr>";
+  h+=`<tr><td>Проверка для второго класса (S ≤ 2,35 и К5 ≥ 0)</td><td></td>`+R.res.map(r=>`<td class="r" colspan="2">${r.chk2}</td>`).join("")+"</tr>";
+  h+=`<tr><td><strong>Класс кредитоспособности</strong></td><td></td>`+R.res.map(r=>`<td class="r" colspan="2"><span class="cls cls-${r.cls}" style="width:30px;height:30px;font-size:15px">${r.cls}</span></td>`).join("")+"</tr>";
+  t.innerHTML=h+"</tbody>";
+}
+function ruleVal(r){
+  if(Array.isArray(r.value)) return r.value.map(x=>typeof x==="number"?(r.id.startsWith("14.1.11")?(x*100).toFixed(1).replace(".",",")+" %":fk(x,2)):fk(x)).join(" / ");
+  if(typeof r.value==="number") return r.id.startsWith("14.1.11")?(r.value*100).toFixed(1).replace(".",",")+" %":fmt(r.value);
+  return r.value;
+}
+function renderRules(R){
+  const el=$("rules"); if(!R){el.innerHTML='<p class="muted small">Условия проверяются после расчёта.</p>'; $("dlBtn").disabled=true; return;}
+  $("dlBtn").disabled=false;
+  el.innerHTML=R.rules.map(r=>`<div class="check"><span class="mark ${r.pass===null?"na":r.pass?"ok":"no"}">${r.pass===null?"?":r.pass?"✓":"✕"}</span>
+    <div><div><span class="num muted">п. ${r.id}</span> ${r.title}${r.decisive?' <span class="chip acc">правило из брифа</span>':""}</div><div class="muted small">${r.rule}</div></div>
+    <div class="num small" style="text-align:right">${ruleVal(r)}</div></div>`).join("");
+}
+function renderVerdict(R,AL){
+  const el=$("verdict");
+  if(!R){el.innerHTML=`<div class="v-main pend"><span class="eyebrow">Заключение</span><div class="v-title">Нет данных</div><p class="small">Загрузите пакет отчётности и запустите извлечение.</p></div><div class="v-dates"></div>`; return;}
+  const d=S.cons.dates; const main=R.rules.find(r=>r.id==="14.1.6"); const others=R.rules.filter(r=>r.id!=="14.1.6");
+  const fail=others.filter(r=>r.pass===false), na=others.filter(r=>r.pass===null);
+  const nameStr=$("nameIn").value||"Лизингополучатель";
+  let cls,title,sub;
+  if(!main.pass){cls="no";title="Финансирование невозможно";sub="Класс 3 на всех четырёх отчётных датах (п. 14.1.6).";}
+  else if(fail.length){cls="no";title="Финансирование невозможно";sub=`Класс допускает финансирование, не выполнено: п. ${fail.map(r=>r.id).join(", п. ")}.`;}
+  else if(na.length){cls="pend";title="Требуется ввод данных";sub=`Класс допускает финансирование. Не заполнено для п. ${na.map(r=>r.id).join(", ")}.`;}
+  else {cls="ok";title="Финансирование возможно";sub="Класс 3 не на всех датах; дополнительные условия п. 14.1 выполнены.";}
+  const nAct=(AL||[]).filter(a=>a.lvl==="act").length;
+  el.innerHTML=`<div class="v-main ${cls}"><span class="eyebrow">Заключение</span><div class="v-title">${title}</div><p class="small"></p><p class="small">${sub}</p><p class="small" style="color:${nAct?"var(--bad)":"var(--good)"}">${nAct?`Предупреждений, требующих реакции: ${nAct}. В целевой схеме пакет передаётся ассистенту.`:"Предупреждений, требующих реакции, нет. В целевой схеме пакет проходит без ассистента."}</p></div>
+  <div class="v-dates">${R.res.map((r,i)=>`<div class="v-date"><span class="eyebrow">${fmtDate(d[i+1])}</span><span class="cls cls-${r.cls}">${r.cls}</span><span class="small muted num">S = ${r.S.toFixed(2).replace(".",",")}</span></div>`).join("")}</div>`;
+  el.querySelector(".v-main p.small").textContent=nameStr;
+}
+// ---------- Предупреждения ----------
+const CONF={fns_receipt:"квитанция ФНС или оператора ЭДО о приёме",edo_signature:"электронная подпись, передан через ЭДО",paper_signature:"скан с подписью и печатью",none:"без подписи и подтверждения"};
+function alertsList(R){
+  const A=[]; const add=(lvl,to,t,v)=>A.push({lvl,to,t,v});
+  if(S.mode==="live"&&!S.cons){ if(S.files.length) add("info","—","Пакет не обработан","Нажмите «Извлечь данные»."); return A; }
+  if(!S.cons) return A;
+  const d=S.cons.dates, C=S.cons.cells;
+  // полнота пакета
+  TPL_COLS.forEach((c,i)=>{ const bal=["1200","1230","1250","1300","1500","1600"].every(k=>C[c][k].value==null);
+    const pnl=["2110","2200","2400"].every(k=>C[c][k].value==null);
+    const rep=fmtDate(new Date(Date.parse(d[i]+"T00:00:00Z")-864e5).toISOString().slice(0,10)); const mon=+rep.slice(3,5);
+    if(bal&&c!=="E") add("act","клиенту",`Нет бухгалтерского баланса на ${rep}`,"Запросить баланс или квартальную отчётность следующего периода со сравнительной графой.");
+    if(pnl&&c!=="E") add("act","клиенту",`Нет отчёта о финансовых результатах за ${mon} мес. по ${rep}`,"Запросить отчёт о финансовых результатах за этот период.");
+    if(pnl&&c==="E") add("act","клиенту",`Нет данных ОПиУ за ${mon} мес. по ${rep}`,"Нужны для рентабельности за 12 месяцев (п. 14.1.11 б). Обычно есть в сравнительной графе ОПиУ последнего периода.");
+    if(!bal&&!pnl&&c!=="E"){const miss=ROW_ORDER.filter(r=>S.V[c][r]==null).map(r=>TPL_ROWS[r]); if(miss.length) add("act","ассистенту",`Не найдены строки на ${rep}: ${miss.join(", ")}`,"Проверить по скану и внести вручную.");}
+  });
+  // документы
+  S.docs.forEach(doc=>{
+    if(doc.error) add("act","клиенту",`Документ не распознан: ${doc.name}`,"Таблицы баланса или ОПиУ не найдены. Загрузить читаемый скан или электронную форму.");
+    if(doc.variant==="simplified") add("act","ассистенту",`Упрощённая форма отчётности: ${doc.name}`,"Пакет «упрощёнка» вне периметра первого этапа; результат справочный.");
+    if(doc.confirmation==="none") add("warn","ассистенту",`Документ без подтверждения: ${doc.name}`,"Нет подписи, печати, квитанции ФНС или отметки ЭДО.");
+  });
+  const withConf=S.docs.filter(x=>x.confirmation&&x.confirmation!=="none");
+  if(withConf.length){ const by={}; withConf.forEach(x=>(by[x.confirmation]??=[]).push(x.name));
+    add("ok","—",`Подтверждено документов: ${withConf.length} из ${S.docs.length}`,Object.entries(by).map(([k,v])=>`${CONF[k]}: ${v.length}`).join("; ")); }
+  const inns=[...new Set(S.docs.map(x=>x.inn).filter(Boolean))], appInn=$("innIn").value.trim();
+  if(inns.length>1) add("act","ассистенту","В документах разные ИНН",inns.join(", "));
+  else if(appInn&&inns.length&&inns[0]!==appInn) add("act","ассистенту","ИНН в документах не совпадает с заявкой",`В документах ${inns[0]}, в заявке ${appInn}.`);
+  else if(appInn&&inns.length) add("ok","—","ИНН в документах совпадает с заявкой",appInn);
+  // актуальность
+  const lastRep=new Date(Date.parse(d[4]+"T00:00:00Z")-864e5), age=Math.round((Date.now()-lastRep)/864e5);
+  if(age>183) add("act","клиенту",`Последняя отчётная дата ${fmtDate(lastRep.toISOString().slice(0,10))} старше 6 месяцев`,"Запросить отчётность за последний квартал. Порог 6 месяцев условный, требует согласования.");
+  // лишние документы (сокращение пакета)
+  const need=[]; TPL_COLS.forEach(c=>ROW_ORDER.forEach(r=>{ if(c==="E"&&r!==10&&r!==12) return; need.push([c,TPL_ROWS[r]]); }));
+  const docsBy=S.docs.filter(x=>x.columns&&x.columns.length).sort((a,b)=>(b.pages||0)-(a.pages||0)); const removed=new Set();
+  docsBy.forEach(doc=>{ const ok=need.every(([c,code])=>{const src=C[c][code].sources.filter(s=>s.value!==null&&!removed.has(s.doc)); return !src.length||src.some(s=>s.doc!==doc.name);});
+    if(ok) removed.add(doc.name); });
+  if(removed.size) add("warn","клиенту",`Для расчёта не требуется документов: ${removed.size}`,[...removed].join("; ")+". Их данные есть в сравнительных графах других отчётов; используются только для сверки.");
+  // контрольные проверки
+  dataChecks().filter(x=>!x.ok).forEach(x=>add("act","ассистенту",x.t,x.v));
+  if(!R) return A;
+  // граничные значения и особые случаи формул
+  R.res.forEach((r,i)=>{ const dt=fmtDate(d[i+1]);
+    if((r.S>=1.15&&r.S<=1.35)||(r.S>=2.25&&r.S<=2.45)) add("warn","ассистенту",`Сумма баллов у границы класса на ${dt}: ${r.S.toFixed(2).replace(".",",")}`,"Границы 1,25 и 2,35. Ошибка в одном значении может изменить класс.");
+    const k5=r.K[4]; if(k5!==""&&((k5>-0.01&&k5<0.01)||(k5>=0.09&&k5<0.11))) add("warn","ассистенту",`К5 у порога на ${dt}: ${fk(k5)}`,"Пороги 0 и 0,10 определяют допустимый класс.");
+    if(r.K.slice(0,4).some(x=>x==="")) add("act","ассистенту",`Деление на ноль в К1–К4 на ${dt}`,"Шаблон присваивает такому коэффициенту категорию 1.");
+    if(+S.V[CLASS_COLS[i]][10]===0) add("act","ассистенту",`Нулевая выручка на ${dt}`,"К5 и К6 получают категорию 3.");
+  });
+  // 1540 вместо 1550
+  const diff=R.alt.map((c,i)=>c!==R.classes[i]?fmtDate(d[i+1]):null).filter(Boolean);
+  if(diff.length) add("act","ассистенту","Класс зависит от выбора строки 1540 или 1550",`При стр. 1540 (по методике) класс другой на: ${diff.join(", ")}.`);
+  else add("warn","ассистенту","Строка 28 заполнена по шаблону (1550), методика требует 1540","На классы этого пакета замена не влияет.");
+  // ручные поля
+  if($("indSel").value==="blank") add("act","клиенту","Не указана отрасль","Применены пороги К4 для торговли и лизинга, как в текущем файле.");
+  if($("seasSel").value==="") add("act","клиенту","Не указана сезонность","Для п. 14.1.11 применён вариант без сезонности.");
+  if($("t12In").value===""||$("u12In").value==="") add("act","ассистенту","Не заполнена нераспределённая прибыль (п. 14.1.8)","Стр. 1370 на две последние даты не найдена.");
+  else add("warn","ассистенту","Нераспределённая прибыль взята из стр. 1370","Правило заполнения T12 и U12 требует согласования с владельцем шаблона.");
+  if(CLASS_COLS.every(c=>Object.values(S.M[c]||{}).every(v=>!+v))) add("warn","ассистенту","Дополнительные расшифровки не введены","Безнадёжная дебиторская задолженность, неликвиды и депозиты приняты равными 0.");
+  // итог
+  if(R.classes.every(c=>c===3)) add("act","ассистенту","Класс 3 на всех четырёх датах","Финансирование невозможно по п. 14.1.6.");
+  else if(R.classes.some(c=>c===3)) add("warn","ассистенту","Класс 3 на части дат",R.classes.map((c,i)=>`${fmtDate(d[i+1])}: ${c}`).join("; "));
+  if(S.ref){const n=ROW_ORDER.reduce((a,r)=>a+TPL_COLS.filter(c=>refMismatch(c,r)).length,0); if(n) add("warn","ассистенту",`Отличий от ручной «Пробивки»: ${n}`,"Подробности в блоке сверки.");}
+  return A;
+}
+function renderAlerts(R){
+  const A=alertsList(R); const el=$("alerts"); const order={act:0,warn:1,ok:2,info:3};
+  A.sort((a,b)=>order[a.lvl]-order[b.lvl]);
+  if(!A.length){el.innerHTML='<p class="muted small">Предупреждения появятся после обработки пакета.</p>'; $("alMeta").textContent=""; return A;}
+  const mk={act:["no","!"],warn:["na","i"],ok:["ok","✓"],info:["na","…"]};
+  el.innerHTML=A.map(a=>`<div class="check"><span class="mark ${mk[a.lvl][0]}">${mk[a.lvl][1]}</span><div><div class="at"></div><div class="muted small av"></div></div><span class="chip ${a.lvl==="act"?"bad":a.lvl==="ok"?"good":"warn"}">${a.lvl==="ok"?"подтверждено":a.to==="—"?"к сведению":a.to}</span></div>`).join("");
+  el.querySelectorAll(".check").forEach((n,i)=>{n.querySelector(".at").textContent=A[i].t; n.querySelector(".av").textContent=A[i].v;});
+  const act=A.filter(a=>a.lvl==="act").length, w=A.filter(a=>a.lvl==="warn").length;
+  $("alMeta").textContent=`требует реакции: ${act} · к сведению: ${w}`;
+  return A;
+}
+function renderAll(keepFocus){
+  const act=document.activeElement?.id;
+  renderDocs(); renderData(); renderChecks(); renderRef(); if(!keepFocus||!act?.startsWith("m_")) renderManual();
+  const R=compute(); renderCalc(R); renderRules(R); const AL=renderAlerts(R); renderVerdict(R,AL);
+  if(S.sel) renderDetail();
+  if(keepFocus&&act&&$(act)) $(act).focus();
+}
+
+// ---------- Сверка с загруженной «Пробивкой» ----------
+$("refIn").addEventListener("change",async e=>{const f=e.target.files[0]; if(!f) return;
+  try{const vals=await refFromTemplate(await f.arrayBuffer()); S.ref={src:f.name,vals}; renderAll();}
+  catch(err){$("refBox").innerHTML='<p class="status err">Файл не распознан как «Пробивка». Нужен .xlsx с листом «Класс кредитоспособности».</p>';}
+  e.target.value="";});
+
+// ---------- Скачивание ----------
+let dl=null; useCap("downloads").then(x=>{dl=x; if(!x) $("dlBtn").hidden=true;});
+$("dlBtn").onclick=async()=>{
+  if(!dl||!S.cons) return; $("dlStatus").className="status"; $("dlStatus").textContent="Формирую файл…";
+  try{
+    const ind=$("indSel").value;
+    const bytes=await fillTemplate(JSZip,tplBytes,{dates:S.cons.dates,V:S.V,M:S.M,name:$("nameIn").value,industryText:ind==="other"?"Прочие отрасли":"",T12:$("t12In").value,U12:$("u12In").value});
+    const last=fmtDate(S.cons.dates[4]);
+    const r=await dl.save({filename:`Пробивка_${($("nameIn").value||"лизингополучатель").replace(/[^\wА-Яа-яЁё]+/g,"_")}_${last}.xlsx`,data:bytes});
+    $("dlStatus").textContent=r.status==="saved"?"Файл сохранён. Формулы пересчитаются при открытии.":"Файл передан.";
+  }catch(e){ $("dlStatus").className="status err"; $("dlStatus").textContent=e?.code==="cancelled"||e?.code==="declined"?"Сохранение отменено.":"Не удалось сохранить файл: "+(e?.message||e); }
+};
+
+// ---------- Новый пакет: распознавание ----------
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+let sample=null, limits=null;
+useCap("sample").then(async s=>{sample=s; if(s){limits=await s.limits().catch(()=>null);} updRun();});
+function updRun(){ $("runBtn").disabled=!(S.files.length&&sample&&limits?.images);
+  if(S.mode==="live"&&sample===null) $("status").textContent="Распознавание недоступно в этом окне просмотра.";
+  else if(S.mode==="live"&&sample&&!limits?.images) $("status").textContent="Отправка изображений недоступна в этом окне просмотра."; }
+function addFiles(fl){ const pdfs=[...fl].filter(f=>/\.pdf$/i.test(f.name)); if(!pdfs.length) return;
+  S.files.push(...pdfs); S.docs=[]; S.cons=null; renderAll(); updRun(); $("status").textContent=`Выбрано файлов: ${S.files.length}.`; }
+$("fileIn").addEventListener("change",e=>{addFiles(e.target.files); e.target.value="";});
+const drop=$("drop");
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+
+async function renderPages(file){
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise; const blobs=[],urls=[];
+  for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i); const v0=pg.getViewport({scale:1}); const sc=1600/Math.max(v0.width,v0.height);
+    const vp=pg.getViewport({scale:sc}); const cv=document.createElement("canvas"); cv.width=vp.width; cv.height=vp.height;
+    const ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height);
+    await pg.render({canvasContext:ctx,viewport:vp}).promise;
+    const b=await new Promise(r=>cv.toBlob(r,"image/jpeg",0.88)); blobs.push(b); urls.push(URL.createObjectURL(b));}
+  return {blobs,urls};
+}
+const CODES_ALL=["1200","1230","1240","1250","1300","1370","1500","1530","1540","1550","1600","1700","2110","2200","2400"];
+function prompt(name,from,to,total){
+  return `Ты извлекаешь данные из российской бухгалтерской отчётности по РСБУ (формы по ОКУД 0710001 «Бухгалтерский баланс» и 0710002 «Отчёт о финансовых результатах»).
+Файл: «${name}». Приложены изображения страниц ${from}–${to} из ${total}. Часть страниц может быть квитанциями ЭДО без таблиц — их пропусти.
+
+Для каждой числовой графы таблиц (отчётная дата и сравнительные графы) выпиши значения строк с кодами:
+баланс: 1200, 1230, 1240, 1250, 1300, 1370, 1500, 1530, 1540, 1550, 1600, 1700;
+отчёт о финансовых результатах: 2110, 2200, 2400.
+Правила: значения в тыс. руб. как напечатаны; число в скобках — отрицательное; прочерк — 0; строки нет в документе — null. Не вычисляй и не подставляй значения, которых нет на изображении. Номер страницы — порядковый номер изображения в этом файле (от ${from}).
+
+Ответь только JSON:
+{"company":"наименование организации или null","inn":"ИНН организации или null",
+ "form_variant":"standard" — полная форма или "simplified" — упрощённая (в заголовке «упрощённая», строки укрупнены),
+ "confirmation":"fns_receipt" — есть квитанция/подтверждение ФНС или оператора ЭДО о приёме; "edo_signature" — отметка о подписании электронной подписью или передаче через ЭДО (Диадок, СБИС и т.п.); "paper_signature" — подпись руководителя и печать на скане; "none" — ничего из перечисленного,
+ "columns":[{"kind":"balance" или "pnl","header":"заголовок графы как в документе","date":"ДД.ММ.ГГГГ — дата баланса или последний день отчётного периода","months":число месяцев периода для pnl (3, 6, 9, 12) или null,"values":{"1200":706837,...},"page":{"1200":2,...}}]}
+Если на страницах нет таблиц баланса или отчёта о финансовых результатах, верни {"company":null,"inn":null,"form_variant":null,"confirmation":квитанция или подпись, если видна, иначе null,"columns":[]}.`;
+}
+function mergeCols(all){ // объединяет графы из разных частей одного файла (баланс может быть разбит на страницы)
+  const m=new Map(); all.forEach(c=>{const date=parseDate(c.date); if(!date||!c.kind) return; const k=c.kind+date;
+    const cur=m.get(k)||{kind:c.kind,date,months:c.months?+c.months:null,header:c.header,values:{},page:{}};
+    Object.entries(c.values||{}).forEach(([code,v])=>{ if(!CODES_ALL.includes(code)) return; const n=v===null?null:Number(String(v).replace(/\s/g,"")); if(cur.values[code]===undefined||cur.values[code]===null){cur.values[code]=isFinite(n)?n:null; if(c.page?.[code]) cur.page[code]=+c.page[code];}});
+    m.set(k,cur);}); return [...m.values()];
+}
+$("runBtn").onclick=async()=>{
+  const btn=$("runBtn"); btn.disabled=true; const st=$("status"); st.className="status"; const prog=$("prog");
+  const docs=[]; const max=Math.max(1,limits.images.maxCount); let company=null;
+  try{
+    for(let fi=0;fi<S.files.length;fi++){
+      const f=S.files[fi]; st.textContent=`Файл ${fi+1} из ${S.files.length}: подготовка страниц «${f.name}»`;
+      const {blobs,urls}=await renderPages(f); S.pageImgs[f.name]=urls; const cols=[]; const meta={inn:null,variant:null,conf:[]};
+      for(let p=0;p<blobs.length;p+=max){
+        st.textContent=`Файл ${fi+1} из ${S.files.length}: распознавание страниц ${p+1}–${Math.min(p+max,blobs.length)} «${f.name}»`;
+        const j=await sample.json(prompt(f.name,p+1,Math.min(p+max,blobs.length),blobs.length),{images:blobs.slice(p,p+max),modelTier:"default"});
+        (j.columns||[]).forEach(c=>{Object.keys(c.page||{}).forEach(k=>c.page[k]=+c.page[k]); cols.push(c);}); if(j.company&&!company) company=j.company; if(j.inn&&!meta.inn) meta.inn=String(j.inn).replace(/\D/g,""); if(j.form_variant&&!meta.variant) meta.variant=j.form_variant; if(j.confirmation) meta.conf.push(j.confirmation);
+      }
+      const merged=mergeCols(cols); const seen=new Set();
+      merged.sort((a,b)=>b.date.localeCompare(a.date)).forEach(c=>{c.primary=!seen.has(c.kind); seen.add(c.kind);});
+      const rank=["fns_receipt","edo_signature","paper_signature","none"]; const conf=meta.conf.sort((a,b)=>rank.indexOf(a)-rank.indexOf(b))[0]||"none";
+      docs.push(merged.length?{name:f.name,columns:merged,pages:blobs.length,inn:meta.inn,variant:meta.variant,confirmation:conf}:{name:f.name,columns:[],pages:blobs.length,error:"таблицы не найдены"});
+      prog.style.width=`${Math.round((fi+1)/S.files.length*100)}%`;
+    }
+    S.docs=docs; S.cons=consolidate(docs.filter(d=>d.columns.length));
+    if(!S.cons.dates.length) throw {message:"В пакете не найден ни один бухгалтерский баланс."};
+    buildFromCons(); fill1370(false); if(company&&!$("nameIn").value) $("nameIn").value=company;
+    st.textContent="Готово. Проверьте подсвеченные ячейки и ручные расшифровки."; renderAll();
+  }catch(e){
+    st.className="status err";
+    const map={not_granted:"Использование Claude не разрешено для этой страницы.",rate_limited:"Превышен лимит запросов. Повторите позже.",image_rejected:"Изображение страницы не принято.",invalid_json:"Ответ модели не удалось разобрать. Повторите запуск.",upstream_error:"Сбой соединения. Повторите запуск."};
+    st.textContent=map[e?.code]||("Ошибка: "+(e?.message||e)); S.docs=docs; renderAll();
+  }finally{btn.disabled=false; updRun();}
+};
+
+setMode("demo");
+})();
+</script>

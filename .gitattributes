@@ -1,0 +1,6 @@
+# Единые окончания строк LF (сервер — Linux; core.autocrlf на Windows не должен их ломать)
+* text=auto eol=lf
+*.xlsx binary
+*.pdf binary
+*.png binary
+*.jpg binary

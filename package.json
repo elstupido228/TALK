@@ -1,0 +1,14 @@
+{
+  "name": "talk-proto",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Портал-прототип «Контур контроля лизинговой сделки»",
+  "main": "app/server.js",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node app/server.js",
+    "test": "node --test \"test/*.test.js\""
+  }
+}

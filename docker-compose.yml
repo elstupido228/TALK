@@ -1,0 +1,49 @@
+# Отдельный Compose-проект. Не пересекается с ~/openclaw и ~/openclaw-team: своё имя, своя сеть, свои тома.
+# Потолок памяти стека — 600 МБ (app 480 + caddy 120).
+name: talk-proto
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - app_data:/data
+    expose:
+      - "3000"
+    mem_limit: 480m
+    memswap_limit: 480m
+    networks: [talk]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-talk.perveev.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 120m
+    memswap_limit: 120m
+    networks: [talk]
+
+networks:
+  talk:
+    name: talk-proto
+
+volumes:
+  app_data:
+  caddy_data:
+  caddy_config:

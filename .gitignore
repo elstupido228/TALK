@@ -1,0 +1,61 @@
+# --- Секреты: никогда в репозиторий ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+users.txt
+secrets/
+
+# --- Данные и базы (SQLite живёт в томе Docker) ---
+/data/
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# --- Документы: реальные PDF/выгрузки клиентов не коммитим ---
+# Условные PDF генерируются скриптом и тоже не хранятся.
+*.pdf
+*.xlsx
+*.xls
+*.docx
+!seed/calc/template_clean.xlsx
+
+# --- Производные артефакты seed (пересоздаются скриптами) ---
+seed/ews/data/demo.json
+seed/ews/data/snapshots.json
+seed/ews/data/py_scores_test.csv
+seed/ews/*.html
+!seed/ews/page_src.html
+seed/calc/in/
+seed/calc/js.json
+
+# --- Сборка и зависимости ---
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- Журналы и временное ---
+logs/
+*.log
+tmp/
+.tmp/
+
+# --- Окружение разработчика ---
+.claude/settings.local.json
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
