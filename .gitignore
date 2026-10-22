@@ -7,6 +7,8 @@
 id_rsa*
 id_ed25519*
 users.txt
+users*.csv
+passwords*.txt
 secrets/
 
 # --- Данные и базы (SQLite живёт в томе Docker) ---

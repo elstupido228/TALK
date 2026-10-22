@@ -17,6 +17,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY app ./app
 COPY seed ./seed
+COPY scripts ./scripts
 
 RUN mkdir -p /data && chown node:node /data
 USER node
