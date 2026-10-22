@@ -18,7 +18,12 @@ function validInn(s) {
 const markers = process.argv[2]
   ? fs.readFileSync(process.argv[2], "utf8").split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
   : [];
-const files = execFileSync("git", ["-c", "core.quotepath=off", "ls-files", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean);
+// Сторонние минифицированные библиотеки: числовые константы алгоритмов случайно проходят контрольную сумму ИНН.
+const THIRD_PARTY = (f) => f.startsWith("app/public/vendor/");
+// Сжатые форматы как текст не читаются: условные PDF собираются из demo_synthetic.json, который проверяется.
+const BINARY = (f) => /\.(pdf|xlsx)$/i.test(f);
+const all = execFileSync("git", ["-c", "core.quotepath=off", "ls-files", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean);
+const files = all.filter((f) => !THIRD_PARTY(f) && !BINARY(f));
 
 const hits = [];
 for (const f of files) {
@@ -28,6 +33,6 @@ for (const f of files) {
   for (const mk of markers) if (low.includes(mk.toLowerCase())) hits.push([f, "маркер", mk]);
 }
 
-console.log(`файлов: ${files.length}, маркеров: ${markers.length}, совпадений: ${hits.length}`);
+console.log(`файлов: ${files.length} (не читались как текст: ${all.length - files.length} — сторонние библиотеки, PDF, xlsx), маркеров: ${markers.length}, совпадений: ${hits.length}`);
 for (const h of hits.slice(0, 50)) console.log(h.join("\t"));
 process.exit(hits.length ? 1 : 0);

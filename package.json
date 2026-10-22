@@ -10,5 +10,8 @@
   "scripts": {
     "start": "node app/server.js",
     "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "pdfkit": "0.15.2"
   }
 }

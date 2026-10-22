@@ -9,6 +9,7 @@ const { build } = require("../app/calc/build");
 const { open } = require("../app/db");
 const { createApp } = require("../app/server");
 const { createAuth } = require("../app/auth");
+const { createGateway } = require("../app/extract/gateway");
 
 test("ядро совпадает с эталоном Excel: 124 из 124", () => {
   const r = parity.run();
@@ -46,7 +47,7 @@ let server, base, db;
 before(async () => {
   db = open(":memory:");
   createAuth(db).upsertUser({ email: "curator@example.test", role: "curator", password: "Test-pass-123" });
-  server = createApp(db).listen(0);
+  server = createApp(db, { gateway: createGateway({ db, env: {} }) }).listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -76,7 +77,7 @@ test("страница /calc и библиотеки отдаются порта
   }
 });
 
-test("/api/extract: без входа 401, на шаге 3 шлюз отключён", async () => {
+test("/api/extract: без входа 401, без ключа OpenAI шлюз отключён", async () => {
   assert.strictEqual((await fetch(base + "/api/extract/status")).status, 401);
   const cookie = await loginCookie();
   const st = await (await fetch(base + "/api/extract/status", { headers: { cookie } })).json();

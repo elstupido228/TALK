@@ -16,16 +16,17 @@ const isHttps = (req) => req.headers["x-forwarded-proto"] === "https";
 
 function readBody(req, limit = MAX_BODY) {
   return new Promise((resolve, reject) => {
-    const chunks = [];
+    let chunks = [];
     let size = 0;
     req.on("data", (c) => {
+      if (!chunks) return; // остаток дочитывается вхолостую, чтобы клиент получил ответ 413 (сверху тело ограничено в Caddy)
       size += c.length;
       if (size > limit) {
+        chunks = null;
         reject(Object.assign(new Error("слишком большой запрос"), { status: 413 }));
-        req.destroy();
       } else chunks.push(c);
     });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("end", () => chunks && resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }

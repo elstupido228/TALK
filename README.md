@@ -59,7 +59,7 @@ docker ps --format '{{.Names}}\t{{.Status}}'
 
 Страница собирается сервером при старте (`app/calc/build.js`) из `seed/calc`: шаблон `page.src.html`, ядро `core.js`
 (формулы не менять), условные пакеты A/B/C из `demo_synthetic.json` (классы 1/2/3), шаблон «Пробивки».
-JSZip и pdf.js отдаются с собственного сервера (`app/public/vendor`). Распознавание PDF — `POST /api/extract` (шаг 4).
+JSZip и pdf.js отдаются с собственного сервера (`app/public/vendor`). Распознавание PDF — `POST /api/extract`.
 
 Сверка ядра с эталоном Excel (требование — 124 из 124):
 
@@ -67,6 +67,31 @@ JSZip и pdf.js отдаются с собственного сервера (`ap
 node scripts/calc-parity.js
 docker compose exec app node scripts/calc-parity.js   # на сервере
 ```
+
+## Распознавание PDF (`POST /api/extract`)
+
+`app/extract/gateway.js`: PDF → страницы в JPEG (`pdfinfo`, `pdftoppm` из poppler, 1600 px) → модель `OPENAI_MODEL`
+(OpenAI Responses API, ответ JSON) → графы по кодам строк на все даты документа. Промпт — `app/extract/prompt.js`.
+Ключ общий с ботами: из интерфейса не больше `OPENAI_DAILY_LIMIT` вызовов модели в московские сутки; каждый вызов
+(с токенами) пишется в таблицу `openai_usage`. В OpenAI отправляются только условные PDF.
+
+Расход за сегодня:
+
+```bash
+docker compose exec app node -e "const d=require('./app/db').open();console.table(d.prepare(\"SELECT source, model, count(*) calls, sum(input_tokens) inp, sum(output_tokens) outp FROM openai_usage WHERE day=date('now','+3 hours') GROUP BY 1,2\").all())"
+```
+
+### Замер моделей
+
+Набор — 30 условных PDF в `bench/pdf` (пакеты A/B/C, по 10 документов), генератор — `scripts/gen-synthetic-pdf.js`
+(`npm ci` с dev-зависимостями, затем `node scripts/gen-synthetic-pdf.js`). Порог приёмки — не ниже 57 из 60 ячеек по каждому пакету.
+
+```bash
+docker compose exec app node scripts/bench-extract.js --models gpt-5.4-mini,gpt-5.5,gpt-5.6-luna
+```
+
+Скрипт сначала проверяет `/v1/models`, недоступные модели пропускает. Один прогон — около 30 вызовов на модель
+(`--max-calls` — предохранитель, по умолчанию 120). Результаты в JSON — в `/data/bench-results` тома приложения.
 
 ## Учётные записи
 

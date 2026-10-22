@@ -28,6 +28,8 @@ secrets/
 *.xls
 *.docx
 !seed/calc/template_clean.xlsx
+# условные PDF для замера распознавания (вымышленные компании)
+!bench/pdf/**/*.pdf
 
 # --- Производные артефакты seed (пересоздаются скриптами) ---
 seed/ews/data/demo.json

@@ -26,10 +26,10 @@ function sessionCookie(req, token, maxAgeSec) {
   return `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}${H.isHttps(req) ? "; Secure" : ""}`;
 }
 
-function createApp(db) {
+function createApp(db, opts = {}) {
   const auth = createAuth(db);
   const recentLog = db.prepare("SELECT * FROM connector_log ORDER BY at DESC LIMIT 100");
-  const gateway = createGateway({ db });
+  const gateway = opts.gateway || createGateway({ db });
 
   // Страницы для вошедших: [путь, право, рендер]
   const PAGES = {
