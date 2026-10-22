@@ -82,3 +82,77 @@ test("смена стадии: перетаскивание (API) и форма;
   assert.ok(!(await get("/deals", curator))[1].includes('draggable="true"'));
   assert.strictEqual((await get("/deals/99999", team))[0], 404);
 });
+
+test("карточка сделки: блок клиента (DaData, отчётность по годам) и форма правки", async () => {
+  const loc = (await post("/deals", team, { inn: "0000000003", asset: "Оборудование", amount: "12" })).headers.get("location");
+  const html = (await get(loc, team))[1];
+  assert.match(html, /<h2>Клиент<\/h2>/);
+  assert.match(html, /<dt>Адрес<\/dt><dd>условный адрес, г\. Москва<\/dd>/);
+  assert.match(html, /<dt>Руководитель<\/dt>/);
+  assert.match(html, /Годовая отчётность, тыс\. руб\./);
+  assert.match(html, /class="cls cls-3"/);
+  assert.match(html, /action="\/deals\/\d+\/edit"/);
+  assert.ok(!(await get(loc, curator))[1].includes("/edit\""), "куратору форма правки не показывается");
+});
+
+test("правка сделки: поля и история; ИНН указан позже — клиент проверяется заново", async () => {
+  const loc = (await post("/deals", team, { asset: "Оборудование", amount: "25,5" })).headers.get("location");
+  let r = await post(`${loc}/edit`, team, { inn: "", asset: "Спецтехника", amount: "30", term: "36", comment: "Звонок клиенту в пятницу" });
+  assert.strictEqual(r.status, 303);
+  let html = (await get(loc, team))[1];
+  assert.match(html, /Изменено: предмет Оборудование → Спецтехника; сумма, млн 25\.5 → 30; срок, мес\. — → 36; комментарий — → «Звонок клиенту в пятницу»/);
+  assert.match(html, /36 мес\./);
+  assert.match(html, /<p class="comment">Звонок клиенту в пятницу<\/p>/);
+  r = await post(`${loc}/edit`, team, { inn: "0000000001", asset: "Спецтехника", amount: "30", term: "36", comment: "Звонок клиенту в пятницу" });
+  html = (await get(loc, team))[1];
+  assert.match(html, /<h1>ООО «Альфа-Пример»<\/h1>/);
+  assert.match(html, /Проверка клиента по новому ИНН: ООО «Альфа-Пример», класс 1/);
+  // ошибка правки — сообщение в форме, форма раскрыта, значения на месте
+  r = await post(`${loc}/edit`, team, { inn: "0000000001", amount: "-5" });
+  assert.strictEqual(r.status, 400);
+  html = await r.text();
+  assert.match(html, /<details class="panel edit" open>/);
+  assert.match(html, /Сумма — положительное число/);
+  assert.match(html, /name="amount" inputmode="decimal" value="-5" aria-invalid="true"/);
+  assert.strictEqual((await post(`${loc}/edit`, curator, { amount: "1" })).status, 403);
+});
+
+test("ошибка в форме запуска — на дашборде, введённые значения сохраняются", async () => {
+  const r = await post("/deals", team, { inn: "12345", asset: "Оборудование", amount: "7" });
+  assert.strictEqual(r.status, 400);
+  const html = await r.text();
+  assert.match(html, /<h1>Дашборд<\/h1>/);
+  assert.match(html, /<p class="error" role="alert">ИНН — 10 или 12 цифр\.<\/p>/);
+  assert.match(html, /value="12345" aria-invalid="true"/);
+  assert.match(html, /<option selected>Оборудование<\/option>/);
+});
+
+test("источник недоступен: условные ответы песочницы в сделку не попадают, «Проверить снова» после восстановления", async () => {
+  const dadata = require("../app/connectors/dadata"), fin = require("../app/connectors/fin");
+  let down = true;
+  const flaky = (c, data) => ({ ...c, ops: Object.fromEntries(Object.entries(c.ops).map(([k, op]) => [k, { ...op, live: async () => { if (down) throw new Error("нет сети"); return data; } }])) });
+  const live = [flaky(dadata, { found: true, inn: "7700000000", name: "ООО «Живая»", status: "ACTIVE", status_label: "действует", address: "г. Москва" }),
+    flaky(fin, { provider: "girbo", found: true, org: { inn: "7700000000" }, reports: [] })];
+  const db2 = open(":memory:");
+  createAuth(db2).upsertUser({ email: "team@example.test", role: "team", password: PASS });
+  const srv = createApp(db2, { gateway: createGateway({ db: db2, env: {} }), connectors: createConnectors(db2, [require("../app/connectors/cbr"), ...live], { env: { CONNECTOR_CBR_MODE: "sandbox" } }) }).listen(0);
+  await new Promise((r) => srv.once("listening", r));
+  const b = `http://127.0.0.1:${srv.address().port}`;
+  const ck = (await fetch(b + "/login", { method: "POST", redirect: "manual", headers: { origin: b, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "team@example.test", password: PASS }) })).headers.get("set-cookie").split(";")[0];
+  const p2 = (path, body) => fetch(b + path, { method: "POST", redirect: "manual", headers: { cookie: ck, origin: b, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body) });
+  try {
+    const loc = (await p2("/deals", { inn: "7700000000" })).headers.get("location");
+    let html = await (await fetch(b + loc, { headers: { cookie: ck } })).text();
+    assert.match(html, /<h1>ИНН 7700000000<\/h1>/, "не «ООО «Условная организация»» из песочницы");
+    assert.ok(!html.includes("Условная организация") && !html.includes("Альфа-Пример"));
+    assert.match(html, /DaData и ГИР БО недоступны: проверка не выполнена/);
+    assert.match(html, /action="\/deals\/\d+\/recheck"/);
+    down = false;
+    await p2(`${loc}/recheck`, {});
+    html = await (await fetch(b + loc, { headers: { cookie: ck } })).text();
+    assert.match(html, /<h1>ООО «Живая»<\/h1>/);
+    assert.match(html, /Повторная проверка клиента: ООО «Живая»/);
+  } finally {
+    srv.close(); db2.close();
+  }
+});

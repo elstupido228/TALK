@@ -210,3 +210,19 @@ main.page:has(.board) { max-width: none; }
 .move label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
 .hist li { padding: 7px 0; border-top: 1px solid var(--line); }
 .hist li:first-child { border-top: 0; }
+
+/* Карточка сделки: клиент и правка */
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 12px; font-size: 0.92rem; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+form.inline { display: inline; }
+.comment { background: var(--gray-bg); padding: 8px 12px; border-radius: 8px; white-space: pre-wrap; }
+details.edit summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; }
+details.edit summary::-webkit-details-marker { display: none; }
+details.edit summary h2 { margin: 0; }
+.eform { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 12px; }
+.eform label { display: grid; gap: 4px; font-size: 0.88rem; color: var(--muted); }
+.eform .wide { grid-column: 1 / -1; }
+.eform input, .eform select, .eform textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); min-width: 0; }
+.eform button { justify-self: start; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; padding: 9px 16px; border-radius: 8px; }
+[aria-invalid="true"] { border-color: var(--error) !important; outline: 1px solid var(--error); }

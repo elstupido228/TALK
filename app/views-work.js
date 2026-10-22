@@ -13,11 +13,13 @@ const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2
 const daysAgo = (t) => Math.max(0, Math.floor((Date.now() - t) / 86400000));
 const ago = (t) => { const d = daysAgo(t); return d === 0 ? "сегодня" : `${d} ${plural(d, "день", "дня", "дней")}`; };
 
-function newDealForm() {
-  return `<form class="launch" method="post" action="/deals">
-  <div class="f"><label for="nd-inn">ИНН клиента</label><input id="nd-inn" name="inn" inputmode="numeric" autocomplete="off" pattern="\\d{10}|\\d{12}" title="10 или 12 цифр" placeholder="необязательно"></div>
-  <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset">${ASSETS.map((a) => `<option>${a}</option>`).join("")}</select></div>
-  <div class="f"><label for="nd-amount">Сумма, млн руб.</label><input id="nd-amount" name="amount" inputmode="decimal" placeholder="например, 25"></div>
+// form: {values, error, field} — после неудачной отправки
+function newDealForm(form = {}) {
+  const v = form.values || {}, bad = (k) => (form.field === k ? ' aria-invalid="true"' : "");
+  return `${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals">
+  <div class="f"><label for="nd-inn">ИНН клиента</label><input id="nd-inn" name="inn" inputmode="numeric" autocomplete="off" placeholder="необязательно" value="${esc(v.inn || "")}"${bad("inn")}></div>
+  <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset">${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></div>
+  <div class="f"><label for="nd-amount">Сумма, млн руб.</label><input id="nd-amount" name="amount" inputmode="decimal" placeholder="например, 25" value="${esc(v.amount || "")}"${bad("amount")}></div>
   <button type="submit">Запустить сделку</button>
 </form>
 <p class="muted small">Сделка появится в колонке «Заявка». Если указан ИНН, портал сразу проверит клиента (DaData, ГИР БО) и покажет предварительный класс.</p>`;
@@ -37,7 +39,7 @@ function dashboardPage(user, m) {
     user,
     active: "home",
     body: `<h1>Дашборд</h1>
-${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сделка</h2>${newDealForm()}</section>` : ""}
+${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сделка</h2>${newDealForm(m.form)}</section>` : ""}
 <div class="tiles4">
   ${tile("Сделок в работе", pipe.length, `${mln(sum(pipe))} · до выдачи`, "/deals")}
   ${tile("На оценке клиента", by(["assessment"]).length, "ждут расчёта класса", "/deals#assessment")}
@@ -119,7 +121,50 @@ ${m.canEdit ? `<script>
   });
 }
 
-// m: {deal, events, canEdit}
+// Клиент в карточке сделки: DaData и годовая отчётность (ГИР БО) с классом по годам
+function clientBlock(d, m) {
+  if (!d.inn) return `<section class="panel"><h2>Клиент</h2><p class="muted">ИНН ещё не указан.${m.canEdit ? " Укажите его в разделе «Данные сделки» — портал проверит клиента." : ""}</p></section>`;
+  const c = m.client || {};
+  const p = c.party?.data, f = c.fin?.data;
+  const down = [!c.party && "DaData", !c.fin && "ГИР БО"].filter(Boolean);
+  const recheck = m.canEdit ? `<form method="post" action="/deals/${d.id}/recheck" class="inline"><button type="submit">Проверить снова</button></form>` : "";
+  let org = "";
+  if (p?.found === false) org = `<p class="error">DaData: организация с ИНН ${esc(d.inn)} не найдена.</p>`;
+  else if (p) org = `<p><b>${esc(p.name)}</b> <span class="badge ${p.status === "ACTIVE" ? "ok" : "target"}">${esc(p.status_label || p.status || "статус неизвестен")}</span>${p.sandbox_note ? ' <span class="badge muted">условно</span>' : ""}</p>
+<dl class="kv"><dt>ИНН</dt><dd>${esc(p.inn)}${p.ogrn ? ` · ОГРН ${esc(p.ogrn)}` : ""}</dd><dt>Адрес</dt><dd>${esc(p.address || "—")}</dd><dt>ОКВЭД</dt><dd>${esc(p.okved || "—")}</dd>${p.management ? `<dt>Руководитель</dt><dd>${esc(p.management.name)}${p.management.post ? `, ${esc(p.management.post.toLowerCase())}` : ""}</dd>` : ""}${p.registered ? `<dt>Регистрация</dt><dd>${fdate(p.registered)}</dd>` : ""}</dl>`;
+  let fin = "";
+  if (f && m.classes.length) {
+    const ys = m.classes;
+    const row = (label, key) => `<tr><td>${label}</td>${ys.map((y) => `<td class="r">${nf(y[key])}</td>`).join("")}</tr>`;
+    fin = `<h3>Годовая отчётность, тыс. руб.</h3><div class="scroll"><table><thead><tr><th></th>${ys.map((y) => `<th class="r">${y.year}</th>`).join("")}</tr></thead><tbody>
+${row("Выручка", "revenue")}${row("Чистая прибыль", "net")}${row("Капитал", "equity")}${row("Баланс", "assets")}
+<tr><td><b>Класс</b></td>${ys.map((y) => `<td class="r">${clsBadge(y.cls)}</td>`).join("")}</tr></tbody></table></div>
+<p class="muted small">Предварительно, по формулам калькулятора; пороги К4 — торговля и лизинг. Для заключения нужны квартальные даты.</p>`;
+  } else if (f) fin = `<p class="muted">Годовая отчётность в ГИР БО не найдена или не раскрыта.</p>`;
+  return `<section class="panel wide"><h2>Клиент</h2>
+${down.length ? `<p class="notice">${down.join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"} — сведения ниже неполные. ${recheck}</p>` : ""}
+${org}${fin}
+<p class="actions"><a class="btn" href="/check?inn=${esc(d.inn)}">Полная проверка по ИНН</a>${down.length ? "" : recheck}</p>
+</section>`;
+}
+
+function editForm(d, form = {}) {
+  const v = form.values || { inn: d.inn, asset: d.asset, amount: d.amount_mln, term: d.term_months, comment: d.comment };
+  const bad = (k) => (form.field === k ? ' aria-invalid="true"' : "");
+  return `<details class="panel edit"${form.error ? " open" : ""}><summary><h2>Данные сделки</h2><span class="muted small">изменить</span></summary>
+${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}
+<form method="post" action="/deals/${d.id}/edit" class="eform">
+  <label>ИНН клиента<input name="inn" inputmode="numeric" autocomplete="off" value="${esc(v.inn ?? "")}"${bad("inn")}></label>
+  <label>Предмет лизинга<select name="asset"><option value="">не указан</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></label>
+  <label>Сумма, млн руб.<input name="amount" inputmode="decimal" value="${esc(v.amount ?? "")}"${bad("amount")}></label>
+  <label>Срок, мес.<input name="term" inputmode="numeric" value="${esc(v.term ?? "")}"${bad("term")}></label>
+  <label class="wide">Комментарий<textarea name="comment" rows="2" maxlength="500">${esc(v.comment ?? "")}</textarea></label>
+  <p class="muted small wide">При смене ИНН клиент будет проверен заново. Все изменения попадают в историю.</p>
+  <button type="submit">Сохранить</button>
+</form></details>`;
+}
+
+// m: {deal, events, canEdit, client:{party, fin}|null, classes, form}
 function dealPage(user, m) {
   const d = m.deal;
   const i = STAGES.findIndex((s) => s.id === d.stage);
@@ -138,7 +183,8 @@ function dealPage(user, m) {
     active: "deals",
     body: `<p class="crumbs"><a href="/deals">Сделки</a> / ${esc(d.title)}</p>
 <h1>${esc(d.title)}</h1>
-<p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
+<p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.term_months ? ` · ${d.term_months} мес.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
+${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
 <ol class="stepper">${STAGES.map((s, k) => `<li class="${k < i ? "done" : k === i ? "now" : ""}"><span>${k + 1}</span>${esc(s.title)}</li>`).join("")}</ol>
 <div class="dash">
   <section class="panel wide">
@@ -152,6 +198,8 @@ function dealPage(user, m) {
       <button type="submit" name="stage" value="__any">Сменить</button>
     </form>` : ""}
   </section>
+  ${d.client_code ? "" : clientBlock(d, m)}
+  ${m.canEdit ? editForm(d, m.form) : ""}
   <section class="panel">
     <h2>История</h2>
     <ul class="list hist">${m.events.map((e) => `<li><span>${esc(e.text)}<br><span class="muted small">${new Date(e.at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}${e.user_name || e.user_email ? ` · ${esc(e.user_name || e.user_email)}` : ""}</span></span></li>`).join("")}</ul>

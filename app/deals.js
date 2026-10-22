@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS deals (
   client_code TEXT,
   asset       TEXT,
   amount_mln  REAL,
+  term_months INTEGER,
+  comment     TEXT,
   stage       TEXT NOT NULL,
   cls         INTEGER,
   note        TEXT,
@@ -66,6 +68,10 @@ function demoDeals(portfolio) {
 
 function createDeals(db, { portfolio } = {}) {
   db.exec(SCHEMA);
+  // базы, созданные до появления срока и комментария
+  const cols = new Set(db.prepare("PRAGMA table_info(deals)").all().map((c) => c.name));
+  if (!cols.has("term_months")) db.exec("ALTER TABLE deals ADD COLUMN term_months INTEGER");
+  if (!cols.has("comment")) db.exec("ALTER TABLE deals ADD COLUMN comment TEXT");
   const q = {
     count: db.prepare("SELECT count(*) n FROM deals"),
     insert: db.prepare("INSERT INTO deals (title, inn, client_code, asset, amount_mln, stage, cls, note, demo, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"),
@@ -74,13 +80,15 @@ function createDeals(db, { portfolio } = {}) {
     get: db.prepare("SELECT * FROM deals WHERE id = ?"),
     events: db.prepare("SELECT e.*, u.name user_name, u.email user_email FROM deal_events e LEFT JOIN users u ON u.id = e.user_id WHERE deal_id = ? ORDER BY at DESC, e.id DESC"),
     move: db.prepare("UPDATE deals SET stage = ?, updated_at = ? WHERE id = ?"),
-    update: db.prepare("UPDATE deals SET title = coalesce(?, title), cls = ?, note = coalesce(?, note), updated_at = ? WHERE id = ?"),
+    setCheck: db.prepare("UPDATE deals SET title = ?, cls = ?, note = ?, updated_at = ? WHERE id = ?"),
+    edit: db.prepare("UPDATE deals SET inn = ?, asset = ?, amount_mln = ?, term_months = ?, comment = ?, updated_at = ? WHERE id = ?"),
   };
   const stageTitle = (id) => STAGES.find((s) => s.id === id)?.title || id;
 
-  function create({ title, inn = null, client_code = null, asset = null, amount_mln = null, stage = "application", cls = null, note = null, demo = 0, userId = null, at = Date.now() }) {
+  function create({ title, inn = null, client_code = null, asset = null, amount_mln = null, term_months = null, comment = null, stage = "application", cls = null, note = null, demo = 0, userId = null, at = Date.now() }) {
     if (!STAGE_IDS.includes(stage)) throw new Error(`неизвестная стадия ${stage}`);
     const id = Number(q.insert.run(title, inn, client_code, asset, amount_mln, stage, cls, note, demo, userId, at, at).lastInsertRowid);
+    if (term_months !== null || comment) q.edit.run(inn, asset, amount_mln, term_months, comment, at, id);
     q.event.run(id, at, userId, null, stage, `Сделка создана на стадии «${stageTitle(stage)}»`);
     return id;
   }
@@ -95,7 +103,23 @@ function createDeals(db, { portfolio } = {}) {
     get: (id) => q.get.get(id) || null,
     events: (id) => q.events.all(id),
     note: (id, userId, text) => q.event.run(id, Date.now(), userId, null, null, text),
-    update: (id, { title = null, cls = null, note = null }) => q.update.run(title, cls, note, Date.now(), id),
+    // результат проверки клиента (DaData, ГИР БО): название, предварительный класс, пояснение
+    setCheck(id, { title, cls, note }, userId, text) {
+      q.setCheck.run(title, cls, note, Date.now(), id);
+      if (text) q.event.run(id, Date.now(), userId, null, null, text);
+    },
+    // правка полей; в историю — список изменений. Возвращает изменённые поля.
+    edit(id, v, userId) {
+      const d = q.get.get(id);
+      if (!d) return null;
+      const LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма, млн", term_months: "срок, мес.", comment: "комментарий" };
+      const changed = Object.keys(LABEL).filter((k) => (d[k] ?? null) !== (v[k] ?? null));
+      if (!changed.length) return [];
+      q.edit.run(v.inn, v.asset, v.amount_mln, v.term_months, v.comment, Date.now(), id);
+      const show = (k, x) => (x === null || x === undefined || x === "" ? "—" : k === "comment" ? `«${String(x).slice(0, 60)}»` : String(x));
+      q.event.run(id, Date.now(), userId, null, null, `Изменено: ${changed.map((k) => `${LABEL[k]} ${show(k, d[k])} → ${show(k, v[k])}`).join("; ")}`);
+      return changed;
+    },
     move(id, stage, userId) {
       const d = q.get.get(id);
       if (!d) return null;

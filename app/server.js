@@ -69,24 +69,58 @@ function createApp(db, opts = {}) {
     return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit") };
   }
 
-  // Запуск сделки: заявка; если указан ИНН — сразу проверка клиента (DaData, ГИР БО) и предварительный класс
-  async function launchDeal(user, f) {
+  // Поля сделки из формы (запуск и правка). Ошибка — {status: 400, field}
+  function dealFields(f) {
+    const bad = (field, message) => Object.assign(new Error(message), { status: 400, field });
     const inn = String(f.inn || "").replace(/\D/g, "");
-    if (inn && !/^(\d{10}|\d{12})$/.test(inn)) throw Object.assign(new Error("ИНН — 10 или 12 цифр."), { status: 400 });
-    const amount = f.amount ? Number(String(f.amount).replace(/\s/g, "").replace(",", ".")) : null;
-    if (amount !== null && !(amount > 0)) throw Object.assign(new Error("Сумма — положительное число, млн руб."), { status: 400 });
-    const asset = W.ASSETS.includes(f.asset) ? f.asset : null;
-    let title = inn ? `ИНН ${inn}` : `Новая заявка${asset ? ` · ${asset}` : ""}`, cls = null, note = inn ? null : "ИНН ещё не указан";
-    if (inn) {
-      const call = (id, op) => connectors.call(id, op, { inn }, { userId: user.id }).catch(() => null);
-      const [party, fin] = await Promise.all([call("dadata", "party"), call("fin", "reports")]);
-      if (party?.data?.found) title = party.data.name;
-      const y = fin?.data?.reports?.length ? annualClasses(fin.data)[0] : null;
-      if (y) { cls = y.cls; note = y.cls ? `Предварительный класс по годовой отчётности за ${y.year} (ГИР БО)` : `Отчётность за ${y.year}: нет итоговых строк, класс не рассчитан`; }
-      else note = fin ? "Годовая отчётность в ГИР БО не найдена или не раскрыта" : "Отчётность не получена: источник недоступен";
-      if (party?.data && party.data.status && party.data.status !== "ACTIVE") note = `Статус: ${party.data.status_label}. ${note}`;
-    }
-    return deals.create({ title, inn: inn || null, asset, amount_mln: amount, cls, note, userId: user.id });
+    if (inn && !/^(\d{10}|\d{12})$/.test(inn)) throw bad("inn", "ИНН — 10 или 12 цифр.");
+    const num = (x) => (x === undefined || String(x).trim() === "" ? null : Number(String(x).replace(/\s/g, "").replace(",", ".")));
+    const amount = num(f.amount);
+    if (amount !== null && !(amount > 0 && amount < 1e6)) throw bad("amount", "Сумма — положительное число, млн руб.");
+    const term = num(f.term);
+    if (term !== null && !(Number.isInteger(term) && term >= 1 && term <= 120)) throw bad("term", "Срок — целое число месяцев от 1 до 120.");
+    return { inn: inn || null, asset: W.ASSETS.includes(f.asset) ? f.asset : null, amount_mln: amount, term_months: term, comment: String(f.comment || "").trim().slice(0, 500) || null };
+  }
+
+  // Проверка клиента для сделки: DaData + ГИР БО. Условный ответ песочницы (fallback при недоступном источнике)
+  // в сделку с реальным ИНН не подставляется — вместо этого пометка «источник недоступен».
+  async function checkClient(user, inn) {
+    const call = (id, op) => connectors.call(id, op, { inn }, { userId: user.id }).catch(() => null);
+    const [party, fin] = await Promise.all([call("dadata", "party"), call("fin", "reports")]);
+    const usable = (r) => (r && !r.fallback ? r : null);
+    return { party: usable(party), fin: usable(fin) };
+  }
+  function checkSummary(inn, { party, fin }) {
+    const p = party?.data, f = fin?.data;
+    const title = p?.found ? p.name : `ИНН ${inn}`;
+    const down = [!party && "DaData", !fin && "ГИР БО"].filter(Boolean);
+    if (down.length) return { title, cls: null, note: `${down.join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"}: проверка не выполнена — «Проверить снова»`, ok: false };
+    if (p.found === false) return { title, cls: null, note: "DaData: организация с таким ИНН не найдена", ok: true };
+    const y = f.reports?.length ? annualClasses(f)[0] : null;
+    let note = y ? (y.cls ? `Предварительный класс по годовой отчётности за ${y.year} (ГИР БО)` : `Отчётность за ${y.year}: нет итоговых строк, класс не рассчитан`) : "Годовая отчётность в ГИР БО не найдена или не раскрыта";
+    if (p.status && p.status !== "ACTIVE") note = `Статус: ${p.status_label}. ${note}`;
+    return { title, cls: y ? y.cls : null, note, ok: true };
+  }
+
+  // Карточка сделки: клиент (DaData, ГИР БО) — из кэша коннекторов, без условных ответов
+  async function dealModel(user, deal) {
+    const client = deal.inn ? await checkClient(user, deal.inn) : null;
+    const classes = client?.fin?.data?.reports?.length ? annualClasses(client.fin.data) : [];
+    return { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit"), client, classes };
+  }
+
+  async function launchDeal(user, f) {
+    const v = dealFields(f);
+    let sum = { title: v.inn ? `ИНН ${v.inn}` : `Новая заявка${v.asset ? ` · ${v.asset}` : ""}`, cls: null, note: v.inn ? null : "ИНН ещё не указан" };
+    if (v.inn) sum = checkSummary(v.inn, await checkClient(user, v.inn));
+    return deals.create({ ...v, title: sum.title, cls: sum.cls, note: sum.note, userId: user.id });
+  }
+
+  // Повторная проверка клиента сделки (после смены ИНН или когда источник был недоступен)
+  async function recheckDeal(user, deal, reason) {
+    if (!deal.inn) return deals.setCheck(deal.id, { title: deal.title, cls: null, note: "ИНН ещё не указан" }, user.id, null);
+    const sum = checkSummary(deal.inn, await checkClient(user, deal.inn));
+    deals.setCheck(deal.id, sum, user.id, `${reason}: ${sum.ok ? `${sum.title}${sum.cls ? `, класс ${sum.cls}` : ""}` : "источник недоступен"}`);
   }
 
   // «Проверка по ИНН»: DaData + отчётность + песочницы; классы — по формулам core.js
@@ -178,20 +212,39 @@ function createApp(db, opts = {}) {
     if (p === "/deals" && req.method === "POST") {
       if (!user) return H.redirect(res, "/login");
       if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Создавать сделки могут администратор, команда проекта и ТАЛК."));
+      const f = await H.readForm(req);
       try {
-        const id = await launchDeal(user, await H.readForm(req));
+        const id = await launchDeal(user, f);
         return H.redirect(res, `/deals/${id}`);
       } catch (e) {
         if (!e.status) throw e;
-        return H.send(res, e.status, V.errorPage(user, e.status, e.message));
+        // ошибка ввода — сообщением в форме на дашборде, введённые значения сохраняются
+        return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, error: e.message, field: e.field } }));
       }
     }
-    const dp = p.match(/^\/deals\/(\d+)(\/stage)?$/);
+    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck)?$/);
     if (dp) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
       if (!deal) return H.send(res, 404, V.errorPage(user, 404, "Сделка не найдена."));
-      if (dp[2] && req.method === "POST") {
+      if ((dp[2] === "/edit" || dp[2] === "/recheck") && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const f = dp[2] === "/edit" ? await H.readForm(req) : {};
+        if (dp[2] === "/recheck") {
+          await recheckDeal(user, deal, "Повторная проверка клиента");
+          return H.redirect(res, `/deals/${deal.id}`);
+        }
+        try {
+          const v = dealFields(f);
+          const changed = deals.edit(deal.id, v, user.id);
+          if (changed.includes("inn")) await recheckDeal(user, deals.get(deal.id), "Проверка клиента по новому ИНН");
+          return H.redirect(res, `/deals/${deal.id}`);
+        } catch (e) {
+          if (!e.status) throw e;
+          return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), form: { values: f, error: e.message, field: e.field } }));
+        }
+      }
+      if (dp[2] === "/stage" && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
         const f = await H.readForm(req);
         const stage = f.stage === "__any" ? f.stage_any : f.stage;
@@ -199,7 +252,7 @@ function createApp(db, opts = {}) {
         deals.move(deal.id, stage, user.id);
         return H.redirect(res, `/deals/${deal.id}`);
       }
-      if (!dp[2] && req.method === "GET") return H.send(res, 200, W.dealPage(user, { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit") }));
+      if (!dp[2] && req.method === "GET") return H.send(res, 200, W.dealPage(user, await dealModel(user, deal)));
     }
 
     if (p === "/logout" && req.method === "POST") {
