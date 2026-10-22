@@ -262,7 +262,7 @@ function fill1370(force){ // T12/U12 = стр. 1370 на предпоследн�
   if(force||$("t12In").value==="") $("t12In").value=a??""; if(force||$("u12In").value==="") $("u12In").value=b??"";
 }
 function setMode(m){
-  S.mode=m; $("modeDemo").setAttribute("aria-pressed",m==="demo"); $("modeLive").setAttribute("aria-pressed",m==="live");
+  S.mode=m; S.note=null; $("modeDemo").setAttribute("aria-pressed",m==="demo"); $("modeLive").setAttribute("aria-pressed",m==="live");
   $("liveBox").hidden=m!=="live"; S.sel=null;
   $("pkgSel").hidden=m!=="demo";
   if(m==="demo"){
@@ -403,7 +403,9 @@ function compute(){
   const classes=res.map(r=>r.cls);
   const rules=sideChecks(S.V,$("t12In").value,$("u12In").value,$("seasSel").value==="1",classes);
   const alt=CLASS_COLS.map(c=>calcColumn(Object.assign({},S.V[c],{28:S.extra[c]?.["1540"]??0}),S.M[c]||{},lease).cls);
-  return {res,classes,rules,alt};
+  // дата без единого значения: расчёт по нулям дал бы «класс» из пустоты — на странице показывается «нет данных»
+  const empty=CLASS_COLS.map(c=>ROW_ORDER.every(r=>S.V[c][r]===null||S.V[c][r]===undefined));
+  return {res,classes,rules,alt,empty};
 }
 function renderCalc(R){
   const t=$("calcTbl"); if(!R){t.innerHTML='<tbody><tr><td class="muted">Расчёт выполняется после обработки пакета.</td></tr></tbody>'; return;}
@@ -411,11 +413,11 @@ function renderCalc(R){
   const w=[0.05,0.10,0.40,0.20,0.15,0.10];
   let h=`<thead><tr><th>Коэффициент</th><th class="r">Вес</th>${CLASS_COLS.map(c=>`<th class="r" colspan="2">${fmtDate(d[TPL_COLS.indexOf(c)])}</th>`).join("")}</tr>
   <tr><th></th><th></th>${CLASS_COLS.map(()=>`<th class="r">Значение</th><th class="r">Категория</th>`).join("")}</tr></thead><tbody>`;
-  names.forEach((n,k)=>{h+=`<tr><td>${n}</td><td class="r num">${w[k].toFixed(2).replace(".",",")}</td>`+R.res.map(r=>`<td class="r num">${fk(r.K[k])}</td><td class="r num">${r.cat[k]}</td>`).join("")+"</tr>";});
-  h+=`<tr><td><strong>Сумма баллов S</strong></td><td></td>`+R.res.map(r=>`<td class="r num"><strong>${r.S.toFixed(2).replace(".",",")}</strong></td><td></td>`).join("")+"</tr>";
-  h+=`<tr><td>Проверка для первого класса (К5 ≥ 0,10 и S ≤ 1,25)</td><td></td>`+R.res.map(r=>`<td class="r" colspan="2">${r.chk1}</td>`).join("")+"</tr>";
-  h+=`<tr><td>Проверка для второго класса (S ≤ 2,35 и К5 ≥ 0)</td><td></td>`+R.res.map(r=>`<td class="r" colspan="2">${r.chk2}</td>`).join("")+"</tr>";
-  h+=`<tr><td><strong>Класс кредитоспособности</strong></td><td></td>`+R.res.map(r=>`<td class="r" colspan="2"><span class="cls cls-${r.cls}" style="width:30px;height:30px;font-size:15px">${r.cls}</span></td>`).join("")+"</tr>";
+  names.forEach((n,k)=>{h+=`<tr><td>${n}</td><td class="r num">${w[k].toFixed(2).replace(".",",")}</td>`+R.res.map((r,i)=>R.empty[i]?`<td class="r muted small" colspan="2">нет данных</td>`:`<td class="r num">${fk(r.K[k])}</td><td class="r num">${r.cat[k]}</td>`).join("")+"</tr>";});
+  h+=`<tr><td><strong>Сумма баллов S</strong></td><td></td>`+R.res.map((r,i)=>R.empty[i]?`<td class="r muted small" colspan="2">—</td>`:`<td class="r num"><strong>${r.S.toFixed(2).replace(".",",")}</strong></td><td></td>`).join("")+"</tr>";
+  h+=`<tr><td>Проверка для первого класса (К5 ≥ 0,10 и S ≤ 1,25)</td><td></td>`+R.res.map((r,i)=>`<td class="r" colspan="2">${R.empty[i]?"—":r.chk1}</td>`).join("")+"</tr>";
+  h+=`<tr><td>Проверка для второго класса (S ≤ 2,35 и К5 ≥ 0)</td><td></td>`+R.res.map((r,i)=>`<td class="r" colspan="2">${R.empty[i]?"—":r.chk2}</td>`).join("")+"</tr>";
+  h+=`<tr><td><strong>Класс кредитоспособности</strong></td><td></td>`+R.res.map((r,i)=>`<td class="r" colspan="2">${R.empty[i]?`<span class="muted small">нет данных</span>`:`<span class="cls cls-${r.cls}" style="width:30px;height:30px;font-size:15px">${r.cls}</span>`}</td>`).join("")+"</tr>";
   t.innerHTML=h+"</tbody>";
 }
 function ruleVal(r){
@@ -437,13 +439,15 @@ function renderVerdict(R,AL){
   const fail=others.filter(r=>r.pass===false), na=others.filter(r=>r.pass===null);
   const nameStr=$("nameIn").value||"Лизингополучатель";
   let cls,title,sub;
-  if(!main.pass){cls="no";title="Финансирование невозможно";sub="Класс 3 на всех четырёх отчётных датах (п. 14.1.6).";}
+  const emptyDates=R.empty.map((e,i)=>e?fmtDate(d[i+1]):null).filter(Boolean);
+  if(emptyDates.length){cls="pend";title="Недостаточно данных";sub=`Нет отчётности на ${emptyDates.join(", ")}: класс и условия п. 14.1 на эти даты не рассчитываются. Запросите отчётность у клиента.`;}
+  else if(!main.pass){cls="no";title="Финансирование невозможно";sub="Класс 3 на всех четырёх отчётных датах (п. 14.1.6).";}
   else if(fail.length){cls="no";title="Финансирование невозможно";sub=`Класс допускает финансирование, не выполнено: п. ${fail.map(r=>r.id).join(", п. ")}.`;}
   else if(na.length){cls="pend";title="Требуется ввод данных";sub=`Класс допускает финансирование. Не заполнено для п. ${na.map(r=>r.id).join(", ")}.`;}
   else {cls="ok";title="Финансирование возможно";sub="Класс 3 не на всех датах; дополнительные условия п. 14.1 выполнены.";}
   const nAct=(AL||[]).filter(a=>a.lvl==="act").length;
   el.innerHTML=`<div class="v-main ${cls}"><span class="eyebrow">Заключение</span><div class="v-title">${title}</div><p class="small"></p><p class="small">${sub}</p><p class="small" style="color:${nAct?"var(--bad)":"var(--good)"}">${nAct?`Предупреждений, требующих реакции: ${nAct}. В целевой схеме пакет передаётся ассистенту.`:"Предупреждений, требующих реакции, нет. В целевой схеме пакет проходит без ассистента."}</p></div>
-  <div class="v-dates">${R.res.map((r,i)=>`<div class="v-date"><span class="eyebrow">${fmtDate(d[i+1])}</span><span class="cls cls-${r.cls}">${r.cls}</span><span class="small muted num">S = ${r.S.toFixed(2).replace(".",",")}</span></div>`).join("")}</div>`;
+  <div class="v-dates">${R.res.map((r,i)=>R.empty[i]?`<div class="v-date"><span class="eyebrow">${fmtDate(d[i+1])}</span><span class="small muted">нет данных</span></div>`:`<div class="v-date"><span class="eyebrow">${fmtDate(d[i+1])}</span><span class="cls cls-${r.cls}">${r.cls}</span><span class="small muted num">S = ${r.S.toFixed(2).replace(".",",")}</span></div>`).join("")}</div>`;
   el.querySelector(".v-main p.small").textContent=nameStr;
 }
 // ---------- Предупреждения ----------
@@ -557,6 +561,7 @@ if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="/vendor/pdf.worker.m
 let gw=null; // состояние шлюза: {enabled, reason, model, remaining}
 fetch("/api/extract/status").then(r=>r.json()).then(j=>{gw=j; updRun();}).catch(()=>{gw={enabled:false,reason:"сервер распознавания недоступен"}; updRun();});
 function updRun(){ $("runBtn").disabled=!(S.files.length&&gw?.enabled);
+  if(S.note){ $("status").textContent=S.note; return; }
   if(S.mode==="live"&&gw&&!gw.enabled) $("status").textContent="Распознавание недоступно: "+(gw.reason||"шлюз отключён")+".";
   else if(S.mode==="live"&&gw?.enabled&&!S.files.length) $("status").textContent=`Распознавание: модель ${gw.model}, осталось запросов на сегодня: ${gw.remaining}.`; }
 function addFiles(fl){ const pdfs=[...fl].filter(f=>/\.pdf$/i.test(f.name)); if(!pdfs.length) return;
@@ -614,5 +619,15 @@ $("runBtn").onclick=async()=>{
 };
 
 setMode("demo");
+// Годовая отчётность со страницы «Проверка по ИНН» (передаётся через sessionStorage)
+(function(){
+  let imp=null; try{ imp=JSON.parse(sessionStorage.getItem("talk-calc-import")||"null"); sessionStorage.removeItem("talk-calc-import"); }catch(e){}
+  if(!imp||!imp.docs||!imp.docs.length) return;
+  setMode("live"); S.docs=imp.docs; S.cons=consolidate(S.docs);
+  if(!S.cons.dates.length) return;
+  buildFromCons(); $("nameIn").value=imp.name||""; $("innIn").value=imp.inn||""; fill1370(false);
+  S.note=`Загружена годовая отчётность по ИНН ${imp.inn} (${imp.source==="sandbox"?"песочница, условные значения":"ГИР БО"}). В открытых источниках нет квартальных дат: их нужно запросить у клиента — см. предупреждения.`;
+  renderAll(); updRun();
+})();
 })();
 </script>

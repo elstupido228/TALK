@@ -2,7 +2,6 @@
 const { esc } = require("./http");
 const { can, ROLE_TITLES } = require("./auth");
 const STAGES = require("./stages");
-const CONNECTORS = require("./connectors/registry");
 
 const PROJECT = "Контур контроля лизинговой сделки";
 
@@ -74,7 +73,7 @@ function lifecyclePage(user) {
   ${s.href ? `<a class="stage-head" href="${s.href}">${head}</a>` : `<div class="stage-head">${head}</div>`}
   <p>${esc(s.summary)}</p>
   <p class="src"><b>Источники:</b> ${s.sources.map(esc).join(", ")}</p>
-  ${s.href ? `<a class="go" href="${s.href}">Открыть модуль →</a>` : ""}
+  ${s.href ? `<a class="go" href="${s.href}">Открыть модуль →</a>` : ""}${s.extra ? `<a class="go2" href="${s.extra.href}">${esc(s.extra.label)} →</a>` : ""}
 </li>`;
   }).join("\n");
   return layout({
@@ -91,13 +90,16 @@ ${cards}
   });
 }
 
-function sourcesPage(user, log) {
+// list: [{id, title, what, mode: "live"|"sandbox", sandboxOnly, ops}]
+function sourcesPage(user, list, log) {
   const MODE = { live: ["Живой", "ok"], sandbox: ["Песочница", "target"] };
-  const rows = CONNECTORS.map((c) => {
+  const rows = list.map((c) => {
     const [ml, mc] = MODE[c.mode];
-    return `<tr><td><b>${esc(c.title)}</b><br><span class="muted">${esc(c.what)}</span></td>
+    const state = c.sandboxOnly ? '<span class="badge muted">Только интерфейс</span>' : '<span class="badge ok">Подключён</span>';
+    const ops = c.ops ? `<br>${c.ops.map((o) => `<code>${esc(c.id)}/${esc(o)}</code>`).join(" ")}` : "";
+    return `<tr><td><b>${esc(c.title)}</b><br><span class="muted">${esc(c.what)}</span>${ops}</td>
 <td><span class="badge ${mc}">${ml}</span></td>
-<td>${c.state === "planned" ? '<span class="badge muted">Не подключён</span>' : '<span class="badge ok">Работает</span>'}</td></tr>`;
+<td>${state}</td></tr>`;
   }).join("\n");
   const journal = can(user, "connectors.log")
     ? `<h2>Журнал запросов</h2>
@@ -118,11 +120,79 @@ ${log
     user,
     active: "sources",
     body: `<h1>Источники данных</h1>
-<p class="lead">Единый слой коннекторов <code>/api/connectors/*</code>: один интерфейс, кэш ответов, журнал, режимы «живой» и «песочница».</p>
+<p class="lead">Единый слой коннекторов <code>/api/connectors/*</code>: один интерфейс, кэш ответов, журнал, режимы «живой» и «песочница».
+Если внешний источник недоступен, отдаётся последний ответ из кэша, а без кэша — условный ответ песочницы.</p>
 <div class="scroll"><table><thead><tr><th>Коннектор</th><th>Режим</th><th>Состояние</th></tr></thead><tbody>
 ${rows}
 </tbody></table></div>
 ${journal}`,
+  });
+}
+
+// m: {inn, error, demo:[inn], party, fin, classes, docs, side:{kontur, spark, onec, crm}} — ответы коннекторов {data, source, …}
+function checkPage(user, m) {
+  const nf = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("ru-RU"));
+  const SRC = { live: "получено из источника", cache: "из кэша", sandbox: "песочница — условные значения" };
+  const srcLine = (r) => r ? `<p class="muted small">${esc(r.data?.sandbox_note ? SRC.sandbox : SRC[r.source])}${r.stale ? ", источник недоступен — показан сохранённый ответ" : ""}${r.fallback ? ", источник недоступен" : ""} · ${new Date(r.fetched_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : "";
+  const form = `<form class="inn-form" method="get" action="/check">
+  <label>ИНН организации<input name="inn" inputmode="numeric" pattern="\\d{10}|\\d{12}" required value="${esc(m.inn || "")}"></label>
+  <button type="submit">Проверить</button>
+</form>
+${m.demo?.length ? `<p class="muted small">Подготовленные для показа: ${m.demo.map((i) => `<a href="/check?inn=${esc(i)}">${esc(i)}</a>`).join(" · ")} · условные: <a href="/check?inn=0000000001">0000000001</a></p>` : ""}`;
+  let body = "";
+  if (m.error) body = `<p class="error">${esc(m.error)}</p>`;
+  else if (m.party) {
+    const p = m.party.data;
+    const card = p.found === false
+      ? `<p class="error">DaData: организация с ИНН ${esc(m.inn)} не найдена.</p>`
+      : `<div class="card"><h2>${esc(p.name)}</h2>
+<p><span class="badge ${p.status === "ACTIVE" ? "ok" : "target"}">${esc(p.status_label || p.status || "статус неизвестен")}</span> ИНН ${esc(p.inn)}${p.ogrn ? ` · ОГРН ${esc(p.ogrn)}` : ""}${p.registered ? ` · зарегистрирована ${esc(p.registered)}` : ""}</p>
+<p>${esc(p.address || "")}</p>
+<p>ОКВЭД ${esc(p.okved || "—")}${p.management ? ` · ${esc(p.management.post || "")}: ${esc(p.management.name)}` : ""}</p>
+${srcLine(m.party)}</div>`;
+    const f = m.fin?.data;
+    let fin = "";
+    if (!f || f.found === false || !m.classes?.length) fin = `<h2>Отчётность</h2><p class="muted">${f?.found === false ? "В ГИР БО отчётность по этому ИНН не найдена или не раскрыта (организации вправе ограничить доступ к своей отчётности)." : "Годовой отчётности нет."}</p>${srcLine(m.fin)}`;
+    else {
+      const ys = m.classes;
+      const row = (label, key) => `<tr><td>${label}</td>${ys.map((y) => `<td class="r">${nf(y[key])}</td>`).join("")}</tr>`;
+      fin = `<h2>Годовая отчётность и класс по формулам калькулятора</h2>
+<p class="muted small">Источник: ${f.provider === "girbo" ? "ГИР БО (bo.nalog.gov.ru)" : f.provider === "parser-api" ? "parser-api.com (данные ГИР БО)" : "песочница"} · тыс. руб. · отрасль не указана — пороги К4 торговли и лизинга</p>
+<div class="scroll"><table><thead><tr><th>Показатель</th>${ys.map((y) => `<th class="r">31.12.${y.year}</th>`).join("")}</tr></thead><tbody>
+${row("Выручка (2110)", "revenue")}${row("Чистая прибыль (2400)", "net")}${row("Капитал (1300)", "equity")}${row("Баланс (1600)", "assets")}
+<tr><td>Сумма баллов S</td>${ys.map((y) => `<td class="r">${y.S.toFixed(2).replace(".", ",")}</td>`).join("")}</tr>
+<tr><td><b>Класс кредитоспособности</b></td>${ys.map((y) => `<td class="r"><span class="cls cls-${y.cls}">${y.cls}</span>${y.missing.length ? `<br><span class="muted small">нет строк: ${y.missing.join(", ")}</span>` : ""}${y.variant === "simplified" ? `<br><span class="muted small">упрощённая форма</span>` : ""}</td>`).join("")}</tr>
+</tbody></table></div>
+${srcLine(m.fin)}
+<p class="notice">Открытые источники содержат только годовую отчётность. Заключение по п. 14.1.6 требует четырёх квартальных дат — их запрашивают у клиента. Калькулятор покажет, каких данных не хватает.</p>
+<p><button type="button" id="toCalc">Открыть в калькуляторе</button></p>
+<script>
+document.getElementById("toCalc").onclick = () => {
+  try { sessionStorage.setItem("talk-calc-import", ${JSON.stringify(JSON.stringify({ inn: m.inn, name: p.name || f.org?.name, source: f.provider, docs: m.docs })).split("<").join("\\u003c")}); } catch (e) {}
+  location.href = "/calc";
+};
+</script>`;
+    }
+    const side = m.side || {};
+    const sb = (title, r, render) => `<div class="card"><h3>${title} <span class="badge target">песочница</span></h3>${r ? render(r.data) : '<p class="muted">нет ответа</p>'}</div>`;
+    const sides = `<h2>Другие источники</h2><p class="muted small">Контур.Фокус, СПАРК, 1С и CRM подключены только интерфейсом: ответы условные.</p>
+<div class="grid2">
+${sb("Контур.Фокус", side.kontur, (d) => `<p>Арбитраж (ответчик, 12 мес.): ${d.arbitration.as_defendant_12m} дел на ${nf(d.arbitration.sum_mln)} млн руб.</p><p>Исполнительные производства: ${d.fssp.open}</p>${d.flags.length ? `<p>${d.flags.map(esc).join("; ")}</p>` : ""}`)}
+${sb("СПАРК", side.spark, (d) => `<p>Должная осмотрительность: ${d.due_diligence_index} · платёжная дисциплина: ${d.payment_discipline_index} · финансовый риск: ${d.financial_risk_index}</p>`)}
+${sb("1С", side.onec, (d) => `<p>${d.contracts.map((c) => `${esc(c.number)} — ${esc(c.asset)}, ${nf(c.amount_mln)} млн руб.${c.overdue_days ? `, просрочка ${c.overdue_days} дн.` : ""}`).join("<br>")}</p>`)}
+${sb("CRM", side.crm, (d) => `<p>${d.applications.map((a) => `${esc(a.id)}: ${esc(a.stage)}, ${esc(a.asset)}, ${nf(a.amount_mln)} млн руб.`).join("<br>")}</p>`)}
+</div>`;
+    body = card + fin + sides;
+  }
+  return layout({
+    title: "Проверка по ИНН",
+    user,
+    active: "lifecycle",
+    body: `<p class="crumbs"><a href="/">Жизненный цикл</a> / Оценка клиента</p>
+<h1>Проверка по ИНН</h1>
+<p class="lead">Карточка организации (DaData) и годовая отчётность (ГИР БО) → предварительный класс по формулам калькулятора.</p>
+${form}
+${body}`,
   });
 }
 
@@ -174,4 +244,4 @@ function errorPage(user, status, message) {
   return layout({ title: String(status), user, body: `<h1>${status}</h1><p>${esc(message)}</p><p><a href="/">На главную</a></p>` });
 }
 
-module.exports = { loginPage, lifecyclePage, sourcesPage, aboutPage, usersPage, errorPage, PROJECT };
+module.exports = { loginPage, lifecyclePage, sourcesPage, checkPage, aboutPage, usersPage, errorPage, PROJECT };

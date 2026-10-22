@@ -10,7 +10,8 @@ const { calcPage } = require("./calc/build");
 const { createGateway } = require("./extract/gateway");
 const { monitoringPage } = require("./monitoring/build");
 const { createConnectors } = require("./connectors/core");
-const CONNECTORS = [require("./connectors/cbr")];
+const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
+const { toDocs, annualClasses } = require("./check");
 
 const PUB = path.join(__dirname, "public");
 const JS = "text/javascript; charset=utf-8";
@@ -35,13 +36,30 @@ function createApp(db, opts = {}) {
   const recentLog = db.prepare("SELECT * FROM connector_log ORDER BY at DESC LIMIT 100");
   const gateway = opts.gateway || createGateway({ db });
   const connectors = opts.connectors || createConnectors(db, CONNECTORS);
+  // Шлюз распознавания — отдельный модуль (POST /api/extract), но на «Источниках данных» показывается рядом с коннекторами
+  const sourcesList = () => [...connectors.describe(), { id: "extract", title: "Распознавание PDF (OpenAI)", what: "Страницы отчётности → значения по кодам строк на все даты документа", mode: "live", ops: null }];
+  const demoInns = (process.env.DEMO_INNS || "").split(",").map((s) => s.trim()).filter((s) => /^\d{10}(\d{2})?$/.test(s));
+
+  // «Проверка по ИНН»: DaData + отчётность + песочницы; классы — по формулам core.js
+  async function checkModel(user, url) {
+    const inn = (url.searchParams.get("inn") || "").replace(/\D/g, "");
+    const m = { inn, demo: demoInns };
+    if (!inn) return m;
+    if (!/^(\d{10}|\d{12})$/.test(inn)) return { ...m, error: "ИНН — 10 или 12 цифр." };
+    const call = (id, op) => connectors.call(id, op, { inn }, { userId: user.id }).catch((e) => ({ failed: e.message }));
+    const [party, fin, kontur, spark, onec, crm] = await Promise.all([call("dadata", "party"), call("fin", "reports"), call("kontur", "check"), call("spark", "risk"), call("onec", "contracts"), call("crm", "applications")]);
+    if (party.failed) return { ...m, error: `DaData: ${party.failed}` };
+    const ok = (r) => (r.failed ? null : r);
+    return { ...m, party, fin: ok(fin), classes: fin.data?.reports ? annualClasses(fin.data) : [], docs: fin.data?.reports ? toDocs(fin.data) : [], side: { kontur: ok(kontur), spark: ok(spark), onec: ok(onec), crm: ok(crm) } };
+  }
 
   // Страницы для вошедших: [путь, право, рендер]
   const PAGES = {
     "/": ["pages.view", (u) => V.lifecyclePage(u)],
     "/calc": ["calc.use", (u) => calcPage(u)],
     "/monitoring": ["pages.view", (u) => monitoringPage(u)],
-    "/sources": ["pages.view", (u) => V.sourcesPage(u, can(u, "connectors.log") ? recentLog.all() : [])],
+    "/sources": ["pages.view", (u) => V.sourcesPage(u, sourcesList(), can(u, "connectors.log") ? recentLog.all() : [])],
+    "/check": ["calc.use", async (u, url) => V.checkPage(u, await checkModel(u, url))],
     "/about": ["pages.view", (u) => V.aboutPage(u)],
     "/admin/users": ["users.view", (u) => V.usersPage(u, auth.listUsers())],
   };
@@ -106,7 +124,7 @@ function createApp(db, opts = {}) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p + url.search));
       const [perm, render] = page;
       if (!can(user, perm)) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав для этой страницы."));
-      return H.send(res, 200, render(user));
+      return H.send(res, 200, await render(user, url));
     }
 
     return H.send(res, 404, V.errorPage(user, 404, "Страница не найдена."));

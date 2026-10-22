@@ -128,6 +128,19 @@ python -X utf8 train.py 2024-03-31 && node check_parity.js
 | Коннектор | Методы | Источник |
 |---|---|---|
 | `cbr` | `key-rate`, `curs?date=ГГГГ-ММ-ДД&codes=USD,EUR` | Банк России, DailyInfoWebServ (SOAP), без ключа |
+| `dadata` | `party?inn=` | DaData «Организация по ИНН», `DADATA_TOKEN`, 10 000 запросов/сутки — `docs/sources/dadata.md` |
+| `fin` | `reports?inn=` | Годовая отчётность: ГИР БО (без ключа) → запасной parser-api.com (`PARSERAPI_KEY`) — `docs/sources/girbo.md`, `docs/sources/parser-api.md` |
+| `kontur`, `spark`, `onec`, `crm` | `check`, `risk`, `contracts`, `applications` (`?inn=`) | Только интерфейс и песочница: условные ответы |
+
+### Проверка по ИНН (`/check`) — демо-сценарий
+
+ИНН → DaData (карточка, статус) → ГИР БО (годовая отчётность) → класс на каждую годовую дату по формулам `core.js`
+→ «Открыть в калькуляторе» (годовые графы; квартальные даты калькулятор показывает как недостающие — их запрашивают у клиента).
+ИНН демо-компаний не хранятся в репозитории: `DEMO_INNS` в `.env` сервера. Прогрев кэша на случай сбоя сети во время показа:
+
+```bash
+docker compose exec app node scripts/warm-demo-cache.js
+```
 
 ## Учётные записи
 

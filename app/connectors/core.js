@@ -64,7 +64,7 @@ function createConnectors(db, list, { env = process.env } = {}) {
     }
   }
 
-  const describe = () => list.map((c) => ({ id: c.id, title: c.title, what: c.what, mode: modeOf(c), ops: Object.keys(c.ops) }));
+  const describe = () => list.map((c) => ({ id: c.id, title: c.title, what: c.what, mode: modeOf(c), sandboxOnly: !!c.sandboxOnly, ops: Object.keys(c.ops) }));
   return { call, describe, has: (id) => byId.has(id) };
 }
 

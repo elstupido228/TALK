@@ -106,3 +106,22 @@ th { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
   .who span { max-width: 160px; }
   h1 { font-size: 1.35rem; }
 }
+
+/* Проверка по ИНН */
+.inn-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 16px 0 6px; }
+.inn-form label { display: grid; gap: 4px; font-size: 0.9rem; color: var(--muted); }
+.inn-form input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); width: 220px; }
+.inn-form button, #toCalc { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 14px 0; }
+.card h2, .card h3 { margin: 0 0 6px; }
+.card h3 { font-size: 1rem; }
+.card p { margin: 6px 0; }
+.grid2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.grid2 .card { margin: 0; }
+.small { font-size: 0.85rem; }
+td.r, th.r { text-align: right; }
+.cls { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-weight: 700; }
+.cls-1 { background: var(--accent-bg); color: var(--accent); }
+.cls-2 { background: var(--target-bg); color: var(--target); }
+.cls-3 { background: var(--error-bg); color: var(--error); }
+.stage .go2 { padding-top: 6px; font-size: 0.9rem; text-decoration: none; }
