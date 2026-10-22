@@ -89,7 +89,8 @@ function createAuth(db) {
     if (wait > 0) return { ok: false, reason: "locked", retryAfter: wait };
 
     const user = email ? q.userByEmail.get(email) : undefined;
-    const valid = verifyPassword(String(password || ""), user ? user.pass_hash : DUMMY_HASH) && user && !user.disabled;
+    // пробелы по краям — частый след копирования из терминала или письма; сгенерированные пароли их не содержат
+    const valid = verifyPassword(String(password || "").trim(), user ? user.pass_hash : DUMMY_HASH) && user && !user.disabled;
     q.insertAttempt.run(email, ip, valid ? 1 : 0, now);
     if (!valid) {
       const after = lockedFor(email, ip, now + 1);

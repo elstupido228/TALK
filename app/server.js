@@ -89,7 +89,7 @@ function createApp(db, opts = {}) {
           const min = Math.ceil(r.retryAfter / 60);
           return H.send(res, 429, V.loginPage({ error: `Слишком много неудачных попыток. Вход заблокирован на ${min} мин.`, email: f.email, next: safeNext(f.next) }), undefined, { "retry-after": String(r.retryAfter) });
         }
-        return H.send(res, 401, V.loginPage({ error: "Неверный email или пароль.", email: f.email, next: safeNext(f.next) }));
+        return H.send(res, 401, V.loginPage({ error: "Неверный email или пароль. Пароль — латинские буквы и цифры: проверьте раскладку клавиатуры.", email: f.email, next: safeNext(f.next) }));
       }
     }
 

@@ -105,3 +105,10 @@ test("адрес возврата после входа — только лок�
   const ok = await req("/login", { method: "POST", form: { email: "sber2b@example.test", password: PASS, next: "/sources" }, ip: "10.0.4.1" });
   assert.strictEqual(ok.headers.get("location"), "/sources");
 });
+
+test("пароль с пробелами по краям (копирование из терминала) принимается", async () => {
+  const r = await login("curator@example.test", `  ${PASS}\t`, "10.0.5.1");
+  assert.strictEqual(r.status, 303);
+  const bad = await login("curator@example.test", "wrong", "10.0.5.1");
+  assert.match(await bad.text(), /раскладку/);
+});
