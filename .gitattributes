@@ -4,3 +4,5 @@
 *.pdf binary
 *.png binary
 *.jpg binary
+# Эталонные CSV хранятся байт в байт, как выгружены из Excel
+*.csv -text
