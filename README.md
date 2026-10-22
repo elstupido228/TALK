@@ -55,6 +55,19 @@ free -h
 docker ps --format '{{.Names}}\t{{.Status}}'
 ```
 
+## Калькулятор класса (`/calc`)
+
+Страница собирается сервером при старте (`app/calc/build.js`) из `seed/calc`: шаблон `page.src.html`, ядро `core.js`
+(формулы не менять), условные пакеты A/B/C из `demo_synthetic.json` (классы 1/2/3), шаблон «Пробивки».
+JSZip и pdf.js отдаются с собственного сервера (`app/public/vendor`). Распознавание PDF — `POST /api/extract` (шаг 4).
+
+Сверка ядра с эталоном Excel (требование — 124 из 124):
+
+```bash
+node scripts/calc-parity.js
+docker compose exec app node scripts/calc-parity.js   # на сервере
+```
+
 ## Учётные записи
 
 Вход по email и паролю. Роли: `admin`, `curator`, `sber2b`, `talk`, `team` (права — `PERMISSIONS` в `app/auth.js`).

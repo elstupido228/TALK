@@ -6,9 +6,17 @@ const { open } = require("./db");
 const { createAuth, can, SESSION_TTL_MS } = require("./auth");
 const H = require("./http");
 const V = require("./views");
+const { calcPage } = require("./calc/build");
+const { createGateway } = require("./extract/gateway");
 
+const PUB = path.join(__dirname, "public");
+const JS = "text/javascript; charset=utf-8";
+// [файл, тип, cache-control]; библиотеки версионированы — кэшируются на сутки
 const STATIC = {
-  "/static/style.css": [path.join(__dirname, "public", "style.css"), "text/css; charset=utf-8"],
+  "/static/style.css": [path.join(PUB, "style.css"), "text/css; charset=utf-8", "no-cache"],
+  "/vendor/jszip.min.js": [path.join(PUB, "vendor", "jszip.min.js"), JS, "public, max-age=86400"],
+  "/vendor/pdf.min.js": [path.join(PUB, "vendor", "pdf.min.js"), JS, "public, max-age=86400"],
+  "/vendor/pdf.worker.min.js": [path.join(PUB, "vendor", "pdf.worker.min.js"), JS, "public, max-age=86400"],
 };
 
 // Безопасный адрес возврата после входа: только локальный путь.
@@ -21,11 +29,12 @@ function sessionCookie(req, token, maxAgeSec) {
 function createApp(db) {
   const auth = createAuth(db);
   const recentLog = db.prepare("SELECT * FROM connector_log ORDER BY at DESC LIMIT 100");
+  const gateway = createGateway({ db });
 
   // Страницы для вошедших: [путь, право, рендер]
   const PAGES = {
     "/": ["pages.view", (u) => V.lifecyclePage(u)],
-    "/calc": ["pages.view", (u) => V.modulePage(u, { title: "Оценка клиента — калькулятор класса", step: 3 })],
+    "/calc": ["calc.use", (u) => calcPage(u)],
     "/monitoring": ["pages.view", (u) => V.modulePage(u, { title: "Мониторинг — раннее предупреждение", step: 5 })],
     "/sources": ["pages.view", (u) => V.sourcesPage(u, can(u, "connectors.log") ? recentLog.all() : [])],
     "/about": ["pages.view", (u) => V.aboutPage(u)],
@@ -41,8 +50,8 @@ function createApp(db) {
     if (p === "/healthz") return H.sendJson(res, 200, { ok: true, rss_mb: Math.round(process.memoryUsage().rss / 1048576) });
 
     if (STATIC[p] && req.method === "GET") {
-      const [file, type] = STATIC[p];
-      return H.send(res, 200, fs.readFileSync(file), type, { "cache-control": "no-cache" });
+      const [file, type, cache] = STATIC[p];
+      return H.send(res, 200, fs.readFileSync(file), type, { "cache-control": cache });
     }
 
     if (req.method === "POST" && !H.sameOrigin(req)) return H.send(res, 403, V.errorPage(user, 403, "Запрос отклонён: другой источник."));
@@ -59,6 +68,17 @@ function createApp(db) {
         }
         return H.send(res, 401, V.loginPage({ error: "Неверный email или пароль.", email: f.email, next: safeNext(f.next) }));
       }
+    }
+
+    // API: без входа — 401 в JSON, а не перенаправление
+    if (p.startsWith("/api/")) {
+      if (!user) return H.sendJson(res, 401, { error: { code: "unauthorized", message: "Требуется вход." } });
+      if (p === "/api/extract/status" && req.method === "GET") return H.sendJson(res, 200, can(user, "calc.extract") ? gateway.status(user) : { enabled: false, reason: "нет прав" });
+      if (p === "/api/extract" && req.method === "POST") {
+        if (!can(user, "calc.extract")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });
+        return gateway.handle(req, res, user);
+      }
+      return H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такого метода." } });
     }
 
     if (p === "/logout" && req.method === "POST") {

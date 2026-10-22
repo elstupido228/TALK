@@ -14,6 +14,8 @@ const ROLE_TITLES = {
 // Права по ролям: одно место, где видно, кому что доступно.
 const PERMISSIONS = {
   "pages.view": ROLES,
+  "calc.use": ROLES,
+  "calc.extract": ROLES, // расход ограничен дневным лимитом шлюза
   "connectors.log": ["admin", "sber2b", "team"],
   "users.view": ["admin"],
 };

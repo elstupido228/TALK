@@ -116,9 +116,12 @@ input.t.num{font-family:var(--f-num)}
       <h1>Расчёт класса кредитоспособности лизингополучателя</h1>
       <p class="muted small">Пакет «стандарт» (РСБУ, формы 0710001 и 0710002). Методика — Приложение 5 к Регламенту 285, расчёт по формулам файла «Пробивка».</p>
     </div>
-    <div class="seg" role="group" aria-label="Режим">
-      <button id="modeDemo" aria-pressed="true">Пример: условный пакет</button>
-      <button id="modeLive" aria-pressed="false">Новый пакет</button>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <div class="seg" role="group" aria-label="Режим">
+        <button id="modeDemo" aria-pressed="true">Пример: условный пакет</button>
+        <button id="modeLive" aria-pressed="false">Новый пакет</button>
+      </div>
+      <select id="pkgSel" aria-label="Условный пакет"></select>
     </div>
   </header>
 
@@ -222,20 +225,18 @@ input.t.num{font-family:var(--f-num)}
   </section>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/pdf.min.js"></script>
 <script>
 /*__CORE__*/
-const DEMO_DOCS = /*__DEMO__*/;
+const DEMO_PKGS = /*__DEMO__*/;   // условные пакеты: [{id, name, inn, expected_class, docs}]
 const TEMPLATE_B64 = "/*__TPL__*/";
-const DEMO_META = /*__META__*/;
-const DEMO_REF = /*__REF__*/;
+const DEMO_META = /*__META__*/;   // {note, refSrc}
+const DEMO_REF = /*__REF__*/;     // значения ручной «Пробивки» для примера или null
 </script>
 <script>
 (function(){
 const $=s=>document.getElementById(s);
-const useCap=n=>(window.claude&&window.claude.use)?window.claude.use(n):Promise.resolve(null);
 const tplBytes=Uint8Array.from(atob(TEMPLATE_B64),c=>c.charCodeAt(0));
 const ROW_LABEL={10:"Выручка",11:"Прибыль (убыток) от продаж",12:"Чистая прибыль (убыток)",18:"Дебиторская задолженность",19:"Краткосрочные финансовые вложения",20:"Денежные средства",21:"Итого по разделу II",25:"Итого по разделу III",27:"Доходы будущих периодов",28:"Прочие краткосрочные обязательства (в шаблоне — «резервы»)",29:"Итого по разделу V",30:"Баланс"};
 const ROW_ORDER=[10,11,12,18,19,20,21,25,27,28,29,30];
@@ -263,19 +264,23 @@ function fill1370(force){ // T12/U12 = стр. 1370 на предпоследн�
 function setMode(m){
   S.mode=m; $("modeDemo").setAttribute("aria-pressed",m==="demo"); $("modeLive").setAttribute("aria-pressed",m==="live");
   $("liveBox").hidden=m!=="live"; S.sel=null;
+  $("pkgSel").hidden=m!=="demo";
   if(m==="demo"){
-    S.docs=DEMO_DOCS; S.cons=consolidate(S.docs); buildFromCons(); S.M={};
+    const P=DEMO_PKGS.find(p=>p.id===$("pkgSel").value)||DEMO_PKGS[0];
+    S.docs=P.docs; S.cons=consolidate(S.docs); buildFromCons(); S.M={};
     $("indSel").value="blank"; $("seasSel").value="0";
-    $("innIn").value=DEMO_META.inn; $("nameIn").value=DEMO_META.name; fill1370(true);
-    S.ref={src:DEMO_META.refSrc,vals:DEMO_REF};
+    $("innIn").value=P.inn; $("nameIn").value=P.name; fill1370(true);
+    S.ref=DEMO_REF?{src:DEMO_META.refSrc,vals:DEMO_REF}:null;
   } else {
     S.docs=[]; S.cons=null; S.V={}; S.extra={}; S.M={}; S.ref=null; S.files=[]; S.pageImgs={};
     $("nameIn").value=""; $("innIn").value=""; $("t12In").value=""; $("u12In").value=""; $("indSel").value="blank"; $("seasSel").value="";
     $("status").textContent=""; $("prog").style.width="0";
   }
-  renderAll();
+  renderAll(); updRun();
 }
 $("modeDemo").onclick=()=>setMode("demo"); $("modeLive").onclick=()=>setMode("live");
+$("pkgSel").innerHTML=DEMO_PKGS.map(p=>`<option value="${p.id}">Пакет ${p.id}: ${p.name}</option>`).join("");
+$("pkgSel").onchange=()=>setMode("demo");
 
 // ---------- Документы ----------
 function renderDocs(){
@@ -290,7 +295,7 @@ function renderDocs(){
     row.innerHTML=`<div style="min-width:0"><div class="name"></div><div class="muted small">${comp?"Сравнительные графы: "+comp:""}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start">${kinds}</div>`;
     row.querySelector(".name").textContent=d.name;
     el.append(row);});
-  $("docsMeta").textContent=S.mode==="demo"?"Значения распознаны моделью по изображениям страниц без доступа к ручной «Пробивке»":`${list.length} файл(ов)`;
+  $("docsMeta").textContent=S.mode==="demo"?DEMO_META.note:`${list.length} файл(ов)`;
 }
 
 // ---------- Таблица данных ----------
@@ -531,25 +536,29 @@ $("refIn").addEventListener("change",async e=>{const f=e.target.files[0]; if(!f)
   e.target.value="";});
 
 // ---------- Скачивание ----------
-let dl=null; useCap("downloads").then(x=>{dl=x; if(!x) $("dlBtn").hidden=true;});
 $("dlBtn").onclick=async()=>{
-  if(!dl||!S.cons) return; $("dlStatus").className="status"; $("dlStatus").textContent="Формирую файл…";
+  if(!S.cons) return; $("dlStatus").className="status"; $("dlStatus").textContent="Формирую файл…";
   try{
     const ind=$("indSel").value;
     const bytes=await fillTemplate(JSZip,tplBytes,{dates:S.cons.dates,V:S.V,M:S.M,name:$("nameIn").value,industryText:ind==="other"?"Прочие отрасли":"",T12:$("t12In").value,U12:$("u12In").value});
     const last=fmtDate(S.cons.dates[4]);
-    const r=await dl.save({filename:`Пробивка_${($("nameIn").value||"лизингополучатель").replace(/[^\wА-Яа-яЁё]+/g,"_")}_${last}.xlsx`,data:bytes});
-    $("dlStatus").textContent=r.status==="saved"?"Файл сохранён. Формулы пересчитаются при открытии.":"Файл передан.";
-  }catch(e){ $("dlStatus").className="status err"; $("dlStatus").textContent=e?.code==="cancelled"||e?.code==="declined"?"Сохранение отменено.":"Не удалось сохранить файл: "+(e?.message||e); }
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+    a.download=`Пробивка_${($("nameIn").value||"лизингополучатель").replace(/[^\wА-Яа-яЁё]+/g,"_")}_${last}.xlsx`;
+    document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    $("dlStatus").textContent="Файл сформирован. Формулы пересчитаются при открытии.";
+  }catch(e){ $("dlStatus").className="status err"; $("dlStatus").textContent="Не удалось сформировать файл: "+(e?.message||e); }
 };
 
 // ---------- Новый пакет: распознавание ----------
-if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-let sample=null, limits=null;
-useCap("sample").then(async s=>{sample=s; if(s){limits=await s.limits().catch(()=>null);} updRun();});
-function updRun(){ $("runBtn").disabled=!(S.files.length&&sample&&limits?.images);
-  if(S.mode==="live"&&sample===null) $("status").textContent="Распознавание недоступно в этом окне просмотра.";
-  else if(S.mode==="live"&&sample&&!limits?.images) $("status").textContent="Отправка изображений недоступна в этом окне просмотра."; }
+// Распознавание выполняет сервер: POST /api/extract (PDF -> изображения страниц -> модель -> JSON по кодам строк).
+// pdf.js в браузере нужен только для показа страниц скана рядом с ячейкой.
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="/vendor/pdf.worker.min.js";
+let gw=null; // состояние шлюза: {enabled, reason, model, remaining}
+fetch("/api/extract/status").then(r=>r.json()).then(j=>{gw=j; updRun();}).catch(()=>{gw={enabled:false,reason:"сервер распознавания недоступен"}; updRun();});
+function updRun(){ $("runBtn").disabled=!(S.files.length&&gw?.enabled);
+  if(S.mode==="live"&&gw&&!gw.enabled) $("status").textContent="Распознавание недоступно: "+(gw.reason||"шлюз отключён")+".";
+  else if(S.mode==="live"&&gw?.enabled&&!S.files.length) $("status").textContent=`Распознавание: модель ${gw.model}, осталось запросов на сегодня: ${gw.remaining}.`; }
 function addFiles(fl){ const pdfs=[...fl].filter(f=>/\.pdf$/i.test(f.name)); if(!pdfs.length) return;
   S.files.push(...pdfs); S.docs=[]; S.cons=null; renderAll(); updRun(); $("status").textContent=`Выбрано файлов: ${S.files.length}.`; }
 $("fileIn").addEventListener("change",e=>{addFiles(e.target.files); e.target.value="";});
@@ -559,7 +568,7 @@ const drop=$("drop");
 drop.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
 
 async function renderPages(file){
-  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise; const blobs=[],urls=[];
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer(),isEvalSupported:false}).promise; const blobs=[],urls=[];
   for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i); const v0=pg.getViewport({scale:1}); const sc=1600/Math.max(v0.width,v0.height);
     const vp=pg.getViewport({scale:sc}); const cv=document.createElement("canvas"); cv.width=vp.width; cv.height=vp.height;
     const ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height);
@@ -568,22 +577,6 @@ async function renderPages(file){
   return {blobs,urls};
 }
 const CODES_ALL=["1200","1230","1240","1250","1300","1370","1500","1530","1540","1550","1600","1700","2110","2200","2400"];
-function prompt(name,from,to,total){
-  return `Ты извлекаешь данные из российской бухгалтерской отчётности по РСБУ (формы по ОКУД 0710001 «Бухгалтерский баланс» и 0710002 «Отчёт о финансовых результатах»).
-Файл: «${name}». Приложены изображения страниц ${from}–${to} из ${total}. Часть страниц может быть квитанциями ЭДО без таблиц — их пропусти.
-
-Для каждой числовой графы таблиц (отчётная дата и сравнительные графы) выпиши значения строк с кодами:
-баланс: 1200, 1230, 1240, 1250, 1300, 1370, 1500, 1530, 1540, 1550, 1600, 1700;
-отчёт о финансовых результатах: 2110, 2200, 2400.
-Правила: значения в тыс. руб. как напечатаны; число в скобках — отрицательное; прочерк — 0; строки нет в документе — null. Не вычисляй и не подставляй значения, которых нет на изображении. Номер страницы — порядковый номер изображения в этом файле (от ${from}).
-
-Ответь только JSON:
-{"company":"наименование организации или null","inn":"ИНН организации или null",
- "form_variant":"standard" — полная форма или "simplified" — упрощённая (в заголовке «упрощённая», строки укрупнены),
- "confirmation":"fns_receipt" — есть квитанция/подтверждение ФНС или оператора ЭДО о приёме; "edo_signature" — отметка о подписании электронной подписью или передаче через ЭДО (Диадок, СБИС и т.п.); "paper_signature" — подпись руководителя и печать на скане; "none" — ничего из перечисленного,
- "columns":[{"kind":"balance" или "pnl","header":"заголовок графы как в документе","date":"ДД.ММ.ГГГГ — дата баланса или последний день отчётного периода","months":число месяцев периода для pnl (3, 6, 9, 12) или null,"values":{"1200":706837,...},"page":{"1200":2,...}}]}
-Если на страницах нет таблиц баланса или отчёта о финансовых результатах, верни {"company":null,"inn":null,"form_variant":null,"confirmation":квитанция или подпись, если видна, иначе null,"columns":[]}.`;
-}
 function mergeCols(all){ // объединяет графы из разных частей одного файла (баланс может быть разбит на страницы)
   const m=new Map(); all.forEach(c=>{const date=parseDate(c.date); if(!date||!c.kind) return; const k=c.kind+date;
     const cur=m.get(k)||{kind:c.kind,date,months:c.months?+c.months:null,header:c.header,values:{},page:{}};
@@ -592,20 +585,21 @@ function mergeCols(all){ // объединяет графы из разных ч
 }
 $("runBtn").onclick=async()=>{
   const btn=$("runBtn"); btn.disabled=true; const st=$("status"); st.className="status"; const prog=$("prog");
-  const docs=[]; const max=Math.max(1,limits.images.maxCount); let company=null;
+  const docs=[]; let company=null;
   try{
     for(let fi=0;fi<S.files.length;fi++){
       const f=S.files[fi]; st.textContent=`Файл ${fi+1} из ${S.files.length}: подготовка страниц «${f.name}»`;
-      const {blobs,urls}=await renderPages(f); S.pageImgs[f.name]=urls; const cols=[]; const meta={inn:null,variant:null,conf:[]};
-      for(let p=0;p<blobs.length;p+=max){
-        st.textContent=`Файл ${fi+1} из ${S.files.length}: распознавание страниц ${p+1}–${Math.min(p+max,blobs.length)} «${f.name}»`;
-        const j=await sample.json(prompt(f.name,p+1,Math.min(p+max,blobs.length),blobs.length),{images:blobs.slice(p,p+max),modelTier:"default"});
-        (j.columns||[]).forEach(c=>{Object.keys(c.page||{}).forEach(k=>c.page[k]=+c.page[k]); cols.push(c);}); if(j.company&&!company) company=j.company; if(j.inn&&!meta.inn) meta.inn=String(j.inn).replace(/\D/g,""); if(j.form_variant&&!meta.variant) meta.variant=j.form_variant; if(j.confirmation) meta.conf.push(j.confirmation);
-      }
+      try{ S.pageImgs[f.name]=(await renderPages(f)).urls; }catch{ S.pageImgs[f.name]=[]; } // просмотр страниц необязателен
+      st.textContent=`Файл ${fi+1} из ${S.files.length}: распознавание «${f.name}» на сервере`;
+      const r=await fetch("/api/extract",{method:"POST",headers:{"content-type":"application/pdf","x-file-name":encodeURIComponent(f.name)},body:f});
+      const j=await r.json().catch(()=>({error:{code:"upstream_error"}}));
+      if(!r.ok) throw j.error||{message:"HTTP "+r.status};
+      const cols=(j.columns||[]).map(c=>{Object.keys(c.page||{}).forEach(k=>c.page[k]=+c.page[k]); return c;});
+      if(j.company&&!company) company=j.company;
       const merged=mergeCols(cols); const seen=new Set();
       merged.sort((a,b)=>b.date.localeCompare(a.date)).forEach(c=>{c.primary=!seen.has(c.kind); seen.add(c.kind);});
-      const rank=["fns_receipt","edo_signature","paper_signature","none"]; const conf=meta.conf.sort((a,b)=>rank.indexOf(a)-rank.indexOf(b))[0]||"none";
-      docs.push(merged.length?{name:f.name,columns:merged,pages:blobs.length,inn:meta.inn,variant:meta.variant,confirmation:conf}:{name:f.name,columns:[],pages:blobs.length,error:"таблицы не найдены"});
+      const inn=j.inn?String(j.inn).replace(/\D/g,""):null;
+      docs.push(merged.length?{name:f.name,columns:merged,pages:j.pages,inn,variant:j.form_variant||null,confirmation:j.confirmation||"none"}:{name:f.name,columns:[],pages:j.pages,error:"таблицы не найдены"});
       prog.style.width=`${Math.round((fi+1)/S.files.length*100)}%`;
     }
     S.docs=docs; S.cons=consolidate(docs.filter(d=>d.columns.length));
@@ -614,7 +608,7 @@ $("runBtn").onclick=async()=>{
     st.textContent="Готово. Проверьте подсвеченные ячейки и ручные расшифровки."; renderAll();
   }catch(e){
     st.className="status err";
-    const map={not_granted:"Использование Claude не разрешено для этой страницы.",rate_limited:"Превышен лимит запросов. Повторите позже.",image_rejected:"Изображение страницы не принято.",invalid_json:"Ответ модели не удалось разобрать. Повторите запуск.",upstream_error:"Сбой соединения. Повторите запуск."};
+    const map={disabled:"Распознавание отключено на сервере.",daily_limit:"Исчерпан дневной лимит запросов к нейросети. Повторите завтра.",rate_limited:"Превышен лимит запросов. Повторите позже.",too_large:"Файл слишком большой.",not_pdf:"Файл не является PDF.",invalid_json:"Ответ модели не удалось разобрать. Повторите запуск.",upstream_error:"Сбой соединения с сервисом распознавания. Повторите запуск.",unauthorized:"Сессия истекла. Войдите заново."};
     st.textContent=map[e?.code]||("Ошибка: "+(e?.message||e)); S.docs=docs; renderAll();
   }finally{btn.disabled=false; updRun();}
 };
