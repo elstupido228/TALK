@@ -69,7 +69,7 @@ test("дашборд: показатели, сделки по стадиям, п
   assert.match(html, /34 клиентов портфеля в красной зоне/);
   assert.ok(!html.includes('action="/deals"'), "куратору форма запуска сделки не показывается");
   const team = sid(await login("team@example.test", PASS, "10.0.0.4"));
-  assert.match(await (await req("/", { cookie: team })).text(), /<form class="launch" method="post" action="\/deals">/);
+  assert.match(await (await req("/", { cookie: team })).text(), /<form class="launch" method="post" action="\/deals" data-draft>/);
   assert.match(html, /href="\/monitoring#card=/);
   assert.match(html, /<a href="\/" aria-current="page">/);
   for (const t of ["Схема процесса", "Источники данных", "О проекте"]) assert.ok(html.includes(t), t);

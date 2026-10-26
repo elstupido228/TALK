@@ -70,17 +70,42 @@ function createApp(db, opts = {}) {
   }
 
   // Поля сделки из формы (запуск и правка). Ошибка — {status: 400, field}
-  function dealFields(f) {
-    const bad = (field, message) => Object.assign(new Error(message), { status: 400, field });
-    if (/[^\d\s]/.test(String(f.inn || ""))) throw bad("inn", "ИНН — только цифры: 10 для организации, 12 для ИП.");
-    const inn = String(f.inn || "").replace(/\D/g, "");
-    if (inn &&!/^(\d{10}|\d{12})$/.test(inn)) throw bad("inn", "ИНН — 10 или 12 цифр.");
-    const num = (x) => (x === undefined || String(x).trim() === "" ? null : Number(String(x).replace(/\s/g, "").replace(",", ".")));
+  // Ошибки — все сразу: {status: 400, errors: {поле: текст}}. launch — запуск: нужен ИНН или предмет.
+  function dealFields(f, { launch = false } = {}) {
+    const errors = {};
+    const raw = String(f.inn || ""), inn = raw.replace(/\D/g, "");
+    if (/[^\d\s]/.test(raw)) errors.inn = "ИНН — только цифры: 10 для организации, 12 для ИП.";
+    else if (inn && !/^(\d{10}|\d{12})$/.test(inn)) errors.inn = "ИНН — 10 или 12 цифр.";
+    // число с запятой или точкой; «1e3», «0x10» и подобное — ошибка, а не 1000
+    const num = (x) => { const s = String(x ?? "").replace(/\s/g, ""); return s === "" ? null : /^-?\d+([.,]\d+)?$/.test(s) ? Number(s.replace(",", ".")) : NaN; };
     const amount = num(f.amount);
-    if (amount !== null && !(amount > 0 && amount < 1e6)) throw bad("amount", "Сумма — положительное число, млн руб.");
+    if (amount !== null && !(amount > 0 && amount < 1e6)) errors.amount = "Сумма — положительное число, млн руб.";
     const term = num(f.term);
-    if (term !== null && !(Number.isInteger(term) && term >= 1 && term <= 120)) throw bad("term", "Срок — целое число месяцев от 1 до 120.");
-    return { inn: inn || null, asset: W.ASSETS.includes(f.asset) ? f.asset : null, amount_mln: amount, term_months: term, comment: String(f.comment || "").trim().slice(0, 500) || null };
+    if (term !== null && !(Number.isInteger(term) && term >= 1 && term <= 120)) errors.term = "Срок — целое число месяцев от 1 до 120.";
+    const asset = W.ASSETS.includes(f.asset) ? f.asset : null;
+    if (launch && !inn && !asset && !errors.inn) errors.asset = "Укажите ИНН клиента или выберите предмет лизинга.";
+    if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors).join(" ")), { status: 400, errors });
+    return { inn: inn || null, asset, amount_mln: amount, term_months: term, comment: String(f.comment || "").trim().slice(0, 500) || null };
+  }
+
+  // Ответ после успешного действия: перенаправление и короткое сообщение (cookie flash читает скрипт форм)
+  const done = (res, to, msg) => H.redirect(res, to, { "set-cookie": `flash=${encodeURIComponent(msg)}; Path=/; Max-Age=60; SameSite=Lax` });
+  const FIELD_LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма", term_months: "срок", comment: "комментарий" };
+
+  // Одноразовые токены формы запуска: повторная отправка той же формы (двойной клик, повтор после обрыва связи)
+  // не создаёт вторую сделку, а ведёт к уже созданной. null — сделка ещё создаётся.
+  const onces = new Map();
+  async function once(token, run) {
+    if (!/^[\w-]{16,64}$/.test(token || "")) return run();
+    while (onces.get(token) === null) await new Promise((r) => setTimeout(r, 100));
+    if (onces.has(token)) return { id: onces.get(token), repeated: true };
+    onces.set(token, null);
+    try {
+      const id = await run();
+      onces.set(token, id);
+      if (onces.size > 2000) onces.delete(onces.keys().next().value);
+      return { id };
+    } catch (e) { onces.delete(token); throw e; }
   }
 
   // Проверка клиента для сделки: DaData + ГИР БО. Условный ответ песочницы (fallback при недоступном источнике)
@@ -111,11 +136,10 @@ function createApp(db, opts = {}) {
   }
 
   async function launchDeal(user, f) {
-    const v = dealFields(f);
-    if (!v.inn && !v.asset) throw Object.assign(new Error("Укажите ИНН клиента или выберите предмет лизинга."), { status: 400, field: "asset" });
+    const v = dealFields(f, { launch: true });
     // по этому ИНН уже есть сделки в работе — новая создаётся только после явного подтверждения
     const dups = v.inn && f.dup_ok !== "1" ? deals.list().filter((d) => d.inn === v.inn && !d.outcome) : [];
-    if (dups.length) throw Object.assign(new Error("По этому ИНН уже есть сделки в работе."), { status: 409, field: "inn", dups });
+    if (dups.length) throw Object.assign(new Error("По этому ИНН уже есть сделки в работе."), { status: 409, dups });
     let sum = { title: v.inn ? `ИНН ${v.inn}` : `Новая заявка${v.asset ? ` · ${v.asset}` : ""}`, cls: null, note: v.inn ? null : "ИНН ещё не указан" };
     if (v.inn) sum = checkSummary(v.inn, await checkClient(user, v.inn));
     return deals.create({ ...v, title: sum.title, cls: sum.cls, note: sum.note, userId: user.id });
@@ -220,12 +244,13 @@ function createApp(db, opts = {}) {
       if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Создавать сделки могут администратор, команда проекта и ТАЛК."));
       const f = await H.readForm(req);
       try {
-        const id = await launchDeal(user, f);
-        return H.redirect(res, `/deals/${id}`);
+        const r = await once(f.once, () => launchDeal(user, f));
+        const id = r.id ?? r;
+        return done(res, `/deals/${id}`, r.repeated ? "Эта сделка уже создана — повторная отправка формы не создала дубль." : `Сделка создана: «${deals.get(id).title}»`);
       } catch (e) {
         if (!e.status) throw e;
-        // ошибка ввода — сообщением в форме на дашборде, введённые значения сохраняются
-        return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, error: e.message, field: e.field, dups: e.dups } }));
+        // ошибка ввода — у полей формы на дашборде, введённые значения сохраняются
+        return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups } }));
       }
     }
     const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen)?$/);
@@ -233,21 +258,32 @@ function createApp(db, opts = {}) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
       if (!deal) return H.send(res, 404, V.errorPage(user, 404, "Сделка не найдена."));
+      // адрес действия, открытый заново (обновление страницы после ошибки, закладка) — карточка сделки
+      if (dp[2] && req.method === "GET") return H.redirect(res, `/deals/${deal.id}`);
       if ((dp[2] === "/edit" || dp[2] === "/recheck") && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
         const f = dp[2] === "/edit" ? await H.readForm(req) : {};
         if (dp[2] === "/recheck") {
           await recheckDeal(user, deal, "Повторная проверка клиента");
-          return H.redirect(res, `/deals/${deal.id}`);
+          return done(res, `/deals/${deal.id}`, `Клиент проверен заново: ${deals.get(deal.id).note || deals.get(deal.id).title}`);
         }
         try {
           const v = dealFields(f);
+          // правка поверх чужой: поле изменил кто-то другой после открытия формы, а в форме другое значение —
+          // не перезаписываем молча, а показываем оба значения. В форме уже текущие значения сделки (orig):
+          // повторное «Сохранить» запишет значения пользователя осознанно.
+          let orig = null; try { orig = JSON.parse(f.orig || "null"); } catch {}
+          const clash = orig ? Object.keys(FIELD_LABEL).filter((k) => (deal[k] ?? null) !== (orig[k] ?? null) && (v[k] ?? null) !== (deal[k] ?? null)) : [];
+          if (clash.length) {
+            const by = deals.events(deal.id)[0];
+            return H.send(res, 409, W.dealPage(user, { ...(await dealModel(user, deal)), form: { values: f, conflict: { fields: clash.map((k) => ({ label: FIELD_LABEL[k], key: k, theirs: deal[k], mine: v[k] })), by: by?.user_name || by?.user_email || "другой пользователь", at: by?.at } } }));
+          }
           const changed = deals.edit(deal.id, v, user.id);
           if (changed.includes("inn")) await recheckDeal(user, deals.get(deal.id), "Проверка клиента по новому ИНН");
-          return H.redirect(res, `/deals/${deal.id}`);
+          return done(res, `/deals/${deal.id}`, changed.length ? `Сохранено: ${changed.map((k) => FIELD_LABEL[k]).join(", ")}` : "Изменений нет — данные сделки те же.");
         } catch (e) {
           if (!e.status) throw e;
-          return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), form: { values: f, error: e.message, field: e.field } }));
+          return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), form: { values: f, errors: e.errors } }));
         }
       }
       if ((dp[2] === "/refuse" || dp[2] === "/reopen") && req.method === "POST") {
@@ -260,7 +296,7 @@ function createApp(db, opts = {}) {
           if (error) return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), refuse: { values: f, error } }));
           if (!deal.outcome) deals.refuse(deal.id, f.reason === "Другое" ? why : why ? `${f.reason} — ${why}` : f.reason, user.id);
         }
-        return H.redirect(res, `/deals/${deal.id}`);
+        return done(res, `/deals/${deal.id}`, dp[2] === "/reopen" ? "Сделка возвращена в работу." : "Отказ оформлен: сделка убрана из воронки и счётчиков.");
       }
       if (dp[2] === "/stage" && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
@@ -269,7 +305,7 @@ function createApp(db, opts = {}) {
         if (!deals.STAGE_IDS.includes(stage)) return H.send(res, 400, V.errorPage(user, 400, "Неизвестная стадия."));
         if (deal.outcome) return H.send(res, 409, V.errorPage(user, 409, "Сделка закрыта отказом — сначала верните её в работу."));
         deals.move(deal.id, stage, user.id);
-        return H.redirect(res, `/deals/${deal.id}`);
+        return done(res, `/deals/${deal.id}`, stage === deal.stage ? "Стадия не изменилась." : `Стадия изменена: «${deals.stageTitle(deal.stage)}» → «${deals.stageTitle(stage)}»`);
       }
       if (!dp[2] && req.method === "GET") return H.send(res, 200, W.dealPage(user, await dealModel(user, deal)));
     }

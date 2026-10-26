@@ -134,7 +134,7 @@ test("ошибка в форме запуска — на дашборде, вв�
   assert.strictEqual(r.status, 400);
   const html = await r.text();
   assert.match(html, /<h1>Дашборд<\/h1>/);
-  assert.match(html, /<p class="error" role="alert">ИНН — 10 или 12 цифр\.<\/p>/);
+  assert.match(html, /<span class="ferr" id="err-nd-inn">ИНН — 10 или 12 цифр\.<\/span>/);
   assert.match(html, /value="12345" aria-invalid="true"/);
   assert.match(html, /<option selected>Оборудование<\/option>/);
 });
@@ -216,4 +216,52 @@ test("запуск сделки: дубль по ИНН — предупрежд
   assert.match(await r.text(), /ИНН — только цифры/);
   // пробелы в ИНН допустимы
   assert.strictEqual((await post("/deals", team, { inn: "7707 083 893", asset: "Оборудование" })).status, 303);
+});
+
+test("формы: все ошибки сразу у полей, сообщение об успехе, повтор формы без дубля, адрес действия ведёт в карточку", async () => {
+  // все ошибки сразу, у каждого поля
+  let r = await post("/deals", team, { inn: "12345", asset: "Оборудование", amount: "-3" });
+  let html = await r.text();
+  assert.match(html, /<span class="ferr" id="err-nd-inn">ИНН — 10 или 12 цифр\.<\/span>/);
+  assert.match(html, /<span class="ferr" id="err-nd-amount">Сумма — положительное число, млн руб\.<\/span>/);
+  assert.strictEqual((await post("/deals", team, { asset: "Оборудование", amount: "1e3" })).status, 400, "«1e3» — не число");
+  // успех: перенаправление и сообщение
+  const once = "0123456789abcdef-once";
+  r = await post("/deals", team, { asset: "Оборудование", amount: "3", once });
+  assert.strictEqual(r.status, 303);
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /^flash=Сделка создана: «Новая заявка · Оборудование»/);
+  const loc = r.headers.get("location");
+  // та же форма ещё раз — та же сделка
+  r = await post("/deals", team, { asset: "Оборудование", amount: "3", once });
+  assert.strictEqual(r.headers.get("location"), loc);
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /повторная отправка формы не создала дубль/);
+  // смена стадии и правка — сообщения
+  r = await post(`${loc}/stage`, team, { stage: "assessment" });
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /Стадия изменена: «Заявка» → «Оценка клиента»/);
+  // адрес действия, открытый заново, — карточка, а не 404
+  r = await fetch(base + `${loc}/edit`, { headers: { cookie: team }, redirect: "manual" });
+  assert.strictEqual(r.status, 303);
+  assert.strictEqual(r.headers.get("location"), loc);
+});
+
+test("правка поверх чужой: не перезаписывается молча; повторное сохранение — осознанно", async () => {
+  const loc = (await post("/deals", team, { asset: "Оборудование", amount: "15" })).headers.get("location");
+  const orig = (await get(loc, team))[1].match(/name="orig" value="([^"]+)"/)[1].replace(/&quot;/g, '"');
+  // первая вкладка: сумма 20 и комментарий
+  assert.strictEqual((await post(`${loc}/edit`, team, { orig, asset: "Оборудование", amount: "20", comment: "первая вкладка" })).status, 303);
+  // вторая вкладка открыта раньше: меняет только срок, сумму и комментарий видит старыми
+  let r = await post(`${loc}/edit`, team, { orig, asset: "Оборудование", amount: "15", term: "24" });
+  assert.strictEqual(r.status, 409);
+  const html = await r.text();
+  assert.match(html, /Пока вы редактировали, сделку изменил/);
+  assert.match(html, /<li>сумма: сейчас в сделке 20 млн, у вас 15 млн<\/li>/);
+  assert.match(html, /<li>комментарий: сейчас в сделке «первая вкладка», у вас —<\/li>/);
+  assert.match((await get(loc, team))[1], /20 млн руб\./, "значение первой вкладки на месте");
+  // в форме конфликта orig — текущие значения: повторная отправка сохраняет
+  const orig2 = html.match(/name="orig" value="([^"]+)"/)[1].replace(/&quot;/g, '"');
+  assert.strictEqual((await post(`${loc}/edit`, team, { orig: orig2, asset: "Оборудование", amount: "15", term: "24" })).status, 303);
+  // чужая правка другого поля — не конфликт
+  const orig3 = (await get(loc, team))[1].match(/name="orig" value="([^"]+)"/)[1].replace(/&quot;/g, '"');
+  await post(`${loc}/edit`, team, { orig: orig3, asset: "Оборудование", amount: "15", term: "24", comment: "А" });
+  assert.strictEqual((await post(`${loc}/edit`, team, { orig: orig3, asset: "Оборудование", amount: "16", term: "24", comment: "А" })).status, 303);
 });

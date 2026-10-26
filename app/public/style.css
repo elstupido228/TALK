@@ -245,3 +245,9 @@ details.edit summary h2 { margin: 0; }
 .launch .dups { grid-column: 1 / -1; }
 .launch .dups p { margin: 0 0 6px; }
 .launch .dups button { background: var(--card); border-color: var(--line); color: var(--text); font-weight: 500; }
+
+/* Ошибка у поля формы */
+.ferr { display: block; margin-top: 2px; color: var(--error); font-size: 0.85rem; }
+[aria-invalid="true"] { border-color: var(--error) !important; }
+.notice ul { margin: 4px 0 8px; padding-left: 20px; }
+.notice p { margin: 0 0 6px; }

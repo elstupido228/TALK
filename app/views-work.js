@@ -1,4 +1,5 @@
 // Рабочие страницы: дашборд с запуском сделки, канбан сделок по стадиям, карточка сделки.
+const crypto = require("node:crypto");
 const { esc } = require("./http");
 const STAGES = require("./stages");
 const { layout, nf, fdate, clsBadge } = require("./views");
@@ -16,17 +17,24 @@ const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2
 const daysAgo = (t) => Math.max(0, Math.floor((Date.now() - t) / 86400000));
 const ago = (t) => { const d = daysAgo(t); return d === 0 ? "сегодня" : `${d} ${plural(d, "день", "дня", "дней")}`; };
 
-// form: {values, error, field} — после неудачной отправки
+// Ошибка у поля: подсветка, текст под полем и связь текста с полем для экранного диктора
+const fieldErr = (errors = {}) => ({
+  bad: (k, id) => (errors[k] ? ` aria-invalid="true" aria-describedby="err-${id}"` : ""),
+  msg: (k, id) => (errors[k] ? `<span class="ferr" id="err-${id}">${esc(errors[k])}</span>` : ""),
+});
+
+// form: {values, errors: {поле: текст}, error, dups} — после неудачной отправки
 function newDealForm(form = {}) {
-  const v = form.values || {}, bad = (k) => (form.field === k ? ' aria-invalid="true"' : "");
+  const v = form.values || {}, E = fieldErr(form.errors);
   // дубль по ИНН: ссылки на сделки и кнопка внутри формы — введённые значения уходят вместе с подтверждением.
   // Блок стоит после «Запустить сделку»: Enter в поле отправляет форму основной кнопкой, а не подтверждением дубля
   const dups = form.dups?.length ? `<div class="notice dups" role="alert"><p>По ИНН ${esc(v.inn)} уже есть сделки в работе: ${form.dups.map((d) => `<a href="/deals/${d.id}">${esc(d.title)}</a> (${esc(STAGES.find((s) => s.id === d.stage)?.title || d.stage)}${d.amount_mln ? `, ${mln(d.amount_mln)}` : ""})`).join("; ")}.</p><p>Откройте нужную сделку или создайте ещё одну, если это новая заявка того же клиента.</p><button type="submit" name="dup_ok" value="1">Всё равно создать новую сделку</button></div>` : "";
-  return `${form.error && !dups ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals">
-  <div class="f"><label for="nd-inn">ИНН клиента</label><input id="nd-inn" name="inn" inputmode="numeric" autocomplete="off" placeholder="необязательно" value="${esc(v.inn || "")}"${bad("inn")}></div>
-  <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset"${bad("asset")}><option value="">— выберите —</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></div>
-  <div class="f"><label for="nd-amount">Сумма, млн руб.</label><input id="nd-amount" name="amount" inputmode="decimal" placeholder="например, 25" value="${esc(v.amount || "")}"${bad("amount")}></div>
-  <button type="submit">Запустить сделку</button>${dups}
+  return `${form.error && !dups ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals" data-draft>
+  <input type="hidden" name="once" value="${esc(/^[w-]{16,64}$/.test(v.once || "") ? v.once : crypto.randomUUID())}">
+  <div class="f"><label for="nd-inn">ИНН клиента</label><input id="nd-inn" name="inn" inputmode="numeric" autocomplete="off" placeholder="необязательно" value="${esc(v.inn || "")}"${E.bad("inn", "nd-inn")}>${E.msg("inn", "nd-inn")}</div>
+  <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset"${E.bad("asset", "nd-asset")}><option value="">— выберите —</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select>${E.msg("asset", "nd-asset")}</div>
+  <div class="f"><label for="nd-amount">Сумма, млн руб.</label><input id="nd-amount" name="amount" inputmode="decimal" placeholder="например, 25" value="${esc(v.amount || "")}"${E.bad("amount", "nd-amount")}>${E.msg("amount", "nd-amount")}</div>
+  <button type="submit" data-busy-text="Создаю сделку…">Запустить сделку</button>${dups}
 </form>
 <p class="muted small">Сделка появится в колонке «Заявка». Если указан ИНН, портал сразу проверит клиента (DaData, ГИР БО) и покажет предварительный класс.</p>`;
 }
@@ -162,19 +170,24 @@ ${org}${fin}
 </section>`;
 }
 
+// form: {values, errors, conflict: {fields: [{label, key, theirs, mine}], by, at}} — после неудачной отправки.
+// orig — значения сделки на момент показа формы: по ним сервер узнаёт чужую правку (см. server.js).
 function editForm(d, form = {}) {
   const v = form.values || { inn: d.inn, asset: d.asset, amount: d.amount_mln, term: d.term_months, comment: d.comment };
-  const bad = (k) => (form.field === k ? ' aria-invalid="true"' : "");
-  return `<details class="panel edit"${form.error ? " open" : ""}><summary><h2>Данные сделки</h2><span class="muted small">изменить</span></summary>
-${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}
-<form method="post" action="/deals/${d.id}/edit" class="eform">
-  <label>ИНН клиента<input name="inn" inputmode="numeric" autocomplete="off" value="${esc(v.inn ?? "")}"${bad("inn")}></label>
+  const E = fieldErr(form.errors), c = form.conflict;
+  const show = (k, x) => (x === null || x === undefined || x === "" ? "—" : k === "amount_mln" ? mln(x) : k === "term_months" ? `${x} мес.` : k === "comment" ? `«${esc(String(x).slice(0, 80))}»` : esc(x));
+  const orig = { inn: d.inn, asset: d.asset, amount_mln: d.amount_mln, term_months: d.term_months, comment: d.comment };
+  return `<details class="panel edit"${form.errors || c ? " open" : ""}><summary><h2>Данные сделки</h2><span class="muted small">изменить</span></summary>
+${c ? `<div class="notice" role="alert"><p>Пока вы редактировали, сделку изменил ${esc(c.by)}${c.at ? ` (${new Date(c.at).toLocaleTimeString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" })})` : ""}. Ваши значения не сохранены:</p><ul>${c.fields.map((f) => `<li>${esc(f.label)}: сейчас в сделке ${show(f.key, f.theirs)}, у вас ${show(f.key, f.mine)}</li>`).join("")}</ul><p>Проверьте форму и нажмите «Сохранить» ещё раз — сохранятся значения из формы.</p></div>` : ""}
+<form method="post" action="/deals/${d.id}/edit" class="eform" data-draft>
+  <input type="hidden" name="orig" value="${esc(JSON.stringify(orig))}">
+  <label for="ed-inn">ИНН клиента<input id="ed-inn" name="inn" inputmode="numeric" autocomplete="off" value="${esc(v.inn ?? "")}"${E.bad("inn", "ed-inn")}>${E.msg("inn", "ed-inn")}</label>
   <label>Предмет лизинга<select name="asset"><option value="">не указан</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></label>
-  <label>Сумма, млн руб.<input name="amount" inputmode="decimal" value="${esc(v.amount ?? "")}"${bad("amount")}></label>
-  <label>Срок, мес.<input name="term" inputmode="numeric" value="${esc(v.term ?? "")}"${bad("term")}></label>
+  <label for="ed-amount">Сумма, млн руб.<input id="ed-amount" name="amount" inputmode="decimal" value="${esc(v.amount ?? "")}"${E.bad("amount", "ed-amount")}>${E.msg("amount", "ed-amount")}</label>
+  <label for="ed-term">Срок, мес.<input id="ed-term" name="term" inputmode="numeric" value="${esc(v.term ?? "")}"${E.bad("term", "ed-term")}>${E.msg("term", "ed-term")}</label>
   <label class="wide">Комментарий<textarea name="comment" rows="2" maxlength="500">${esc(v.comment ?? "")}</textarea></label>
   <p class="muted small wide">При смене ИНН клиент будет проверен заново. Все изменения попадают в историю.</p>
-  <button type="submit">Сохранить</button>
+  <button type="submit" data-busy-text="Сохраняю…">Сохранить</button>
 </form></details>`;
 }
 
@@ -182,7 +195,7 @@ ${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}
 // form: {values, error} — после неудачной отправки
 function refuseForm(d, stop, form = {}) {
   const v = form.values || (stop ? { reason: REFUSAL_REASONS[0] } : {});
-  const body = `${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form method="post" action="/deals/${d.id}/refuse" class="eform">
+  const body = `${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form method="post" action="/deals/${d.id}/refuse" class="eform" data-draft>
   <label class="wide">Причина отказа<select name="reason" required><option value="">— выберите —</option>${REFUSAL_REASONS.map((r) => `<option${r === v.reason ? " selected" : ""}>${esc(r)}</option>`).join("")}</select></label>
   <label class="wide">Комментарий<textarea name="comment" rows="2" maxlength="300">${esc(v.comment || "")}</textarea></label>
   <button type="submit" class="${stop ? "primary" : "danger"}" data-confirm="${esc(`Оформить отказ по сделке «${d.title}»? Сделка уйдёт из воронки и счётчиков; вернуть её можно кнопкой «Вернуть в работу».`)}">Оформить отказ</button>
