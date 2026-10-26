@@ -118,8 +118,8 @@ input.t.num{font-family:var(--f-num)}
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
       <div class="seg" role="group" aria-label="Режим">
-        <button id="modeDemo" aria-pressed="true">Пример: условный пакет</button>
-        <button id="modeLive" aria-pressed="false">Новый пакет</button>
+        <button id="modeLive" aria-pressed="true">Новый расчёт</button>
+        <button id="modeDemo" aria-pressed="false">Пример расчёта</button>
       </div>
       <select id="pkgSel" aria-label="Условный пакет"></select>
     </div>
@@ -261,6 +261,10 @@ function fill1370(force){ // T12/U12 = стр. 1370 на предпоследн�
   if(!S.cons) return; const a=S.cons.cells.J["1370"].value, b=S.cons.cells.L["1370"].value;
   if(force||$("t12In").value==="") $("t12In").value=a??""; if(force||$("u12In").value==="") $("u12In").value=b??"";
 }
+// Режим и пакет примера помнятся до конца сеанса вкладки: обновление страницы их не сбрасывает
+const VIEW_KEY="talk-calc-view", IMPORT_KEY="talk-calc-import";
+const saveView=()=>{ try{ sessionStorage.setItem(VIEW_KEY,JSON.stringify({mode:S.mode,pkg:$("pkgSel").value})); }catch(e){} };
+const dropImport=()=>{ try{ sessionStorage.removeItem(IMPORT_KEY); }catch(e){} };
 function setMode(m){
   S.mode=m; S.note=null; $("modeDemo").setAttribute("aria-pressed",m==="demo"); $("modeLive").setAttribute("aria-pressed",m==="live");
   $("liveBox").hidden=m!=="live"; S.sel=null;
@@ -276,9 +280,10 @@ function setMode(m){
     $("nameIn").value=""; $("innIn").value=""; $("t12In").value=""; $("u12In").value=""; $("indSel").value="blank"; $("seasSel").value="";
     $("status").textContent=""; $("prog").style.width="0";
   }
-  renderAll(); updRun();
+  saveView(); renderAll(); updRun();
 }
-$("modeDemo").onclick=()=>setMode("demo"); $("modeLive").onclick=()=>setMode("live");
+// Пример выбирают явно: годовая отчётность, переданная с «Проверки по ИНН», при этом больше не нужна
+$("modeDemo").onclick=()=>{ dropImport(); setMode("demo"); }; $("modeLive").onclick=()=>{ if(S.mode!=="live") setMode("live"); };
 $("pkgSel").innerHTML=DEMO_PKGS.map(p=>`<option value="${p.id}">Пакет ${p.id}: ${p.name}</option>`).join("");
 $("pkgSel").onchange=()=>setMode("demo");
 
@@ -589,6 +594,7 @@ function mergeCols(all){ // объединяет графы из разных ч
     m.set(k,cur);}); return [...m.values()];
 }
 $("runBtn").onclick=async()=>{
+  dropImport(); // свой пакет заменяет годовую отчётность из «Проверки по ИНН»
   const btn=$("runBtn"); btn.disabled=true; const st=$("status"); st.className="status"; const prog=$("prog");
   const docs=[]; let company=null;
   try{
@@ -618,12 +624,21 @@ $("runBtn").onclick=async()=>{
   }finally{btn.disabled=false; updRun();}
 };
 
-setMode("demo");
-// Годовая отчётность со страницы «Проверка по ИНН» (передаётся через sessionStorage)
+// Начальный режим: по умолчанию — новый расчёт; пример — по #example или если он был открыт до обновления страницы.
+// /calc#upload (из карточки сделки) — всегда новый расчёт без чужого импорта.
 (function(){
-  let imp=null; try{ imp=JSON.parse(sessionStorage.getItem("talk-calc-import")||"null"); sessionStorage.removeItem("talk-calc-import"); }catch(e){}
-  if(!imp||!imp.docs||!imp.docs.length){ if(location.hash==="#upload") setMode("live"); return; } // /calc#upload — сразу «Новый пакет»
-  setMode("live"); S.docs=imp.docs; S.cons=consolidate(S.docs);
+  let view=null; try{ view=JSON.parse(sessionStorage.getItem(VIEW_KEY)||"null"); }catch(e){}
+  if(location.hash==="#upload") dropImport();
+  if(view?.pkg&&DEMO_PKGS.some(p=>p.id===view.pkg)) $("pkgSel").value=view.pkg;
+  setMode(location.hash==="#example"||(view?.mode==="demo"&&location.hash!=="#upload")?"demo":"live");
+})();
+// Годовая отчётность со страницы «Проверка по ИНН» (передаётся через sessionStorage и хранится там,
+// пока пользователь не перейдёт к примеру или не загрузит свои PDF — обновление страницы её не теряет)
+(function(){
+  let imp=null; try{ imp=JSON.parse(sessionStorage.getItem(IMPORT_KEY)||"null"); }catch(e){}
+  if(!imp||!imp.docs||!imp.docs.length) return;
+  if(S.mode!=="live") setMode("live");
+  S.docs=imp.docs; S.cons=consolidate(S.docs);
   if(!S.cons.dates.length) return;
   buildFromCons(); $("nameIn").value=imp.name||""; $("innIn").value=imp.inn||""; fill1370(false);
   S.note=`Загружена годовая отчётность по ИНН ${imp.inn} (${imp.source==="sandbox"?"песочница, условные значения":"ГИР БО"}). В открытых источниках нет квартальных дат: их нужно запросить у клиента — см. предупреждения.`;
