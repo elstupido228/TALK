@@ -80,17 +80,20 @@ function createDeals(db, { portfolio, clients = null } = {}) {
   }
   // тип записи ленты: comment — комментарий пользователя, task — задача; без типа — служебная запись
   if (!new Set(db.prepare("PRAGMA table_info(deal_events)").all().map((c) => c.name)).has("kind")) db.exec("ALTER TABLE deal_events ADD COLUMN kind TEXT");
+  // ответственный за сделку; у прежних сделок — автор
+  if (!cols.has("owner_id")) { db.exec("ALTER TABLE deals ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL"); db.exec("UPDATE deals SET owner_id = created_by"); }
   const linkOld = !cols.has("client_id");
   if (linkOld) db.exec("ALTER TABLE deals ADD COLUMN client_id INTEGER REFERENCES clients(id)");
   const q = {
     count: db.prepare("SELECT count(*) n FROM deals"),
-    insert: db.prepare("INSERT INTO deals (title, inn, client_code, client_id, asset, amount_mln, stage, cls, note, stop_factor, demo, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"),
+    insert: db.prepare("INSERT INTO deals (title, inn, client_code, client_id, asset, amount_mln, stage, cls, note, stop_factor, demo, created_by, owner_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"),
     setClient: db.prepare("UPDATE deals SET client_id = ?, title = ?, updated_at = ? WHERE id = ?"),
-    byClient: db.prepare("SELECT * FROM deals WHERE client_id = ? ORDER BY updated_at DESC"),
+    byClient: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email FROM deals d LEFT JOIN users u ON u.id = d.owner_id WHERE d.client_id = ? ORDER BY d.updated_at DESC"),
+    setOwner: db.prepare("UPDATE deals SET owner_id = ?, updated_at = ? WHERE id = ?"),
     event: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, from_stage, to_stage, text) VALUES (?,?,?,?,?,?)"),
     typed: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, text, kind) VALUES (?,?,?,?,?)"),
-    all: db.prepare("SELECT * FROM deals ORDER BY updated_at DESC"),
-    get: db.prepare("SELECT * FROM deals WHERE id = ?"),
+    all: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email FROM deals d LEFT JOIN users u ON u.id = d.owner_id ORDER BY d.updated_at DESC"),
+    get: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email FROM deals d LEFT JOIN users u ON u.id = d.owner_id WHERE d.id = ?"),
     events: db.prepare("SELECT e.*, u.name user_name, u.email user_email FROM deal_events e LEFT JOIN users u ON u.id = e.user_id WHERE deal_id = ? ORDER BY at DESC, e.id DESC"),
     move: db.prepare("UPDATE deals SET stage = ?, updated_at = ? WHERE id = ?"),
     setCheck: db.prepare("UPDATE deals SET title = ?, cls = ?, note = ?, updated_at = ? WHERE id = ?"),
@@ -111,7 +114,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
   function create({ title, inn = null, client_code = null, client_id, asset = null, amount_mln = null, term_months = null, comment = null, stage = "application", cls = null, note = null, stop_factor = null, demo = 0, userId = null, at = Date.now() }) {
     if (!STAGE_IDS.includes(stage)) throw new Error(`неизвестная стадия ${stage}`);
     if (client_id === undefined) client_id = clientFor({ inn, client_code, title });
-    const id = Number(q.insert.run(title, inn, client_code, client_id, asset, amount_mln, stage, cls, note, stop_factor, demo, userId, at, at).lastInsertRowid);
+    const id = Number(q.insert.run(title, inn, client_code, client_id, asset, amount_mln, stage, cls, note, stop_factor, demo, userId, userId, at, at).lastInsertRowid);
     if (term_months !== null || comment) q.edit.run(inn, asset, amount_mln, term_months, comment, at, id);
     q.event.run(id, at, userId, null, stage, `Сделка создана на стадии «${stageTitle(stage)}»`);
     return id;
@@ -128,6 +131,14 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     list: () => q.all.all(),
     byClient: (clientId) => q.byClient.all(clientId),
     // привязать сделку к клиенту (новый ИНН, наименование для заявки без клиента); название — по клиенту
+    // передать сделку другому ответственному: from/to — имена для ленты
+    setOwner(id, ownerId, userId, from, to) {
+      const d = q.get.get(id);
+      if (!d || d.owner_id === ownerId) return false;
+      q.setOwner.run(ownerId, Date.now(), id);
+      q.event.run(id, Date.now(), userId, null, null, `Ответственный: ${from || "не назначен"} → ${to}`);
+      return true;
+    },
     setClient(id, client, userId) {
       const d = q.get.get(id);
       if (!d || !client || d.client_id === client.id) return;

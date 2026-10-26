@@ -311,3 +311,10 @@ form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }
 .seg-links a { padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--text); }
 .seg-links a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 @media (max-width: 560px) { .todo-list li.todo { grid-template-columns: 1fr; } }
+
+/* Ответственный */
+.owner-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: -4px 0 10px; }
+.owner-pass summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
+.owner-pass[open] { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline-form select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }

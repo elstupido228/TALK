@@ -371,3 +371,21 @@ test("задачи: постановка в сделке и вместе с ко
   r = await post(`/tasks/${tid}/undo`, team, { back: "https://evil.example/" });
   assert.strictEqual(r.headers.get("location"), "/");
 });
+
+test("ответственный: по умолчанию автор, передача другому с записью в ленте", async () => {
+  const auth = createAuth(db);
+  auth.upsertUser({ email: "talk@example.test", role: "talk", name: "Сотрудник ТАЛК", password: PASS });
+  const loc = (await post("/deals", team, { client_name: "ООО «Ответственный»", asset: "Оборудование" })).headers.get("location");
+  let html = (await get(loc, team))[1];
+  assert.match(html, /Ответственный: <b>team@example\.test<\/b>/);
+  const tid = html.match(/<option value="(\d+)">Сотрудник ТАЛК<\/option>/)[1];
+  assert.match(html, /data-confirm="Передать сделку «ООО «Ответственный»» сотруднику «\{select\}»\?/);
+  const r = await post(`${loc}/owner`, team, { owner_id: tid });
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /Ответственный за сделку — Сотрудник ТАЛК/);
+  html = (await get(loc, team))[1];
+  assert.match(html, /Ответственный: <b>Сотрудник ТАЛК<\/b>/);
+  assert.match(html, /Ответственный: team@example\.test → Сотрудник ТАЛК/);
+  assert.strictEqual((await post(`${loc}/owner`, team, { owner_id: "999999" })).status, 400);
+  assert.strictEqual((await post(`${loc}/owner`, curator, { owner_id: tid })).status, 403);
+  assert.match((await get("/deals", team))[1], /<span class="muted small kowner">Сотрудник ТАЛК<\/span>/);
+});

@@ -97,6 +97,7 @@ function dealCard(d, canEdit, task) {
   return `<a class="kcard${d.demo ? " demo" : ""}" href="/deals/${d.id}" data-id="${d.id}"${canEdit && !d.outcome ? ' draggable="true"' : ""}>
   <b>${esc(d.title)}</b>
   <span class="muted small">${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)}` : ""}</span>
+  ${d.owner_name || d.owner_email ? `<span class="muted small kowner">${esc(d.owner_name || d.owner_email)}</span>` : ""}
   ${d.outcome ? `<span class="small refused-reason">Отказ: ${esc(d.outcome_reason)}</span>` : d.note ? `<span class="small">${esc(d.note)}</span>` : ""}
   ${VT.cardTask(task)}
   <span class="kmeta">${d.cls ? `${clsBadge(d.cls)} ` : ""}<span class="muted small">${d.outcome ? `отказ: ${ago(d.outcome_at)}` : `${ago(d.updated_at)} на стадии`}</span>${d.demo ? ' <span class="badge muted">условно</span>' : ""}</span>
@@ -175,6 +176,17 @@ function clientLine(c, canEdit) {
   if (!c) return `<p class="client-line muted">Клиент не указан.${canEdit ? " Укажите ИНН или наименование в разделе «Данные сделки»." : ""}</p>`;
   const tel = c.phone ? ` · <a href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">${esc(c.phone)}</a>` : "";
   return `<p class="client-line">Клиент: <a href="/clients/${c.id}">${esc(c.name)}</a>${c.contact_name ? ` · ${esc(c.contact_name)}` : ""}${tel}${!c.contact_name && !c.phone && canEdit ? ` · <a href="/clients/${c.id}">добавить контакт</a>` : ""}</p>`;
+}
+
+// Ответственный за сделку; передача другому — с подтверждением, с именем нового ответственного
+function ownerLine(d, m) {
+  const name = d.owner_name || d.owner_email;
+  const others = (m.users || []).filter((u) => u.id !== d.owner_id);
+  const form = m.canEdit && others.length ? `<details class="owner-pass"><summary>передать</summary><form method="post" action="/deals/${d.id}/owner" class="inline-form">
+  <label class="sr" for="ow-to">Новый ответственный</label><select id="ow-to" name="owner_id" required><option value="">— кому —</option>${others.map((u) => `<option value="${u.id}">${esc(u.name || u.email)}</option>`).join("")}</select>
+  <button type="submit" data-confirm="${esc(`Передать сделку «${d.title}» сотруднику «{select}»? Он станет ответственным; запись появится в ленте.`)}">Передать</button>
+</form></details>` : "";
+  return `<div class="owner-line">Ответственный: <b>${name ? esc(name) : "не назначен"}</b>${form}</div>`;
 }
 
 // Клиент в карточке сделки: DaData и годовая отчётность (ГИР БО) с классом по годам
@@ -286,6 +298,7 @@ function dealPage(user, m) {
     body: `<p class="crumbs"><a href="/deals">Сделки</a> / ${esc(d.title)}</p>
 <h1>${esc(d.title)}</h1>
 ${clientLine(m.clientRec, m.canEdit)}
+${ownerLine(d, m)}
 <p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.term_months ? ` · ${d.term_months} мес.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
 ${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
 ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(d.outcome_reason)} · ${new Date(d.outcome_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : ""}

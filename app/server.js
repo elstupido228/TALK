@@ -284,7 +284,7 @@ function createApp(db, opts = {}) {
         return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups, byInn: e.byInn } }));
       }
     }
-    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment|\/tasks)?$/);
+    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment|\/tasks|\/owner)?$/);
     if (dp) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
@@ -331,6 +331,14 @@ function createApp(db, opts = {}) {
         deals.comment(deal.id, user.id, text);
         if (next) tasks.add(deal.id, { ...next, assignee_id: user.id }, user.id);
         return done(res, `/deals/${deal.id}#feed`, next ? `Комментарий добавлен, задача «Следующий контакт» — на ${next.due.split("-").reverse().join(".")}.` : "Комментарий добавлен.");
+      }
+      if (dp[2] === "/owner" && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const f = await H.readForm(req);
+        const to = editors().find((u) => String(u.id) === String(f.owner_id));
+        if (!to) return H.send(res, 400, V.errorPage(user, 400, "Выберите сотрудника из списка."));
+        const changed = deals.setOwner(deal.id, to.id, user.id, deal.owner_name || deal.owner_email, to.name || to.email);
+        return done(res, `/deals/${deal.id}`, changed ? `Ответственный за сделку — ${to.name || to.email}.` : "Ответственный не изменился.");
       }
       if (dp[2] === "/tasks" && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
