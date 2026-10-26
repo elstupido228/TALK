@@ -161,7 +161,7 @@ test("источник недоступен: условные ответы пе�
     let html = await (await fetch(b + loc, { headers: { cookie: ck } })).text();
     assert.match(html, /<h1>ИНН 7700000000<\/h1>/, "не «ООО «Условная организация»» из песочницы");
     assert.ok(!html.includes("Условная организация") && !html.includes("Альфа-Пример"));
-    assert.match(html, /DaData и ГИР БО недоступны: проверка не выполнена/);
+    assert.match(html, /Источники «DaData» и «ГИР БО» недоступны: проверка не выполнена/);
     assert.match(html, /action="\/deals\/\d+\/recheck"/);
     down = false;
     await p2(`${loc}/recheck`, {});
@@ -518,4 +518,13 @@ test("источники: одно состояние на всех экрана
   const loc = (await fetch(b3 + "/deals", { method: "POST", redirect: "manual", headers: { cookie: c, origin: b3, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ inn: "7707083893", asset: "Оборудование" }) })).headers.get("location");
   assert.match(await page(loc), /Источники «DaData» и «ГИР БО» недоступны — сведения ниже неполные/);
   s3.closeAllConnections(); s3.close(); d3.close();
+});
+
+test("одна главная кнопка на стадии: инструменты — второстепенные", async () => {
+  const loc = (await post("/deals", team, { inn: "0000000001", asset: "Оборудование", dup_ok: "1" })).headers.get("location");
+  const stage = (await get(loc, team))[1].split('<section class="panel wide">')[1].split("</section>")[0];
+  const primaries = (stage.match(/class="(btn )?primary"|class="btn primary"/g) || []).length;
+  assert.strictEqual(primaries, 1, "ровно одна главная кнопка в блоке стадии");
+  assert.match(stage, /<button class="primary" type="submit" formnovalidate name="stage" value="assessment">Перевести на стадию «Оценка клиента» →/);
+  assert.match(stage, /<a class="btn" href="\/check\?inn=0000000001&amp;deal=\d+">Проверка по ИНН<\/a>/);
 });

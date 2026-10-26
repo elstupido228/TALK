@@ -202,12 +202,15 @@ main.page:has(.board) { max-width: none; }
 .kempty { padding: 8px 4px; }
 
 /* Карточка сделки */
-.stepper { list-style: none; padding: 0; margin: 14px 0 18px; display: flex; flex-wrap: wrap; gap: 6px; counter-reset: s; }
-.stepper li { display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 999px; background: var(--gray-bg); color: var(--muted); font-size: 0.85rem; }
-.stepper li span { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--card); font-size: 0.75rem; font-weight: 600; }
+/* ряд стадий — индикатор хода сделки, не кнопки: без заливки, шаги через «›», текущая — жирная с подчёркиванием */
+.stepper { list-style: none; padding: 0; margin: 14px 0 18px; display: flex; flex-wrap: wrap; gap: 4px 2px; cursor: default; }
+.stepper li { display: flex; align-items: center; gap: 5px; padding: 2px 4px; color: var(--muted); font-size: 0.85rem; }
+.stepper li + li::before { content: "›"; margin-right: 4px; color: var(--line); }
+.stepper li span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid currentColor; font-size: 0.7rem; font-weight: 600; }
 .stepper li.done { color: var(--accent); }
-.stepper li.now { background: var(--accent); color: #fff; font-weight: 600; }
-.stepper li.now span { color: var(--accent); }
+.stepper li.done span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.stepper li.now { color: var(--text); font-weight: 700; text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.stepper li.now span { background: var(--text); border-color: var(--text); color: var(--card); text-decoration: none; }
 .move { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .move label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
 .hist li { padding: 7px 0; border-top: 1px solid var(--line); }

@@ -323,12 +323,14 @@ function dealPage(user, m) {
   }[d.stage] || [];
   const stop = d.stop_factor && !d.outcome && PIPE.includes(d.stage);
   const ed = m.canEdit && !d.archived_at; // сделка в архиве — только просмотр и возврат
+  // инструменты стадии — второстепенные; главная кнопка одна: «Перевести на стадию …» (или «Оформить отказ» при
+  // стоп-факторе), а после выдачи, где перехода «дальше» нет, — карточка клиента в мониторинге
   const actions = [];
   if (["application", "assessment", "decision"].includes(d.stage)) {
-    if (d.inn) actions.push(`<a class="btn${d.stage !== "application" ? "" : " primary"}" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверка по ИНН</a>`);
-    actions.push(`<a class="btn${d.stage === "assessment" && !d.stop_factor ? " primary" : ""}" href="/calc#deal=${d.id}">Расчёт класса по отчётности (PDF)</a>`);
+    if (d.inn) actions.push(`<a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверка по ИНН</a>`);
+    actions.push(`<a class="btn" href="/calc#deal=${d.id}">Расчёт класса по отчётности (PDF)</a>`);
   }
-  if (d.client_code) actions.push(`<a class="btn primary" href="/monitoring?deal=${d.id}#card=${encodeURIComponent(d.client_code)}">Карточка клиента в мониторинге</a>`);
+  if (d.client_code) actions.push(`<a class="btn${PIPE.includes(d.stage) ? "" : " primary"}" href="/monitoring?deal=${d.id}#card=${encodeURIComponent(d.client_code)}">Карточка клиента в мониторинге</a>`);
   if (d.stage === "monitoring" && !d.client_code) actions.push(`<a class="btn" href="/monitoring">Мониторинг портфеля</a>`);
   const st = STAGES[i];
   return layout({

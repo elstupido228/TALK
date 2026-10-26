@@ -143,7 +143,7 @@ function createApp(db, opts = {}) {
     const p = party?.data, f = fin?.data;
     const title = p?.found ? p.name : `ИНН ${inn}`;
     const down = [!party && "DaData", !fin && "ГИР БО"].filter(Boolean);
-    if (down.length) return { title, cls: null, note: `${down.join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"}: проверка не выполнена — «Проверить снова»`, ok: false };
+    if (down.length) return { title, cls: null, note: `${down.length > 1 ? "Источники" : "Источник"} ${down.map((s) => `«${s}»`).join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"}: проверка не выполнена — «Проверить снова»`, ok: false };
     if (p.found === false) return { title, cls: null, note: "DaData: организация с таким ИНН не найдена", ok: true };
     const y = f.reports?.length ? annualClasses(f)[0] : null;
     let note = y ? (y.cls ? `Предварительный класс по годовой отчётности за ${y.year} (ГИР БО)` : `Отчётность за ${y.year}: нет итоговых строк, класс не рассчитан`) : "Годовая отчётность в ГИР БО не найдена или не раскрыта";
