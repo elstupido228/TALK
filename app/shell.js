@@ -8,6 +8,7 @@ const WORK = [
   ["home", "/", "Главная", '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'],
   ["deals", "/deals", "Сделки", '<rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="13" rx="1"/>'],
   ["clients", "/clients", "Клиенты", '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'],
+  ["tasks", "/tasks", "Задачи", '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12l3 3 5-6"/>'],
   ["check", "/check", "Проверка по ИНН", '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'],
   ["calc", "/calc", "Расчёт класса", '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M16 12h0M8 16h2M12 16h2"/>'],
   ["monitoring", "/monitoring", "Мониторинг", '<path d="M3 12h4l3 7 4-14 3 7h4"/>'],
@@ -20,8 +21,9 @@ const HELP = [
 const ADMIN = [["users", "/admin/users", "Пользователи", '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 4a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6"/>']];
 
 const icon = (d) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const link = (active) => ([id, href, label, d]) =>
-  `<a href="${href}"${id === active ? ' aria-current="page"' : ""}>${icon(d)}<span>${label}</span></a>`;
+// badge — число у пункта «Задачи»: просроченные и на сегодня у пользователя
+const link = (active, badge = 0) => ([id, href, label, d]) =>
+  `<a href="${href}"${id === active ? ' aria-current="page"' : ""}>${icon(d)}<span>${label}</span>${id === "tasks" && badge ? `<b class="sh-badge" title="Задачи: просрочено и на сегодня">${badge}</b>` : ""}</a>`;
 
 const CSS = `
 .sh{--sh-bg:#F4F6F4;--sh-side:#FFFFFF;--sh-ink:#15201B;--sh-muted:#5B6862;--sh-line:#D8DED9;--sh-accent:#1B6446;--sh-accent-soft:#E2EFE8;--sh-warn:#8F5A06;--sh-warn-soft:#FBF0DA;
@@ -34,6 +36,7 @@ const CSS = `
 .sh-nav{display:flex;flex-direction:column;gap:2px}
 .sh-nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--sh-ink);text-decoration:none}
 .sh-nav a:hover{background:var(--sh-bg)}
+.sh-badge{margin-left:auto;min-width:20px;padding:0 6px;border-radius:10px;background:#B3261E;color:#fff;font-size:12px;line-height:20px;text-align:center;font-weight:600}
 .sh-nav a[aria-current="page"]{background:var(--sh-accent-soft);color:var(--sh-accent);font-weight:600}
 .sh-nav.help a{color:var(--sh-muted);font-size:13px;padding:6px 10px}
 .sh-cap{margin:14px 10px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--sh-muted)}
@@ -61,7 +64,7 @@ function open(user, active) {
   <a class="sh-brand" href="/">Контур контроля лизинговой сделки<br><small>прототип</small></a>
   <input type="checkbox" id="sh-toggle" class="sh-toggle"><label class="sh-burger" for="sh-toggle">${icon('<path d="M4 7h16M4 12h16M4 17h16"/>')}Меню</label>
   <div class="sh-drawer">
-    <nav class="sh-nav">${WORK.map(link(active)).join("")}</nav>
+    <nav class="sh-nav">${WORK.map(link(active, user.tasksDue)).join("")}</nav>
     <div class="sh-cap">Справка</div>
     <nav class="sh-nav help">${help.map(link(active)).join("")}</nav>
     <form class="sh-user" method="post" action="/logout"><b title="${esc(user.email)}">${esc(user.name || user.email)}</b>${esc(ROLE_TITLES[user.role])}<br><button type="submit">Выйти</button></form>

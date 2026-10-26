@@ -14,6 +14,8 @@ const { createDeals } = require("./deals");
 const { createClients, norm } = require("./clients");
 const W = require("./views-work");
 const VC = require("./views-clients");
+const VT = require("./views-tasks");
+const { createTasks } = require("./tasks");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
 const { toDocs, annualClasses } = require("./check");
@@ -68,12 +70,17 @@ function createApp(db, opts = {}) {
   }
   const clients = createClients(db);
   const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary(), clients });
+  const tasks = createTasks(db, deals);
+  // исполнители задач — те, кто может вести сделки
+  const editors = () => auth.listUsers().filter((u) => !u.disabled && can(u, "deals.edit"));
+  // ближайшая открытая задача по каждой сделке (для карточек канбана)
+  const nextTasks = () => { const m = new Map(); for (const t of tasks.open()) if (!m.has(t.deal_id)) m.set(t.deal_id, t); return m; };
   async function homeModel(user) {
     // Ставка ЦБ не задерживает главную: сохранённое значение — сразу, обновление — в фоне (результат попадёт в кэш
     // к следующему открытию). Без сохранённого значения ждём источник не дольше 1,5 с.
     const fresh = connectors.call("cbr", "key-rate", {}, { userId: user.id }).catch(() => null);
     const keyRate = connectors.peek("cbr", "key-rate", {}) || (await Promise.race([fresh, new Promise((r) => setTimeout(() => r(null), 1500))]));
-    return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit") };
+    return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit"), myTasks: tasks.open().filter((t) => t.assignee_id === user.id) };
   }
 
   // Поля сделки из формы (запуск и правка). Ошибка — {status: 400, field}
@@ -142,7 +149,7 @@ function createApp(db, opts = {}) {
   async function dealModel(user, deal) {
     const client = deal.inn ? await checkClient(user, deal.inn) : null;
     const classes = client?.fin?.data?.reports?.length ? annualClasses(client.fin.data) : [];
-    return { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit"), client, classes, clientRec: deal.client_id ? clients.get(deal.client_id) : null };
+    return { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit"), client, classes, clientRec: deal.client_id ? clients.get(deal.client_id) : null, tasks: tasks.byDeal(deal.id), users: editors(), user };
   }
 
   async function launchDeal(user, f) {
@@ -190,7 +197,8 @@ function createApp(db, opts = {}) {
     // /?inn=…&client_name=… — форма новой сделки с подставленным клиентом (из карточки клиента)
     "/": ["pages.view", async (u, url) => W.dashboardPage(u, { ...(await homeModel(u)), form: url.searchParams.has("client_name") || url.searchParams.has("inn") ? { values: { inn: url.searchParams.get("inn") || "", client_name: url.searchParams.get("client_name") || "" } } : undefined })],
     "/clients": ["pages.view", (u, url) => { const q = (url.searchParams.get("q") || "").trim(); return VC.clientsPage(u, { q, canEdit: can(u, "deals.edit"), clients: clients.list(q).map((c) => ({ ...c, deals: deals.byClient(c.id) })) }); }],
-    "/deals": ["pages.view", (u) => W.dealsBoard(u, { deals: deals.list(), canEdit: can(u, "deals.edit") })],
+    "/deals": ["pages.view", (u) => W.dealsBoard(u, { deals: deals.list(), canEdit: can(u, "deals.edit"), nextTasks: nextTasks() })],
+    "/tasks": ["pages.view", (u, url) => VT.tasksPage(u, { tasks: tasks.open(), done: tasks.recentDone(), mine: !url.searchParams.has("all"), canEdit: can(u, "deals.edit"), userId: u.id })],
     "/process": ["pages.view", (u) => V.processPage(u)],
     "/calc": ["calc.use", (u) => calcPage(u)],
     "/monitoring": ["pages.view", (u) => monitoringPage(u)],
@@ -205,6 +213,7 @@ function createApp(db, opts = {}) {
     const p = url.pathname;
     const token = H.parseCookies(req).sid;
     const user = auth.userByToken(token);
+    if (user) user.tasksDue = tasks.dueCount(user.id); // счётчик в меню: просрочено и на сегодня
 
     if (p === "/healthz") return H.sendJson(res, 200, { ok: true, rss_mb: Math.round(process.memoryUsage().rss / 1048576) });
 
@@ -275,7 +284,7 @@ function createApp(db, opts = {}) {
         return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups, byInn: e.byInn } }));
       }
     }
-    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment)?$/);
+    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment|\/tasks)?$/);
     if (dp) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
@@ -313,10 +322,27 @@ function createApp(db, opts = {}) {
       }
       if (dp[2] === "/comment" && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
-        const text = String((await H.readForm(req)).text || "").trim().slice(0, 2000);
-        if (!text) return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), feed: { error: "Напишите комментарий." } }));
+        const f = await H.readForm(req);
+        const text = String(f.text || "").trim().slice(0, 2000);
+        if (!text) return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), feed: { error: "Напишите комментарий.", values: f } }));
+        // «Следующий контакт» в той же форме — задача автору (результат звонка и следующий шаг одним действием)
+        let next = null;
+        if (f.next_due) { try { next = tasks.fields({ task_text: "Следующий контакт с клиентом", due: f.next_due }, []); } catch (e) { return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), feed: { error: e.errors.due, values: f } })); } }
         deals.comment(deal.id, user.id, text);
-        return done(res, `/deals/${deal.id}#feed`, "Комментарий добавлен.");
+        if (next) tasks.add(deal.id, { ...next, assignee_id: user.id }, user.id);
+        return done(res, `/deals/${deal.id}#feed`, next ? `Комментарий добавлен, задача «Следующий контакт» — на ${next.due.split("-").reverse().join(".")}.` : "Комментарий добавлен.");
+      }
+      if (dp[2] === "/tasks" && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const f = await H.readForm(req);
+        try {
+          const v = tasks.fields(f, editors());
+          const t = tasks.add(deal.id, { ...v, assignee_id: v.assignee_id ?? user.id }, user.id); // исполнитель по умолчанию — автор
+          return done(res, `/deals/${deal.id}#tasks`, `Задача поставлена: «${t.text}» до ${t.due.split("-").reverse().join(".")}`);
+        } catch (e) {
+          if (!e.status) throw e;
+          return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), taskForm: { values: f, errors: e.errors } }));
+        }
       }
       if ((dp[2] === "/refuse" || dp[2] === "/reopen") && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
@@ -364,6 +390,18 @@ function createApp(db, opts = {}) {
           return H.send(res, 400, VC.clientPage(user, { client, deals: deals.byClient(client.id), canEdit: true, form: { values: f, errors: e.errors } }));
         }
       }
+    }
+
+    // Задача: выполнено / вернуть в работу; back — откуда пришли (только локальный путь)
+    const tp = p.match(/^\/tasks\/(\d+)\/(done|undo)$/);
+    if (tp && req.method === "POST") {
+      if (!user) return H.redirect(res, "/login");
+      if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+      const t = tasks.get(+tp[1]);
+      if (!t) return H.send(res, 404, V.errorPage(user, 404, "Задача не найдена."));
+      const back = safeNext((await H.readForm(req)).back || `/deals/${t.deal_id}#tasks`);
+      tasks.setDone(t.id, user.id, tp[2] === "done");
+      return done(res, back, tp[2] === "done" ? `Задача выполнена: «${t.text}»` : `Задача снова в работе: «${t.text}»`);
     }
 
     if (p === "/logout" && req.method === "POST") {

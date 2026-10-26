@@ -3,6 +3,8 @@ const crypto = require("node:crypto");
 const { esc } = require("./http");
 const STAGES = require("./stages");
 const { layout, nf, fdate, clsBadge } = require("./views");
+const VT = require("./views-tasks");
+const { today } = require("./tasks");
 
 const STATUS = { working: "рабочий модуль", target: "целевая схема", backlog: "бэклог" };
 const ASSETS = ["Грузовой транспорт", "Легковой транспорт", "Спецтехника", "Оборудование", "Другое"];
@@ -58,6 +60,7 @@ function dashboardPage(user, m) {
     active: "home",
     body: `<h1>Дашборд</h1>
 ${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сделка</h2>${newDealForm(m.form)}</section>` : ""}
+${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) : ""}
 <div class="tiles4">
   ${tile("Сделок в работе", pipe.length, `${mln(sum(pipe))} · до выдачи`, "/deals")}
   ${tile("На оценке клиента", by(["assessment"]).length, "ждут расчёта класса", "/deals#assessment")}
@@ -90,11 +93,12 @@ ${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сд�
   });
 }
 
-function dealCard(d, canEdit) {
+function dealCard(d, canEdit, task) {
   return `<a class="kcard${d.demo ? " demo" : ""}" href="/deals/${d.id}" data-id="${d.id}"${canEdit && !d.outcome ? ' draggable="true"' : ""}>
   <b>${esc(d.title)}</b>
   <span class="muted small">${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)}` : ""}</span>
   ${d.outcome ? `<span class="small refused-reason">Отказ: ${esc(d.outcome_reason)}</span>` : d.note ? `<span class="small">${esc(d.note)}</span>` : ""}
+  ${VT.cardTask(task)}
   <span class="kmeta">${d.cls ? `${clsBadge(d.cls)} ` : ""}<span class="muted small">${d.outcome ? `отказ: ${ago(d.outcome_at)}` : `${ago(d.updated_at)} на стадии`}</span>${d.demo ? ' <span class="badge muted">условно</span>' : ""}</span>
 </a>`;
 }
@@ -105,7 +109,7 @@ function dealsBoard(user, m) {
     const ds = live.filter((d) => d.stage === st.id);
     return `<section class="kcol ${st.status}" id="${st.id}" data-stage="${st.id}">
   <header><h2>${esc(st.title)}</h2><span class="muted small">${ds.length}${ds.length ? ` · ${mln(sum(ds))}` : ""}</span>${st.status === "working" ? "" : `<span class="badge muted">${STATUS[st.status]}</span>`}</header>
-  <div class="kdrop">${ds.map((d) => dealCard(d, m.canEdit)).join("") || '<p class="kempty muted small">Нет сделок</p>'}</div>
+  <div class="kdrop">${ds.map((d) => dealCard(d, m.canEdit, m.nextTasks?.get(d.id))).join("") || '<p class="kempty muted small">Нет сделок</p>'}</div>
 </section>`;
   }).join("");
   return layout({
@@ -232,10 +236,11 @@ function feed(d, m) {
   <h2>Лента <span class="muted small">${nComments ? `комментариев: ${nComments} · ` : ""}записей: ${m.events.length}</span></h2>
   ${m.canEdit && !d.archived_at ? `<form class="comment-form" method="post" action="/deals/${d.id}/comment" data-draft>
     ${m.feed?.error ? `<p class="error" role="alert">${esc(m.feed.error)}</p>` : ""}
-    <label class="sr" for="cm-text">Комментарий</label><textarea id="cm-text" name="text" rows="2" maxlength="2000" placeholder="Результат звонка, договорённости, следующий шаг"${m.feed?.error ? ' aria-invalid="true"' : ""}></textarea>
-    <button type="submit" data-busy-text="Добавляю…">Добавить комментарий</button>
+    <label class="sr" for="cm-text">Комментарий</label><textarea id="cm-text" name="text" rows="2" maxlength="2000" placeholder="Результат звонка, договорённости, следующий шаг"${m.feed?.error ? ' aria-invalid="true"' : ""}>${esc(m.feed?.values?.text || "")}</textarea>
+    <div class="comment-row"><label for="cm-next">Следующий контакт <span class="muted small">(необязательно — станет задачей)</span><input id="cm-next" name="next_due" type="date" min="${today()}" value="${esc(m.feed?.values?.next_due || "")}"></label>
+    <button type="submit" data-busy-text="Добавляю…">Добавить комментарий</button></div>
   </form>` : ""}
-  <ul class="feed">${m.events.map((e) => `<li class="${e.kind || "sys"}"><p>${esc(e.text)}</p><span class="muted small">${when(e.at)} · ${who(e)}</span></li>`).join("")}</ul>
+  <ul class="feed">${m.events.map((e) => `<li class="${e.kind === "task" ? "taskrec" : e.kind || "sys"}"><p>${esc(e.text)}</p><span class="muted small">${when(e.at)} · ${who(e)}</span></li>`).join("")}</ul>
 </section>`;
 }
 
@@ -299,6 +304,7 @@ ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(
       <button type="submit" name="stage" value="__any" data-confirm="${esc(`Перевести сделку «${d.title}» со стадии «${st.title}» на «{select}»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.`)}">Сменить</button>
     </form>` : ""}
   </section>
+  ${m.tasks ? VT.dealTasks(d, m) : ""}
   ${feed(d, m)}
   ${d.client_code ? "" : clientBlock(d, m)}
   ${m.canEdit ? editForm(d, m.form) : ""}

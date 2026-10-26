@@ -88,7 +88,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     setClient: db.prepare("UPDATE deals SET client_id = ?, title = ?, updated_at = ? WHERE id = ?"),
     byClient: db.prepare("SELECT * FROM deals WHERE client_id = ? ORDER BY updated_at DESC"),
     event: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, from_stage, to_stage, text) VALUES (?,?,?,?,?,?)"),
-    comment: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, text, kind) VALUES (?,?,?,?,'comment')"),
+    typed: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, text, kind) VALUES (?,?,?,?,?)"),
     all: db.prepare("SELECT * FROM deals ORDER BY updated_at DESC"),
     get: db.prepare("SELECT * FROM deals WHERE id = ?"),
     events: db.prepare("SELECT e.*, u.name user_name, u.email user_email FROM deal_events e LEFT JOIN users u ON u.id = e.user_id WHERE deal_id = ? ORDER BY at DESC, e.id DESC"),
@@ -136,8 +136,8 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     },
     get: (id) => q.get.get(id) || null,
     events: (id) => q.events.all(id),
-    note: (id, userId, text) => q.event.run(id, Date.now(), userId, null, null, text),
-    comment: (id, userId, text) => q.comment.run(id, Date.now(), userId, text),
+    note: (id, userId, text, kind = null) => q.typed.run(id, Date.now(), userId, text, kind),
+    comment: (id, userId, text) => q.typed.run(id, Date.now(), userId, text, "comment"),
     // результат проверки клиента (DaData, ГИР БО): название, предварительный класс, пояснение
     setCheck(id, { title, cls, note }, userId, text) {
       q.setCheck.run(title, cls, note, Date.now(), id);

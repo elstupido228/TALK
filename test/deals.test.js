@@ -334,3 +334,40 @@ test("лента: комментарии отдельными записями �
   assert.strictEqual((await post(`${loc}/comment`, curator, { text: "x" })).status, 403);
   assert.ok(!(await get(loc, curator))[1].includes('action="' + loc + '/comment"'), "куратору форма комментария не показывается");
 });
+
+test("задачи: постановка в сделке и вместе с комментарием, «Мои задачи», счётчик в меню, выполнение", async () => {
+  const { today, addDays } = require("../app/tasks");
+  const loc = (await post("/deals", team, { client_name: "ООО «Задачи»", asset: "Оборудование" })).headers.get("location");
+  // срок в прошлом и пустой текст — ошибки у полей
+  let r = await post(`${loc}/tasks`, team, { task_text: "", due: addDays(today(), -5) });
+  assert.strictEqual(r.status, 400);
+  let html = await r.text();
+  assert.match(html, /Что нужно сделать\?/);
+  assert.match(html, /Срок в прошлом/);
+  // задача на сегодня
+  r = await post(`${loc}/tasks`, team, { task_text: "Отправить КП", due: today() });
+  assert.strictEqual(r.status, 303);
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /Задача поставлена: «Отправить КП»/);
+  html = (await get(loc, team))[1];
+  assert.match(html, /<li class="todo today"><span class="due today">сегодня<\/span><span class="ttext">Отправить КП/);
+  assert.match(html, /<li class="taskrec"><p>Задача до [\d.]+ \(team@example\.test\): Отправить КП<\/p>/);
+  // комментарий + следующий контакт — одно действие
+  r = await post(`${loc}/comment`, team, { text: "Клиент думает", next_due: addDays(today(), 2) });
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /задача «Следующий контакт» — на/);
+  html = (await get("/", team))[1];
+  assert.match(html, /<h2>Мои задачи/);
+  assert.match(html, /Отправить КП <span class="muted small">· <a href="\/deals\/\d+">ООО «Задачи»<\/a>/);
+  assert.match(html, /<b class="sh-badge" title="Задачи: просрочено и на сегодня">\d+<\/b>/);
+  assert.match((await get("/deals", team))[1], /class="small ktask today">Задача на сегодня: Отправить КП/);
+  // выполнить — с возвратом туда, откуда пришли
+  const tid = html.match(/action="\/tasks\/(\d+)\/done"/)[1];
+  assert.strictEqual((await post(`/tasks/${tid}/done`, curator, { back: "/" })).status, 403);
+  r = await post(`/tasks/${tid}/done`, team, { back: "/" });
+  assert.strictEqual(r.headers.get("location"), "/");
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /Задача выполнена/);
+  assert.match((await get(loc, team))[1], /Задача выполнена: /);
+  assert.match((await get("/tasks?all=1", team))[1], /<h2>Дальше <span class="muted small">\d+<\/span><\/h2><ul class="todo-list"><li class="todo later">/);
+  // back только локальный
+  r = await post(`/tasks/${tid}/undo`, team, { back: "https://evil.example/" });
+  assert.strictEqual(r.headers.get("location"), "/");
+});

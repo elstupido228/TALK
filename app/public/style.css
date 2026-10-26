@@ -285,4 +285,29 @@ form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }
 .feed li p { margin: 0 0 2px; white-space: pre-wrap; }
 .feed li.sys p { color: var(--muted); font-size: 0.92rem; }
 .feed li.comment p { background: var(--gray-bg); border-radius: 8px; padding: 8px 10px; color: var(--text); }
-.feed li.task p::before { content: "Задача · "; font-weight: 600; }
+.feed li.taskrec p::before { content: "Задача · "; font-weight: 600; }
+
+/* Задачи */
+.todo-list { list-style: none; margin: 0; padding: 0; }
+.todo-list li.todo { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 8px 0; border-top: 1px solid var(--line); }
+.todo-list li.todo:first-child { border-top: 0; }
+.todo-list .ttext { min-width: 0; overflow-wrap: anywhere; }
+.due { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.due.overdue { color: var(--error); }
+.due.today { color: var(--target); }
+.due.done { color: var(--ok, var(--accent)); font-weight: 500; }
+.todo-list li.done .ttext { color: var(--muted); text-decoration: line-through; }
+.todo-list .done-btn { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.task-add summary, .tasks-done summary { cursor: pointer; color: var(--accent); font-weight: 500; margin-top: 10px; }
+.tasks-done summary h2 { display: inline; }
+.ktask { color: var(--muted); }
+.ktask.overdue { color: var(--error); font-weight: 600; }
+.ktask.today { color: var(--target); font-weight: 600; }
+.overdue-n { color: var(--error); }
+.comment-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; justify-content: space-between; }
+.comment-row label { display: grid; gap: 4px; font-size: 0.88rem; color: var(--muted); }
+.comment-row input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+.seg-links { display: flex; gap: 4px; }
+.seg-links a { padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--text); }
+.seg-links a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (max-width: 560px) { .todo-list li.todo { grid-template-columns: 1fr; } }
