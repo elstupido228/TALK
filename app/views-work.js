@@ -249,7 +249,7 @@ ${row("Выручка", "revenue")}${row("Чистая прибыль", "net")}$
 <p class="muted small">Предварительно, по формулам калькулятора; пороги К4 — торговля и лизинг. Для заключения нужны квартальные даты.</p>`;
   } else if (f) fin = `<p class="muted">Годовая отчётность в ГИР БО не найдена или не раскрыта.</p>`;
   return `<section class="panel wide"><h2>Клиент</h2>
-${down.length ? `<p class="notice">${down.join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"} — сведения ниже неполные. ${recheck}</p>` : ""}
+${down.length ? `<p class="notice">${down.length > 1 ? "Источники" : "Источник"} ${down.map((s) => `«${s}»`).join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"} — сведения ниже неполные (<a href="/sources">состояние источников</a>). ${recheck}</p>` : ""}
 ${org}${fin}
 <p class="actions"><a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Полная проверка по ИНН</a>${down.length ? "" : recheck}</p>
 </section>`;

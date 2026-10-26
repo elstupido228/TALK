@@ -500,3 +500,22 @@ test("калькулятор → сделка: класс, заключение 
   assert.match(html, /Расчёт класса: 30\.09\.2025 — 3, 31\.12\.2025 — 3, 31\.03\.2026 — 3, 30\.06\.2026 — 3\. Заключение: Финансирование невозможно/);
   assert.match(html, /<div class="refuse stop"><p><b>Стоп-фактор:<\/b> Класс 3 на всех четырёх датах/, "стоп-фактор → главное действие «Оформить отказ»");
 });
+
+test("источники: одно состояние на всех экранах — «Источники данных», проверка по ИНН, карточка сделки", async () => {
+  const dadata = require("../app/connectors/dadata"), fin = require("../app/connectors/fin"), cbr = require("../app/connectors/cbr");
+  const off = (c) => ({ ...c, ops: Object.fromEntries(Object.entries(c.ops).map(([k, op]) => [k, { ...op, live: async () => { throw new Error("нет сети"); } }])) });
+  const d3 = open(":memory:");
+  createAuth(d3).upsertUser({ email: "t3@example.test", role: "team", password: PASS });
+  const s3 = createApp(d3, { gateway: createGateway({ db: d3, env: {} }), connectors: createConnectors(d3, [cbr, off(dadata), off(fin)], { env: { CONNECTOR_CBR_MODE: "sandbox" } }) }).listen(0);
+  await new Promise((r) => s3.once("listening", r));
+  const b3 = `http://127.0.0.1:${s3.address().port}`;
+  const c = (await fetch(b3 + "/login", { method: "POST", redirect: "manual", headers: { origin: b3, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "t3@example.test", password: PASS }) })).headers.get("set-cookie").split(";")[0];
+  const page = async (p) => (await fetch(b3 + p, { headers: { cookie: c } })).text();
+  assert.match(await page("/sources"), /Обращений ещё не было/);
+  const html = await page("/check?inn=7707083893");
+  assert.match(html, /<b>Источник «DaData» недоступен<\/b> — ниже <b>условный пример<\/b>, а не сведения об организации с ИНН 7707083893/);
+  assert.match(await page("/sources"), /<span class="badge target">Источник недоступен<\/span><br><span class="muted small">с [\d.]+, [\d:]+: нет сети/);
+  const loc = (await fetch(b3 + "/deals", { method: "POST", redirect: "manual", headers: { cookie: c, origin: b3, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ inn: "7707083893", asset: "Оборудование" }) })).headers.get("location");
+  assert.match(await page(loc), /Источники «DaData» и «ГИР БО» недоступны — сведения ниже неполные/);
+  s3.closeAllConnections(); s3.close(); d3.close();
+});

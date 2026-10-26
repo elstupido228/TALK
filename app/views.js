@@ -91,7 +91,15 @@ function sourcesPage(user, list, log) {
   const MODE = { live: ["Живой", "ok"], sandbox: ["Песочница", "target"] };
   const rows = list.map((c) => {
     const [ml, mc] = MODE[c.mode];
-    const state = c.sandboxOnly ? '<span class="badge muted">Только интерфейс</span>' : '<span class="badge ok">Подключён</span>';
+    // состояние — по последнему обращению, теми же словами, что в карточке сделки и на «Проверке по ИНН»
+    const when = (t) => new Date(t).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const h = c.health;
+    const state = c.sandboxOnly ? '<span class="badge muted">Только интерфейс</span>'
+      : c.mode === "sandbox" ? '<span class="badge target">Условные ответы</span><br><span class="muted small">включено настройкой</span>'
+      : !h ? '<span class="badge ok">Подключён</span>'
+      : h.state === "ok" ? `<span class="badge ok">Отвечает</span><br><span class="muted small">последний ответ ${when(h.at)}</span>`
+      : h.state === "down" ? `<span class="badge target">Источник недоступен</span><br><span class="muted small">с ${when(h.at)}: ${esc(h.error)}. Показывается сохранённый ответ, а без него — условный пример.</span>`
+      : '<span class="badge muted">Обращений ещё не было</span>';
     const ops = c.ops ? `<br>${c.ops.map((o) => `<code>${esc(c.id)}/${esc(o)}</code>`).join(" ")}` : "";
     return `<tr><td><b>${esc(c.title)}</b><br><span class="muted">${esc(c.what)}</span>${ops}</td>
 <td><span class="badge ${mc}">${ml}</span></td>
@@ -135,13 +143,17 @@ ${m.demo?.length ? `<p class="muted small">Подготовленные для �
   if (m.error) body = `<p class="error">${esc(m.error)}</p>`;
   else if (m.party) {
     const p = m.party.data;
-    const card = p.found === false
+    // источник не ответил: условный пример не должен выглядеть как сведения об организации
+    const warn = m.party.fallback
+      ? `<p class="notice" role="alert"><b>Источник «DaData» недоступен</b> — ниже <b>условный пример</b>, а не сведения об организации с ИНН ${esc(m.inn)}. Повторите проверку позже (<a href="/sources">состояние источников</a>).</p>`
+      : m.party.stale ? `<p class="notice">Источник «DaData» недоступен — показан сохранённый ответ от ${new Date(m.party.fetched_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}.</p>` : "";
+    const card = warn + (p.found === false
       ? `<p class="error">DaData: организация с ИНН ${esc(m.inn)} не найдена.</p>`
       : `<div class="card"><h2>${esc(p.name)}</h2>
 <p><span class="badge ${p.status === "ACTIVE" ? "ok" : "target"}">${esc(p.status_label || p.status || "статус неизвестен")}</span> ИНН ${esc(p.inn)}${p.ogrn ? ` · ОГРН ${esc(p.ogrn)}` : ""}${p.registered ? ` · зарегистрирована ${esc(p.registered)}` : ""}</p>
 <p>${esc(p.address || "")}</p>
 <p>ОКВЭД ${esc(p.okved || "—")}${p.management ? ` · ${esc(p.management.post || "")}: ${esc(p.management.name)}` : ""}</p>
-${srcLine(m.party)}</div>`;
+${srcLine(m.party)}</div>`);
     const f = m.fin?.data;
     let fin = "";
     if (!f || f.found === false || !m.classes?.length) fin = `<h2>Отчётность</h2><p class="muted">${f?.found === false ? "В ГИР БО отчётность по этому ИНН не найдена или не раскрыта (организации вправе ограничить доступ к своей отчётности)." : "Годовой отчётности нет."}</p>${srcLine(m.fin)}

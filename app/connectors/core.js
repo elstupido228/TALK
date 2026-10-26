@@ -72,8 +72,16 @@ function createConnectors(db, list, { env = process.env } = {}) {
     return r ? { data: JSON.parse(r.value), source: "cache", stale: Date.now() - r.at >= c.ops[opName].ttlMs, fetched_at: new Date(r.at).toISOString() } : null;
   }
 
-  const describe = () => list.map((c) => ({ id: c.id, title: c.title, what: c.what, mode: modeOf(c), sandboxOnly: !!c.sandboxOnly, ops: Object.keys(c.ops) }));
-  return { call, peek, describe, has: (id) => byId.has(id) };
+  // Фактическое состояние живого источника — по последнему обращению к нему (ответ из свежего кэша не в счёт):
+  // ok — ответил; down — не ответил (показан сохранённый ответ или условный пример); unknown — обращений не было
+  const lastCall = db.prepare("SELECT at, mode, status FROM connector_log WHERE connector = ? AND (mode = 'live' OR status <> 'ok') ORDER BY id DESC LIMIT 1");
+  function health(id) {
+    const r = lastCall.get(id);
+    if (!r) return { state: "unknown" };
+    return r.mode === "live" && r.status === "ok" ? { state: "ok", at: r.at } : { state: "down", at: r.at, error: r.status.replace(/^(устаревший кэш|запасной ответ|ошибка запроса): /, "") };
+  }
+  const describe = () => list.map((c) => ({ id: c.id, title: c.title, what: c.what, mode: modeOf(c), sandboxOnly: !!c.sandboxOnly, ops: Object.keys(c.ops), health: modeOf(c) === "live" && !c.sandboxOnly ? health(c.id) : null }));
+  return { call, peek, describe, health, has: (id) => byId.has(id) };
 }
 
 module.exports = { createConnectors, fail };
