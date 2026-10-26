@@ -64,8 +64,16 @@ function createConnectors(db, list, { env = process.env } = {}) {
     }
   }
 
+  // Последний сохранённый ответ без обращения к источнику (любой давности) — для страниц, которые не должны ждать сеть
+  function peek(id, opName, params = {}) {
+    const c = byId.get(id);
+    if (!c?.ops?.[opName] || modeOf(c) === "sandbox") return null;
+    const r = q.get.get(`${id}:${opName}:${JSON.stringify(params)}`);
+    return r ? { data: JSON.parse(r.value), source: "cache", stale: Date.now() - r.at >= c.ops[opName].ttlMs, fetched_at: new Date(r.at).toISOString() } : null;
+  }
+
   const describe = () => list.map((c) => ({ id: c.id, title: c.title, what: c.what, mode: modeOf(c), sandboxOnly: !!c.sandboxOnly, ops: Object.keys(c.ops) }));
-  return { call, describe, has: (id) => byId.has(id) };
+  return { call, peek, describe, has: (id) => byId.has(id) };
 }
 
 module.exports = { createConnectors, fail };

@@ -412,6 +412,8 @@ function showTab(name) {
   document.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tab === name)));
   ["portfolio", "card", "model", "upload"].forEach((n) => ($("tab-" + n).hidden = n !== name));
   try { localStorage.setItem("talk-ews-tab", name); } catch (e) {}
+  // вкладка — в адресе: ссылку можно переслать; у карточки — ещё и код клиента
+  history.replaceState(null, "", "#" + (name === "card" && CARD_CLIENT ? "card=" + encodeURIComponent(CARD_CLIENT) : name));
 }
 document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
@@ -517,8 +519,17 @@ function renderList() {
   }).join("");
   $("clientTbl").innerHTML = `<thead><tr><th>Клиент</th><th>Отрасль</th><th>Зона</th><th class="r">Балл</th><th class="r">За месяц</th><th class="r">Остаток, млн</th><th class="r">Просрочка, дн.</th><th class="r">Остаток / предмет</th><th>Основные причины</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="muted">Нет клиентов по выбранным условиям</td></tr>`}</tbody>`;
 }
-["fZone", "fSector", "fMove"].forEach((id) => $(id).addEventListener("change", renderList));
-$("fSearch").addEventListener("input", renderList);
+// фильтры таблицы клиентов помнятся до конца сеанса вкладки: уход в «Сделки» и возврат их не сбрасывают
+const FILTERS = ["fZone", "fSector", "fMove", "fSearch"];
+const saveFilters = () => { try { sessionStorage.setItem("talk-ews-filters", JSON.stringify(Object.fromEntries(FILTERS.map((id) => [id, $(id).value])))); } catch (e) {} };
+function restoreFilters() {
+  let f = null; try { f = JSON.parse(sessionStorage.getItem("talk-ews-filters") || "null"); } catch (e) {}
+  if (!f) return;
+  FILTERS.forEach((id) => { if (typeof f[id] === "string" && (id === "fSearch" || [...$(id).options].some((o) => o.value === f[id]))) $(id).value = f[id]; });
+  renderList();
+}
+["fZone", "fSector", "fMove"].forEach((id) => $(id).addEventListener("change", () => { saveFilters(); renderList(); }));
+$("fSearch").addEventListener("input", () => { saveFilters(); renderList(); });
 $("clientTbl").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client); });
 $("clientTbl").addEventListener("keydown", (e) => { if (e.key === "Enter") { const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client); } });
 
@@ -603,6 +614,7 @@ $("cardSel").addEventListener("change", () => renderCard($("cardSel").value));
 function openCard(cid) { showTab("card"); $("cardSel").value = cid; renderCard(cid); window.scrollTo({ top: 0, behavior: "smooth" }); }
 function renderCard(cid) {
   CARD_CLIENT = cid;
+  if (!$("tab-card").hidden) history.replaceState(null, "", "#card=" + encodeURIComponent(cid));
   const cl = STATE.idx.clients.get(cid); if (!cl) return;
   // история: 24 месяца до даты оценки, а для дефолта — 15 месяцев до и 3 после
   const ends = STATE.idx.ends; let endI = ends.length - 1;
@@ -858,18 +870,25 @@ function useData(data, label, fname) {
   const first = STATE.clients.filter((c) => c.now.zone === "red").sort((a, b) => a.now.score - b.now.score)[0] || STATE.clients[0];
   if (first) { $("cardSel").value = first.cl.client; renderCard(first.cl.client); }
 }
+// Адрес: #вкладка или #card=<код клиента> (ссылки «Требуют внимания» с главной, из карточки сделки)
+const TABS = ["portfolio", "card", "model", "upload"];
+function applyHash() {
+  const h = decodeURIComponent((location.hash || "").slice(1));
+  if (h.startsWith("card=") && STATE.clients.some((c) => c.cl.client === h.slice(5))) { $("cardSel").value = h.slice(5); CARD_CLIENT = h.slice(5); showTab("card"); renderCard(h.slice(5)); return true; }
+  if (TABS.includes(h)) { showTab(h); return true; }
+  return false;
+}
 (async function boot() {
   try {
     DEMO = await loadDemo();
     renderModel();
     useData(DEMO, "demo");
+    restoreFilters();
     $("bootStatus").hidden = true;
     let t = null; try { t = localStorage.getItem("talk-ews-tab"); } catch (e) {}
-    const h = (location.hash || "").slice(1);
-    showTab(["portfolio", "card", "model", "upload"].includes(h) ? h : t && ["portfolio", "card", "model", "upload"].includes(t) ? t : "portfolio");
-    // /monitoring#card=<код клиента> — сразу карточка клиента (ссылки «Требуют внимания» с главной портала)
-    const mc = h.startsWith("card=") ? decodeURIComponent(h.slice(5)) : null;
-    if (mc && STATE.clients.some((c) => c.cl.client === mc)) { $("cardSel").value = mc; renderCard(mc); showTab("card"); }
+    if (!applyHash()) showTab(t && TABS.includes(t) ? t : "portfolio");
+    // ссылка на вкладку или карточку внутри уже открытой страницы
+    addEventListener("hashchange", applyHash);
   } catch (e) { $("bootStatus").textContent = "Не удалось загрузить данные: " + (e && e.message || e); $("bootStatus").className = "status err"; }
 })();
 // Ключевая ставка Банка России — коннектор портала /api/connectors/cbr/key-rate (кэш, при сбое сети — последний ответ)

@@ -110,9 +110,22 @@ function dealsBoard(user, m) {
     active: "deals",
     body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Новая сделка</a>' : ""}</div>
 <p class="muted small">${m.canEdit ? "Перетащите карточку в другую колонку, чтобы сменить стадию, или откройте сделку." : "Просмотр: менять стадии могут администратор, команда проекта и ТАЛК."} Условные сделки связаны с демо-данными калькулятора и мониторинга.</p>
+<p class="status" id="kstatus" role="status"></p>
 <div class="board" id="board">${cols}</div>
 ${refused.length ? `<details class="panel refused-list"><summary><h2>Отказы</h2><span class="muted small">${refused.length} · ${mln(sum(refused))}</span></summary><div class="kgrid">${refused.map((d) => dealCard(d, false)).join("")}</div></details>` : ""}
-<p class="status" id="kstatus" role="status"></p>
+<script>
+(() => {
+  // Ссылка на колонку (#стадия, плитки главной) — к колонке; иначе — то место доски и страницы, где пользователь
+  // был до перехода в карточку (до конца сеанса вкладки)
+  const board = document.getElementById("board"), KEY = "talk-board-scroll";
+  if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView({ inline: "start", block: "nearest" });
+  else try { const s = JSON.parse(sessionStorage.getItem(KEY) || "null"); if (s) { board.scrollLeft = s.x; scrollTo(0, s.y); } } catch (e) {}
+  const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify({ x: board.scrollLeft, y: scrollY })); } catch (e) {} };
+  board.addEventListener("scroll", save, { passive: true });
+  addEventListener("scroll", save, { passive: true });
+  addEventListener("pagehide", save);
+})();
+</script>
 ${m.canEdit ? `<script>
 (() => {
   const FORWARD = ${JSON.stringify(FORWARD)};
@@ -132,12 +145,18 @@ ${m.canEdit ? `<script>
       const name = (c) => c.querySelector("h2").textContent;
       if (FORWARD.indexOf(to) !== FORWARD.indexOf(from.dataset.stage) + 1 || FORWARD.indexOf(to) < 0)
         if (!confirm("Перевести сделку «" + card.querySelector("b").textContent + "» со стадии «" + name(from) + "» на «" + name(col) + "»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.")) return;
-      const st = document.getElementById("kstatus"); st.textContent = "Сохраняю…";
-      const r = await fetch("/api/deals/" + id + "/stage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: col.dataset.stage }) });
-      if (r.ok) location.reload(); else st.textContent = "Не удалось сменить стадию: " + ((await r.json().catch(() => ({}))).error?.message || r.status);
+      const st = document.getElementById("kstatus"); st.className = "status"; st.textContent = "Сохраняю…";
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
+      try {
+        const r = await fetch("/api/deals/" + id + "/stage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: col.dataset.stage }), signal: ctl.signal });
+        if (r.ok) return location.reload();
+        st.textContent = "Не удалось сменить стадию: " + ((await r.json().catch(() => ({}))).error?.message || "ошибка сервера " + r.status) + ". Карточка осталась на месте.";
+      } catch (err) {
+        st.textContent = (err.name === "AbortError" ? "Сервер не ответил за 15 с" : "Нет связи с сервером") + " — стадия не изменена, карточка осталась на месте. Повторите, когда связь появится.";
+      } finally { clearTimeout(timer); }
+      st.className = "status err";
     });
   });
-  if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView({ inline: "start", block: "nearest" });
 })();
 </script>` : ""}`,
   });
@@ -149,7 +168,7 @@ function clientBlock(d, m) {
   const c = m.client || {};
   const p = c.party?.data, f = c.fin?.data;
   const down = [!c.party && "DaData", !c.fin && "ГИР БО"].filter(Boolean);
-  const recheck = m.canEdit ? `<form method="post" action="/deals/${d.id}/recheck" class="inline"><button type="submit">Проверить снова</button></form>` : "";
+  const recheck = m.canEdit ? `<form method="post" action="/deals/${d.id}/recheck" class="inline"><button type="submit" data-busy-text="Проверяю…">Проверить снова</button></form>` : "";
   let org = "";
   if (p?.found === false) org = `<p class="error">DaData: организация с ИНН ${esc(d.inn)} не найдена.</p>`;
   else if (p) org = `<p><b>${esc(p.name)}</b> <span class="badge ${p.status === "ACTIVE" ? "ok" : "target"}">${esc(p.status_label || p.status || "статус неизвестен")}</span>${p.sandbox_note ? ' <span class="badge muted">условно</span>' : ""}</p>

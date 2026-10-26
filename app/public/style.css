@@ -251,3 +251,10 @@ details.edit summary h2 { margin: 0; }
 [aria-invalid="true"] { border-color: var(--error) !important; }
 .notice ul { margin: 4px 0 8px; padding-left: 20px; }
 .notice p { margin: 0 0 6px; }
+
+/* Сообщение об успехе, восстановленный черновик, отправка формы */
+.toast { position: fixed; top: 16px; right: 16px; z-index: 50; display: flex; gap: 12px; align-items: flex-start; max-width: min(420px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 10px; background: var(--card); color: var(--text); border: 1px solid var(--accent); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); }
+.toast button { border: 0; background: none; font-size: 1.2rem; line-height: 1; padding: 0 2px; cursor: pointer; color: var(--muted); }
+.draft-note { background: var(--target-bg); color: var(--target); padding: 6px 10px; border-radius: 8px; margin: 0; }
+.draft-note button { margin-left: 6px; padding: 2px 8px; }
+form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }

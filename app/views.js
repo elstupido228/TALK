@@ -30,13 +30,7 @@ ${body}
 </main>
 <footer>Демонстрационный прототип. Все данные на страницах условные.</footer>
 ${user ? shell.close() : ""}
-<script>
-// Подтверждение действий с последствиями: data-confirm на кнопке отправки; {select} — выбранный пункт списка формы
-document.addEventListener("submit", (e) => {
-  const sel = e.target.querySelector("select"), m = e.submitter?.dataset.confirm?.replace("{select}", sel?.selectedOptions[0]?.text || "");
-  if (m && !confirm(m)) e.preventDefault();
-});
-</script>
+<script src="/static/forms.js"></script>
 </body>
 </html>`;
 }
@@ -45,7 +39,7 @@ const nf = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleStr
 const fdate = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
 const innForm = (inn = "", big = false) => `<form class="inn-form${big ? " big" : ""}" method="get" action="/check">
   <label for="inn">ИНН клиента</label>
-  <div class="inn-row"><input id="inn" name="inn" inputmode="numeric" autocomplete="off" pattern="\\d{10}|\\d{12}" title="10 или 12 цифр" required placeholder="10 или 12 цифр" value="${esc(inn)}"><button type="submit">Проверить клиента</button></div>
+  <div class="inn-row"><input id="inn" name="inn" inputmode="numeric" autocomplete="off" pattern="\\d{10}|\\d{12}" title="10 или 12 цифр" required placeholder="10 или 12 цифр" value="${esc(inn)}"><button type="submit" data-busy-text="Проверяю клиента…">Проверить клиента</button></div>
 </form>`;
 const clsBadge = (c) => (c === null || c === undefined ? `<span class="muted small">нет данных</span>` : `<span class="cls cls-${c}" title="класс ${c}">${c}</span>`);
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);

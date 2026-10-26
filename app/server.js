@@ -21,6 +21,7 @@ const JS = "text/javascript; charset=utf-8";
 // [файл, тип, cache-control]; библиотеки версионированы — кэшируются на сутки
 const STATIC = {
   "/static/style.css": [path.join(PUB, "style.css"), "text/css; charset=utf-8", "no-cache"],
+  "/static/forms.js": [path.join(PUB, "forms.js"), JS, "no-cache"],
   "/vendor/jszip.min.js": [path.join(PUB, "vendor", "jszip.min.js"), JS, "public, max-age=86400"],
   "/vendor/pdf.min.js": [path.join(PUB, "vendor", "pdf.min.js"), JS, "public, max-age=86400"],
   "/vendor/pdf.worker.min.js": [path.join(PUB, "vendor", "pdf.worker.min.js"), JS, "public, max-age=86400"],
@@ -65,7 +66,10 @@ function createApp(db, opts = {}) {
   }
   const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary() });
   async function homeModel(user) {
-    const keyRate = await connectors.call("cbr", "key-rate", {}, { userId: user.id }).catch(() => null);
+    // Ставка ЦБ не задерживает главную: сохранённое значение — сразу, обновление — в фоне (результат попадёт в кэш
+    // к следующему открытию). Без сохранённого значения ждём источник не дольше 1,5 с.
+    const fresh = connectors.call("cbr", "key-rate", {}, { userId: user.id }).catch(() => null);
+    const keyRate = connectors.peek("cbr", "key-rate", {}) || (await Promise.race([fresh, new Promise((r) => setTimeout(() => r(null), 1500))]));
     return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit") };
   }
 

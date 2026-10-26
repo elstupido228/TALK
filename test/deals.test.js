@@ -265,3 +265,26 @@ test("правка поверх чужой: не перезаписываетс�
   await post(`${loc}/edit`, team, { orig: orig3, asset: "Оборудование", amount: "15", term: "24", comment: "А" });
   assert.strictEqual((await post(`${loc}/edit`, team, { orig: orig3, asset: "Оборудование", amount: "16", term: "24", comment: "А" })).status, 303);
 });
+
+test("главная не ждёт медленный ЦБ: сохранённая ставка — сразу, без неё — не дольше 1,5 с", async () => {
+  const { createConnectors } = require("../app/connectors/core");
+  const cbr = require("../app/connectors/cbr");
+  const slow = { ...cbr, ops: Object.fromEntries(Object.entries(cbr.ops).map(([k, op]) => [k, { ...op, ttlMs: 0, live: () => new Promise((r) => setTimeout(() => r({ rate: 21, since: "2026-10-01", date: "2026-10-26" }), 5000)) }])) };
+  const d2 = open(":memory:");
+  createAuth(d2).upsertUser({ email: "t2@example.test", role: "team", password: PASS });
+  const conns = createConnectors(d2, [slow], { env: {} });
+  const s2 = createApp(d2, { gateway: createGateway({ db: d2, env: {} }), connectors: conns }).listen(0);
+  await new Promise((r) => s2.once("listening", r));
+  const b2 = `http://127.0.0.1:${s2.address().port}`;
+  const c = (await fetch(b2 + "/login", { method: "POST", redirect: "manual", headers: { origin: b2, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ email: "t2@example.test", password: PASS }) })).headers.get("set-cookie").split(";")[0];
+  let t = Date.now();
+  let html = await (await fetch(b2 + "/", { headers: { cookie: c } })).text();
+  assert.ok(Date.now() - t < 3000, `без кэша — не дольше 1,5 с (было ${Date.now() - t} мс)`);
+  assert.match(html, /<h2>Ключевая ставка ЦБ<\/h2>|Ключевая ставка ЦБ/);
+  d2.prepare("INSERT INTO connector_cache (key, connector, value, at) VALUES (?, 'cbr', ?, ?)").run('cbr:key-rate:{}', JSON.stringify({ rate: 17, since: "2026-09-01", date: "2026-10-25" }), Date.now() - 86400000);
+  t = Date.now();
+  html = await (await fetch(b2 + "/", { headers: { cookie: c } })).text();
+  assert.ok(Date.now() - t < 1000, `с кэшем — сразу (было ${Date.now() - t} мс)`);
+  assert.match(html, /17,00 %/);
+  s2.closeAllConnections(); s2.close(); d2.close();
+});
