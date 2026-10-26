@@ -82,6 +82,8 @@ function createDeals(db, { portfolio, clients = null } = {}) {
   if (!new Set(db.prepare("PRAGMA table_info(deal_events)").all().map((c) => c.name)).has("kind")) db.exec("ALTER TABLE deal_events ADD COLUMN kind TEXT");
   // ответственный за сделку; у прежних сделок — автор
   if (!cols.has("owner_id")) { db.exec("ALTER TABLE deals ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL"); db.exec("UPDATE deals SET owner_id = created_by"); }
+  // архив: сделка скрыта из канбана, списков и счётчиков, но не удалена и возвращается одним действием
+  if (!cols.has("archived_at")) db.exec("ALTER TABLE deals ADD COLUMN archived_at INTEGER");
   const linkOld = !cols.has("client_id");
   if (linkOld) db.exec("ALTER TABLE deals ADD COLUMN client_id INTEGER REFERENCES clients(id)");
   // в выборках: owner_* — ответственный, stage_at — вход на текущую стадию, last_at — последняя запись ленты
@@ -100,6 +102,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     setCheck: db.prepare("UPDATE deals SET title = ?, cls = ?, note = ?, updated_at = ? WHERE id = ?"),
     edit: db.prepare("UPDATE deals SET inn = ?, asset = ?, amount_mln = ?, term_months = ?, comment = ?, updated_at = ? WHERE id = ?"),
     outcome: db.prepare("UPDATE deals SET outcome = ?, outcome_reason = ?, outcome_at = ?, updated_at = ? WHERE id = ?"),
+    archive: db.prepare("UPDATE deals SET archived_at = ?, updated_at = ? WHERE id = ?"),
   };
   const stageTitle = (id) => STAGES.find((s) => s.id === id)?.title || id;
 
@@ -171,7 +174,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
       const d = q.get.get(id);
       if (!d) return null;
       if (!STAGE_IDS.includes(stage)) throw Object.assign(new Error("неизвестная стадия"), { status: 400 });
-      if (d.outcome) throw Object.assign(new Error("Сделка закрыта отказом — сначала верните её в работу."), { status: 409 });
+      if (d.outcome || d.archived_at) throw Object.assign(new Error(d.archived_at ? "Сделка в архиве — сначала верните её из архива." : "Сделка закрыта отказом — сначала верните её в работу."), { status: 409 });
       if (d.stage === stage) return d;
       const now = Date.now();
       q.move.run(stage, now, id);
@@ -183,6 +186,11 @@ function createDeals(db, { portfolio, clients = null } = {}) {
       const now = Date.now();
       q.outcome.run("refused", reason, now, now, id);
       q.event.run(id, now, userId, null, null, `Отказ: ${reason}`);
+    },
+    archive(id, userId, on = true) {
+      const now = Date.now();
+      q.archive.run(on ? now : null, now, id);
+      q.event.run(id, now, userId, null, null, on ? "Сделка перенесена в архив" : "Сделка возвращена из архива");
     },
     reopen(id, userId) {
       const now = Date.now();

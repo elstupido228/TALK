@@ -32,10 +32,10 @@ function createTasks(db, deals) {
     insert: db.prepare("INSERT INTO tasks (deal_id, text, due, assignee_id, created_by, created_at) VALUES (?,?,?,?,?,?)"),
     get: db.prepare(`${SEL} WHERE t.id = ?`),
     byDeal: db.prepare(`${SEL} WHERE t.deal_id = ? ORDER BY t.done_at IS NOT NULL, t.due, t.id`),
-    open: db.prepare(`${SEL} WHERE t.done_at IS NULL AND d.outcome IS NULL ORDER BY t.due, t.id`),
+    open: db.prepare(`${SEL} WHERE t.done_at IS NULL AND d.outcome IS NULL AND d.archived_at IS NULL ORDER BY t.due, t.id`),
     done: db.prepare(`${SEL} WHERE t.done_at IS NOT NULL ORDER BY t.done_at DESC LIMIT 50`),
     setDone: db.prepare("UPDATE tasks SET done_at = ?, done_by = ? WHERE id = ?"),
-    dueCount: db.prepare("SELECT count(*) n FROM tasks t JOIN deals d ON d.id = t.deal_id WHERE t.done_at IS NULL AND d.outcome IS NULL AND t.assignee_id = ? AND t.due <= ?"),
+    dueCount: db.prepare("SELECT count(*) n FROM tasks t JOIN deals d ON d.id = t.deal_id WHERE t.done_at IS NULL AND d.outcome IS NULL AND d.archived_at IS NULL AND t.assignee_id = ? AND t.due <= ?"),
   };
   const who = (t) => t.assignee_name || t.assignee_email || "без исполнителя";
 

@@ -332,3 +332,9 @@ form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }
 ul.plain { list-style: none; margin: 0; padding: 0; }
 ul.plain li { padding: 6px 0; border-top: 1px solid var(--line); }
 ul.plain li:first-child { border-top: 0; }
+
+/* Архив */
+.archived-note { background: var(--gray-bg); padding: 8px 12px; border-radius: 8px; }
+.archive-zone { padding-top: 10px; padding-bottom: 10px; }
+.archive-zone button.danger { background: var(--card); border-color: var(--error); color: var(--error); }
+.archive-zone button.primary-btn { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }

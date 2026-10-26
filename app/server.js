@@ -258,6 +258,7 @@ function createApp(db, opts = {}) {
         let body = {};
         try { body = JSON.parse((await H.readBody(req, 4096)).toString("utf8") || "{}"); } catch { return H.sendJson(res, 400, { error: { code: "bad_request", message: "Нужен JSON." } }); }
         if (!deals.STAGE_IDS.includes(body.stage)) return H.sendJson(res, 400, { error: { code: "bad_request", message: "Неизвестная стадия." } });
+        if (deals.get(+dm[1])?.archived_at) return H.sendJson(res, 409, { error: { code: "archived", message: "Сделка в архиве — сначала верните её из архива." } });
         if (deals.get(+dm[1])?.outcome) return H.sendJson(res, 409, { error: { code: "refused", message: "Сделка закрыта отказом — сначала верните её в работу." } });
         const d = deals.move(+dm[1], body.stage, user.id);
         return d ? H.sendJson(res, 200, { deal: d }) : H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
@@ -290,7 +291,7 @@ function createApp(db, opts = {}) {
         return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups, byInn: e.byInn } }));
       }
     }
-    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment|\/tasks|\/owner)?$/);
+    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment|\/tasks|\/owner|\/archive|\/unarchive)?$/);
     if (dp) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
@@ -338,6 +339,12 @@ function createApp(db, opts = {}) {
         if (next) tasks.add(deal.id, { ...next, assignee_id: user.id }, user.id);
         return done(res, `/deals/${deal.id}#feed`, next ? `Комментарий добавлен, задача «Следующий контакт» — на ${next.due.split("-").reverse().join(".")}.` : "Комментарий добавлен.");
       }
+      if ((dp[2] === "/archive" || dp[2] === "/unarchive") && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const on = dp[2] === "/archive";
+        if (!!deal.archived_at !== on) deals.archive(deal.id, user.id, on);
+        return done(res, on ? "/deals" : `/deals/${deal.id}`, on ? `Сделка «${deal.title}» перенесена в архив. Вернуть: «Сделки» → «Список» → «Архив».` : "Сделка возвращена из архива.");
+      }
       if (dp[2] === "/owner" && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
         const f = await H.readForm(req);
@@ -375,6 +382,7 @@ function createApp(db, opts = {}) {
         const f = await H.readForm(req);
         const stage = f.stage === "__any" ? f.stage_any : f.stage;
         if (!deals.STAGE_IDS.includes(stage)) return H.send(res, 400, V.errorPage(user, 400, "Неизвестная стадия."));
+        if (deal.archived_at) return H.send(res, 409, V.errorPage(user, 409, "Сделка в архиве — сначала верните её из архива."));
         if (deal.outcome) return H.send(res, 409, V.errorPage(user, 409, "Сделка закрыта отказом — сначала верните её в работу."));
         deals.move(deal.id, stage, user.id);
         return done(res, `/deals/${deal.id}`, stage === deal.stage ? "Стадия не изменилась." : `Стадия изменена: «${deals.stageTitle(deal.stage)}» → «${deals.stageTitle(stage)}»`);

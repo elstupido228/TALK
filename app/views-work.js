@@ -13,7 +13,7 @@ const PIPE = ["application", "assessment", "decision", "contract"]; // до вы
 const OVERDUE = ["overdue_30", "overdue_30plus"];
 const FORWARD = [...PIPE, "monitoring"]; // обычный ход сделки; просрочка — не «следующий шаг», а событие
 const REFUSAL_REASONS = ["Стоп-фактор: класс 3 на всех четырёх датах", "Клиент не прошёл проверку", "Клиент отказался", "Не устроили условия", "Другое"];
-const active = (ds) => ds.filter((d) => !d.outcome);
+const active = (ds) => ds.filter((d) => !d.outcome && !d.archived_at);
 const mln = (v) => (v === null || v === undefined ? "—" : `${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`);
 const sum = (ds) => ds.reduce((s, d) => s + (d.amount_mln || 0), 0);
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
@@ -86,7 +86,7 @@ ${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) :
   </section>
   <section class="panel">
     <h2>Последние сделки</h2>
-    <ul class="list">${m.deals.slice(0, 5).map((d) => `<li><a href="/deals/${d.id}"><span>${esc(d.title)}<br><span class="muted small">${d.outcome ? "Отказ" : esc(STAGES.find((st) => st.id === d.stage)?.title || d.stage)} · ${ago(d.updated_at)}</span></span>${d.cls ? clsBadge(d.cls) : ""}</a></li>`).join("")}</ul>
+    <ul class="list">${m.deals.slice(0, 5).map((d) => `<li><a href="/deals/${d.id}"><span>${esc(d.title)}<br><span class="muted small">${d.archived_at ? "Архив" : d.outcome ? "Отказ" : esc(STAGES.find((st) => st.id === d.stage)?.title || d.stage)} · ${ago(d.updated_at)}</span></span>${d.cls ? clsBadge(d.cls) : ""}</a></li>`).join("")}</ul>
     <h3>Ключевая ставка ЦБ</h3>
     ${kr ? `<p class="big">${kr.rate.toFixed(2).replace(".", ",")} %</p><p class="muted small">действует с ${fdate(kr.since)}${kr.sandbox_note ? " · условное значение" : ""}</p>` : `<p class="muted">Нет данных</p>`}
   </section>
@@ -106,7 +106,7 @@ function dealCard(d, canEdit, task) {
 }
 
 function dealsBoard(user, m) {
-  const live = active(m.deals), refused = m.deals.filter((d) => d.outcome);
+  const live = active(m.deals), refused = m.deals.filter((d) => d.outcome && !d.archived_at);
   const cols = STAGES.map((st) => {
     const ds = live.filter((d) => d.stage === st.id);
     return `<section class="kcol ${st.status}" id="${st.id}" data-stage="${st.id}">
@@ -178,6 +178,13 @@ function clientLine(c, canEdit) {
   if (!c) return `<p class="client-line muted">Клиент не указан.${canEdit ? " Укажите ИНН или наименование в разделе «Данные сделки»." : ""}</p>`;
   const tel = c.phone ? ` · <a href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">${esc(c.phone)}</a>` : "";
   return `<p class="client-line">Клиент: <a href="/clients/${c.id}">${esc(c.name)}</a>${c.contact_name ? ` · ${esc(c.contact_name)}` : ""}${tel}${!c.contact_name && !c.phone && canEdit ? ` · <a href="/clients/${c.id}">добавить контакт</a>` : ""}</p>`;
+}
+
+// Архив — внизу карточки, отдельно от частых действий; перенос с подтверждением, возврат — без
+function archiveZone(d) {
+  return d.archived_at
+    ? `<section class="panel wide archive-zone"><form method="post" action="/deals/${d.id}/unarchive" class="inline-form"><span>Сделка в архиве.</span><button type="submit" class="primary-btn">Вернуть из архива</button></form></section>`
+    : `<section class="panel wide archive-zone"><form method="post" action="/deals/${d.id}/archive" class="inline-form"><span class="muted">Создана по ошибке или больше не нужна?</span><button type="submit" class="danger" data-confirm="${esc(`Перенести сделку «${d.title}» в архив? Она пропадёт с канбана, из списка «В работе» и счётчиков; задачи по ней скроются. Вернуть: «Сделки» → «Список» → «Архив» → открыть сделку → «Вернуть из архива».`)}">В архив</button></form></section>`;
 }
 
 // Ответственный за сделку; передача другому — с подтверждением, с именем нового ответственного
@@ -285,6 +292,7 @@ function dealPage(user, m) {
     overdue_30plus: [event("monitoring", "Задолженность урегулирована", "Она вернётся в мониторинг.")],
   }[d.stage] || [];
   const stop = d.stop_factor && !d.outcome && PIPE.includes(d.stage);
+  const ed = m.canEdit && !d.archived_at; // сделка в архиве — только просмотр и возврат
   const actions = [];
   if (["application", "assessment", "decision"].includes(d.stage)) {
     if (d.inn) actions.push(`<a class="btn${d.stage !== "application" ? "" : " primary"}" href="/check?inn=${esc(d.inn)}">Проверка по ИНН</a>`);
@@ -303,6 +311,7 @@ ${clientLine(m.clientRec, m.canEdit)}
 ${ownerLine(d, m)}
 <p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.term_months ? ` · ${d.term_months} мес.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
 ${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
+${d.archived_at ? `<p class="archived-note" role="status"><b>В архиве</b> с ${new Date(d.archived_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}: сделка не видна на канбане, в списке «В работе» и в счётчиках.</p>` : ""}
 ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(d.outcome_reason)} · ${new Date(d.outcome_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : ""}
 <ol class="stepper">${STAGES.map((s, k) => `<li class="${k < i ? "done" : k === i ? "now" : ""}"><span>${k + 1}</span>${esc(s.title)}</li>`).join("")}</ol>
 <div class="dash">
@@ -311,9 +320,9 @@ ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(
     <p>${esc(st.summary)}</p>
     ${d.cls ? `<p>Класс кредитоспособности: ${clsBadge(d.cls)}${d.note ? ` <span class="muted small">${esc(d.note)}</span>` : ""}</p>` : d.note ? `<p class="muted">${esc(d.note)}</p>` : ""}
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}
-    ${m.canEdit && d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/reopen"><button type="submit" data-confirm="${esc(`Вернуть сделку «${d.title}» в работу? Она снова появится на стадии «${st.title}» и в счётчиках.`)}">Вернуть в работу</button></form>` : ""}
-    ${m.canEdit && !d.outcome && PIPE.includes(d.stage) ? refuseForm(d, stop, m.refuse) : ""}
-    ${m.canEdit && !d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/stage">
+    ${ed && d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/reopen"><button type="submit" data-confirm="${esc(`Вернуть сделку «${d.title}» в работу? Она снова появится на стадии «${st.title}» и в счётчиках.`)}">Вернуть в работу</button></form>` : ""}
+    ${ed && !d.outcome && PIPE.includes(d.stage) ? refuseForm(d, stop, m.refuse) : ""}
+    ${ed && !d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/stage">
       ${next ? `<button${stop ? "" : ' class="primary"'} type="submit" formnovalidate name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}${events.join("")}
       <label>или выбрать стадию <select name="stage_any" required><option value="">— другая стадия —</option>${STAGES.filter((s) => s.id !== d.stage).map((s) => `<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></label>
       <button type="submit" name="stage" value="__any" data-confirm="${esc(`Перевести сделку «${d.title}» со стадии «${st.title}» на «{select}»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.`)}">Сменить</button>
@@ -322,7 +331,8 @@ ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(
   ${m.tasks ? VT.dealTasks(d, m) : ""}
   ${feed(d, m)}
   ${d.client_code ? "" : clientBlock(d, m)}
-  ${m.canEdit ? editForm(d, m.form) : ""}
+  ${ed ? editForm(d, m.form) : ""}
+  ${m.canEdit ? archiveZone(d) : ""}
 </div>`,
   });
 }

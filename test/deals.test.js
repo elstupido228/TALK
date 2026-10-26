@@ -426,3 +426,23 @@ test("поиск, список сделок с фильтрами и сорти�
   assert.ok(csv.startsWith("№;Клиент;ИНН;"));
   assert.match(csv, /;ООО «Поисковая»;;Спецтехника;77,5;Заявка;в работе;;team@example\.test;0;/);
 });
+
+test("архив: сделка скрывается из канбана и счётчиков, находится в списке «Архив», возвращается", async () => {
+  const loc = (await post("/deals", team, { client_name: "ООО «Архивная»", asset: "Оборудование", amount: "3" })).headers.get("location");
+  let html = (await get(loc, team))[1];
+  assert.match(html, /data-confirm="Перенести сделку «ООО «Архивная»» в архив\?/);
+  let r = await post(`${loc}/archive`, team, {});
+  assert.strictEqual(r.headers.get("location"), "/deals");
+  assert.doesNotMatch((await get("/deals", team))[1], /ООО «Архивная»/);
+  assert.doesNotMatch((await get("/deals/list", team))[1], /ООО «Архивная»/);
+  assert.match((await get("/deals/list?status=archived", team))[1], /ООО «Архивная»/);
+  html = (await get(loc, team))[1];
+  assert.match(html, /<b>В архиве<\/b>/);
+  assert.ok(!html.includes(`action="${loc}/stage"`) && !html.includes(`action="${loc}/edit"`), "в архиве — только просмотр");
+  assert.strictEqual((await post(`${loc}/stage`, team, { stage: "assessment" })).status, 409);
+  assert.strictEqual((await post(`${loc}/archive`, curator, {})).status, 403);
+  r = await post(`${loc}/unarchive`, team, {});
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /возвращена из архива/);
+  assert.match((await get("/deals", team))[1], /ООО «Архивная»/);
+  assert.match((await get(loc, team))[1], /Сделка возвращена из архива/);
+});
