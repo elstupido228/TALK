@@ -99,6 +99,8 @@ function sourcesPage(user, list, log) {
       : !h ? '<span class="badge ok">Подключён</span>'
       : h.state === "ok" ? `<span class="badge ok">Отвечает</span><br><span class="muted small">последний ответ ${when(h.at)}</span>`
       : h.state === "down" ? `<span class="badge target">Источник недоступен</span><br><span class="muted small">с ${when(h.at)}: ${esc(h.error)}. Показывается сохранённый ответ, а без него — условный пример.</span>`
+      : h.state === "ready" ? `<span class="badge ok">Готов</span><br><span class="muted small">${esc(h.note)}</span>`
+      : h.state === "off" ? `<span class="badge target">Не работает</span><br><span class="muted small">${esc(h.note)}</span>`
       : '<span class="badge muted">Обращений ещё не было</span>';
     const ops = c.ops ? `<br>${c.ops.map((o) => `<code>${esc(c.id)}/${esc(o)}</code>`).join(" ")}` : "";
     return `<tr><td><b>${esc(c.title)}</b><br><span class="muted">${esc(c.what)}</span>${ops}</td>

@@ -49,7 +49,10 @@ function createApp(db, opts = {}) {
   const gateway = opts.gateway || createGateway({ db });
   const connectors = opts.connectors || createConnectors(db, CONNECTORS);
   // Шлюз распознавания — отдельный модуль (POST /api/extract), но на «Источниках данных» показывается рядом с коннекторами
-  const sourcesList = () => [...connectors.describe(), { id: "extract", title: "Распознавание PDF (OpenAI)", what: "Страницы отчётности → значения по кодам строк на все даты документа", mode: "live", ops: null }];
+  const sourcesList = () => {
+    const g = gateway.status();
+    return [...connectors.describe(), { id: "extract", title: "Распознавание PDF (OpenAI)", what: "Страницы отчётности → значения по кодам строк на все даты документа", mode: "live", ops: null, health: g.enabled ? { state: "ready", note: `модель ${g.model}, осталось запросов на сегодня: ${g.remaining}` } : { state: "off", note: g.reason } }];
+  };
   const demoInns = (process.env.DEMO_INNS || "").split(",").map((s) => s.trim()).filter((s) => /^\d{10}(\d{2})?$/.test(s));
 
   // Последние проверки пользователя: ИНН из журнала коннектора отчётности, название и класс — из кэша ответов
