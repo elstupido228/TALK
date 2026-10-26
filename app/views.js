@@ -184,7 +184,7 @@ ${sb("CRM", side.crm, (d) => `<p>${d.applications.map((a) => `${esc(a.id)}: ${es
     title: m.party?.data?.name ? `${m.party.data.name} — проверка по ИНН` : "Проверка по ИНН",
     user,
     active: "check",
-    body: `<h1>Проверка по ИНН</h1>
+    body: `${m.backDeal ? `<p class="crumbs"><a href="/deals/${m.backDeal.id}">← К сделке №${m.backDeal.id} «${esc(m.backDeal.title)}»</a></p>` : ""}<h1>Проверка по ИНН</h1>
 <p class="lead">Карточка организации (DaData) и годовая отчётность (ГИР БО) → предварительный класс по формулам калькулятора.</p>
 ${form}
 ${body}`,

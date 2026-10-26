@@ -76,6 +76,7 @@ tr.sel td{background:var(--accent-soft)}
 .bar-inline .fill{height:100%;background:var(--accent);border-radius:0 4px 4px 0}
 .bar-inline .fill.neg{background:var(--z-red)}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.back-deal{display:inline-block;margin-bottom:6px;color:var(--accent);text-decoration:none;font-size:14px}
 select,input.t{font:14px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink)}
 label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
@@ -215,6 +216,8 @@ details.explain .body p{color:var(--ink)}
   <!-- ===================== КАРТОЧКА ===================== -->
   <section class="tabpane" id="tab-card" hidden>
     <div class="filters">
+      <label class="f" for="cardFind">Найти по коду<input id="cardFind" list="cardList" placeholder="например, КЛ-0130" autocomplete="off"></label>
+      <datalist id="cardList"></datalist>
       <label class="f" for="cardSel" style="min-width:min(100%,420px)">Клиент<select id="cardSel"></select></label>
     </div>
     <div class="card-head" id="cardHead"></div>
@@ -609,7 +612,13 @@ function cardOptions() {
     html += `<optgroup label="Дефолт после даты разделения выборки (проверка)">${MODEL.validation.lead.cases.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · дефолт ${fdate(c.default)} · красная зона за ${c.red} мес.</option>`).join("")}</optgroup>`;
   }
   $("cardSel").innerHTML = html;
+  $("cardList").innerHTML = C.map((c) => `<option value="${esc(c.cl.client)}">${esc(c.cl.sector)}</option>`).join("");
 }
+// поиск клиента по коду: «кл-130», «KL0130», «0130» — к виду «КЛ-0130»; найден — сразу карточка
+$("cardFind").addEventListener("input", () => {
+  const raw = $("cardFind").value.trim().toUpperCase().replace(/^(KL|КЛ)-?/, ""), code = raw ? "КЛ-" + raw.padStart(4, "0") : "";
+  if (STATE.clients.some((c) => c.cl.client === code)) { $("cardSel").value = code; renderCard(code); }
+});
 $("cardSel").addEventListener("change", () => renderCard($("cardSel").value));
 function openCard(cid) { showTab("card"); $("cardSel").value = cid; renderCard(cid); window.scrollTo({ top: 0, behavior: "smooth" }); }
 function renderCard(cid) {
@@ -884,6 +893,9 @@ function applyHash() {
     renderModel();
     useData(DEMO, "demo");
     restoreFilters();
+    // пришли из карточки сделки (/monitoring?deal=…) — ссылка обратно
+    const fromDeal = new URLSearchParams(location.search).get("deal");
+    if (/^\d+$/.test(fromDeal || "")) { const a = document.createElement("a"); a.href = "/deals/" + fromDeal; a.className = "back-deal"; a.textContent = "← К сделке №" + fromDeal; document.querySelector("h1").before(a); }
     $("bootStatus").hidden = true;
     let t = null; try { t = localStorage.getItem("talk-ews-tab"); } catch (e) {}
     if (!applyHash()) showTab(t && TABS.includes(t) ? t : "portfolio");

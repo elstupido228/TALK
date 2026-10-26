@@ -56,7 +56,10 @@ test("запуск сделки по ИНН: заявка, карточка из
   assert.match(html, /class="cls cls-2"/);
   assert.match(html, /Предварительный класс по годовой отчётности за 2025/);
   assert.match(html, /Сделка создана на стадии «Заявка»/);
-  assert.match(html, /href="\/check\?inn=0000000002"/);
+  assert.match(html, /href="\/check\?inn=0000000002&amp;deal=\d+"/);
+  // проверка по ИНН, открытая из сделки, ведёт обратно
+  const did = loc.split("/").pop();
+  assert.match((await get(`/check?inn=0000000002&deal=${did}`, team))[1], new RegExp(`<a href="/deals/${did}">← К сделке №${did} «ООО «Бета-Пример»»</a>`));
   // без ИНН — просто заявка
   const r2 = await post("/deals", team, { asset: "Оборудование" });
   assert.match((await get(r2.headers.get("location"), team))[1], /ИНН ещё не указан/);

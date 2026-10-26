@@ -189,6 +189,9 @@ function createApp(db, opts = {}) {
   async function checkModel(user, url) {
     const inn = (url.searchParams.get("inn") || "").replace(/\D/g, "");
     const m = { inn, demo: demoInns };
+    // пришли из карточки сделки (?deal=…) — ссылка «← К сделке»
+    const from = deals.get(Number(url.searchParams.get("deal")) || 0);
+    if (from) m.backDeal = { id: from.id, title: from.title };
     if (!inn) return m;
     if (!/^(\d{10}|\d{12})$/.test(inn)) return { ...m, error: "ИНН — 10 или 12 цифр." };
     const call = (id, op) => connectors.call(id, op, { inn }, { userId: user.id }).catch((e) => ({ failed: e.message }));

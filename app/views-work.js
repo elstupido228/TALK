@@ -251,7 +251,7 @@ ${row("Выручка", "revenue")}${row("Чистая прибыль", "net")}$
   return `<section class="panel wide"><h2>Клиент</h2>
 ${down.length ? `<p class="notice">${down.join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"} — сведения ниже неполные. ${recheck}</p>` : ""}
 ${org}${fin}
-<p class="actions"><a class="btn" href="/check?inn=${esc(d.inn)}">Полная проверка по ИНН</a>${down.length ? "" : recheck}</p>
+<p class="actions"><a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Полная проверка по ИНН</a>${down.length ? "" : recheck}</p>
 </section>`;
 }
 
@@ -325,10 +325,10 @@ function dealPage(user, m) {
   const ed = m.canEdit && !d.archived_at; // сделка в архиве — только просмотр и возврат
   const actions = [];
   if (["application", "assessment", "decision"].includes(d.stage)) {
-    if (d.inn) actions.push(`<a class="btn${d.stage !== "application" ? "" : " primary"}" href="/check?inn=${esc(d.inn)}">Проверка по ИНН</a>`);
+    if (d.inn) actions.push(`<a class="btn${d.stage !== "application" ? "" : " primary"}" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверка по ИНН</a>`);
     actions.push(`<a class="btn${d.stage === "assessment" && !d.stop_factor ? " primary" : ""}" href="/calc#deal=${d.id}">Расчёт класса по отчётности (PDF)</a>`);
   }
-  if (d.client_code) actions.push(`<a class="btn primary" href="/monitoring#card=${encodeURIComponent(d.client_code)}">Карточка клиента в мониторинге</a>`);
+  if (d.client_code) actions.push(`<a class="btn primary" href="/monitoring?deal=${d.id}#card=${encodeURIComponent(d.client_code)}">Карточка клиента в мониторинге</a>`);
   if (d.stage === "monitoring" && !d.client_code) actions.push(`<a class="btn" href="/monitoring">Мониторинг портфеля</a>`);
   const st = STAGES[i];
   return layout({
