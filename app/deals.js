@@ -44,7 +44,7 @@ function demoDeals(portfolio) {
   const early = [
     { title: "ООО «Пример-Логистик»", asset: "Грузовой транспорт", amount_mln: 18.5, stage: "application", note: "Заявка с сайта, ИНН ещё не указан", ago: 1 },
     { title: "ООО «Пример-Агро»", asset: "Спецтехника", amount_mln: 42, stage: "application", note: "Заявка от партнёра-дилера, ИНН ещё не указан", ago: 2 },
-    { title: "ООО «Гамма-Пример»", inn: "0000000003", asset: "Оборудование", amount_mln: 12, stage: "assessment", cls: 3, note: "Класс 3 на всех четырёх датах — п. 14.1.6", ago: 3 },
+    { title: "ООО «Гамма-Пример»", inn: "0000000003", asset: "Оборудование", amount_mln: 12, stage: "assessment", cls: 3, note: "Класс 3 на всех четырёх датах — п. 14.1.6", stop_factor: "Класс 3 на всех четырёх датах — п. 14.1.6", ago: 3 },
     { title: "ООО «Бета-Пример»", inn: "0000000002", asset: "Грузовой транспорт", amount_mln: 25, stage: "assessment", cls: 2, ago: 4 },
     { title: "ООО «Альфа-Пример»", inn: "0000000001", asset: "Спецтехника", amount_mln: 60, stage: "decision", cls: 1, ago: 6 },
     { title: "ООО «Пример-Строй»", asset: "Спецтехника", amount_mln: 33, stage: "contract", cls: 2, note: "Решение принято, договор на подписании", ago: 12 },
@@ -72,9 +72,14 @@ function createDeals(db, { portfolio } = {}) {
   const cols = new Set(db.prepare("PRAGMA table_info(deals)").all().map((c) => c.name));
   if (!cols.has("term_months")) db.exec("ALTER TABLE deals ADD COLUMN term_months INTEGER");
   if (!cols.has("comment")) db.exec("ALTER TABLE deals ADD COLUMN comment TEXT");
+  // исход сделки (сейчас только отказ) и стоп-фактор оценки
+  if (!cols.has("outcome")) {
+    db.exec("ALTER TABLE deals ADD COLUMN outcome TEXT; ALTER TABLE deals ADD COLUMN outcome_reason TEXT; ALTER TABLE deals ADD COLUMN outcome_at INTEGER; ALTER TABLE deals ADD COLUMN stop_factor TEXT");
+    db.exec(`UPDATE deals SET stop_factor = note WHERE demo = 1 AND note LIKE 'Класс 3 на всех четырёх датах%'`);
+  }
   const q = {
     count: db.prepare("SELECT count(*) n FROM deals"),
-    insert: db.prepare("INSERT INTO deals (title, inn, client_code, asset, amount_mln, stage, cls, note, demo, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"),
+    insert: db.prepare("INSERT INTO deals (title, inn, client_code, asset, amount_mln, stage, cls, note, stop_factor, demo, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"),
     event: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, from_stage, to_stage, text) VALUES (?,?,?,?,?,?)"),
     all: db.prepare("SELECT * FROM deals ORDER BY updated_at DESC"),
     get: db.prepare("SELECT * FROM deals WHERE id = ?"),
@@ -82,12 +87,13 @@ function createDeals(db, { portfolio } = {}) {
     move: db.prepare("UPDATE deals SET stage = ?, updated_at = ? WHERE id = ?"),
     setCheck: db.prepare("UPDATE deals SET title = ?, cls = ?, note = ?, updated_at = ? WHERE id = ?"),
     edit: db.prepare("UPDATE deals SET inn = ?, asset = ?, amount_mln = ?, term_months = ?, comment = ?, updated_at = ? WHERE id = ?"),
+    outcome: db.prepare("UPDATE deals SET outcome = ?, outcome_reason = ?, outcome_at = ?, updated_at = ? WHERE id = ?"),
   };
   const stageTitle = (id) => STAGES.find((s) => s.id === id)?.title || id;
 
-  function create({ title, inn = null, client_code = null, asset = null, amount_mln = null, term_months = null, comment = null, stage = "application", cls = null, note = null, demo = 0, userId = null, at = Date.now() }) {
+  function create({ title, inn = null, client_code = null, asset = null, amount_mln = null, term_months = null, comment = null, stage = "application", cls = null, note = null, stop_factor = null, demo = 0, userId = null, at = Date.now() }) {
     if (!STAGE_IDS.includes(stage)) throw new Error(`неизвестная стадия ${stage}`);
-    const id = Number(q.insert.run(title, inn, client_code, asset, amount_mln, stage, cls, note, demo, userId, at, at).lastInsertRowid);
+    const id = Number(q.insert.run(title, inn, client_code, asset, amount_mln, stage, cls, note, stop_factor, demo, userId, at, at).lastInsertRowid);
     if (term_months !== null || comment) q.edit.run(inn, asset, amount_mln, term_months, comment, at, id);
     q.event.run(id, at, userId, null, stage, `Сделка создана на стадии «${stageTitle(stage)}»`);
     return id;
@@ -124,11 +130,23 @@ function createDeals(db, { portfolio } = {}) {
       const d = q.get.get(id);
       if (!d) return null;
       if (!STAGE_IDS.includes(stage)) throw Object.assign(new Error("неизвестная стадия"), { status: 400 });
+      if (d.outcome) throw Object.assign(new Error("Сделка закрыта отказом — сначала верните её в работу."), { status: 409 });
       if (d.stage === stage) return d;
       const now = Date.now();
       q.move.run(stage, now, id);
       q.event.run(id, now, userId, d.stage, stage, `«${stageTitle(d.stage)}» → «${stageTitle(stage)}»`);
       return q.get.get(id);
+    },
+    // отказ: сделка остаётся на своей стадии, но выходит из воронки и счётчиков
+    refuse(id, reason, userId) {
+      const now = Date.now();
+      q.outcome.run("refused", reason, now, now, id);
+      q.event.run(id, now, userId, null, null, `Отказ: ${reason}`);
+    },
+    reopen(id, userId) {
+      const now = Date.now();
+      q.outcome.run(null, null, null, now, id);
+      q.event.run(id, now, userId, null, null, "Сделка возвращена в работу");
     },
   };
 }

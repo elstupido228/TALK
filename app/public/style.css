@@ -226,3 +226,17 @@ details.edit summary h2 { margin: 0; }
 .eform input, .eform select, .eform textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); min-width: 0; }
 .eform button { justify-self: start; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; padding: 9px 16px; border-radius: 8px; }
 [aria-invalid="true"] { border-color: var(--error) !important; outline: 1px solid var(--error); }
+
+/* Отказ по сделке */
+.refuse { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.refuse summary { cursor: pointer; color: var(--error); font-weight: 500; }
+.refuse .eform { margin-top: 10px; }
+.refuse.stop { background: var(--error-bg); border: 0; border-radius: 8px; padding: 12px 14px; }
+.refuse.stop p { margin: 0 0 4px; }
+.eform button.danger { background: var(--card); border-color: var(--error); color: var(--error); }
+.refused-note { background: var(--error-bg); color: var(--error); padding: 8px 12px; border-radius: 8px; }
+.refused-reason { color: var(--error); }
+.refused-list { margin-top: 16px; }
+.refused-list summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; }
+.refused-list summary h2 { margin: 0; }
+.kgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-top: 12px; }

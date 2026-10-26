@@ -192,6 +192,7 @@ function createApp(db, opts = {}) {
         let body = {};
         try { body = JSON.parse((await H.readBody(req, 4096)).toString("utf8") || "{}"); } catch { return H.sendJson(res, 400, { error: { code: "bad_request", message: "Нужен JSON." } }); }
         if (!deals.STAGE_IDS.includes(body.stage)) return H.sendJson(res, 400, { error: { code: "bad_request", message: "Неизвестная стадия." } });
+        if (deals.get(+dm[1])?.outcome) return H.sendJson(res, 409, { error: { code: "refused", message: "Сделка закрыта отказом — сначала верните её в работу." } });
         const d = deals.move(+dm[1], body.stage, user.id);
         return d ? H.sendJson(res, 200, { deal: d }) : H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
       }
@@ -222,7 +223,7 @@ function createApp(db, opts = {}) {
         return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, error: e.message, field: e.field } }));
       }
     }
-    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck)?$/);
+    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen)?$/);
     if (dp) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
@@ -244,11 +245,24 @@ function createApp(db, opts = {}) {
           return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), form: { values: f, error: e.message, field: e.field } }));
         }
       }
+      if ((dp[2] === "/refuse" || dp[2] === "/reopen") && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const f = await H.readForm(req);
+        if (dp[2] === "/reopen") deals.reopen(deal.id, user.id);
+        else {
+          const why = String(f.comment || "").trim().slice(0, 300);
+          const error = !W.REFUSAL_REASONS.includes(f.reason) ? "Выберите причину отказа." : f.reason === "Другое" && !why ? "Для причины «Другое» опишите её в комментарии." : null;
+          if (error) return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), refuse: { values: f, error } }));
+          if (!deal.outcome) deals.refuse(deal.id, f.reason === "Другое" ? why : why ? `${f.reason} — ${why}` : f.reason, user.id);
+        }
+        return H.redirect(res, `/deals/${deal.id}`);
+      }
       if (dp[2] === "/stage" && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
         const f = await H.readForm(req);
         const stage = f.stage === "__any" ? f.stage_any : f.stage;
         if (!deals.STAGE_IDS.includes(stage)) return H.send(res, 400, V.errorPage(user, 400, "Неизвестная стадия."));
+        if (deal.outcome) return H.send(res, 409, V.errorPage(user, 409, "Сделка закрыта отказом — сначала верните её в работу."));
         deals.move(deal.id, stage, user.id);
         return H.redirect(res, `/deals/${deal.id}`);
       }

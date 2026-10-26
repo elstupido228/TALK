@@ -163,3 +163,30 @@ test("источник недоступен: условные ответы пе�
     srv.close(); db2.close();
   }
 });
+
+test("отказ: при стоп-факторе — главное действие; сделка уходит из воронки и возвращается в работу", async () => {
+  const [, board] = await get("/deals", team);
+  const gamma = +board.match(/class="kcard demo" href="\/deals\/(\d+)"[^>]*>\s*<b>ООО «Гамма-Пример»/)[1];
+  let html = (await get(`/deals/${gamma}`, team))[1];
+  assert.match(html, /<div class="refuse stop"><p><b>Стоп-фактор:<\/b> Класс 3 на всех четырёх датах/);
+  assert.match(html, /<button type="submit" class="primary" data-confirm="Оформить отказ по сделке «ООО «Гамма-Пример»»/);
+  assert.doesNotMatch(html, /<button class="primary" type="submit" name="stage"/, "переход дальше — не главное действие");
+  // без причины — ошибка; «Другое» — только с комментарием
+  assert.strictEqual((await post(`/deals/${gamma}/refuse`, team, { reason: "" })).status, 400);
+  assert.match(await (await post(`/deals/${gamma}/refuse`, team, { reason: "Другое" })).text(), /опишите её в комментарии/);
+  const before = (await get("/", team))[1].match(/Сделок в работе<\/span><b>(\d+)/)[1];
+  assert.strictEqual((await post(`/deals/${gamma}/refuse`, team, { reason: "Стоп-фактор: класс 3 на всех четырёх датах", comment: "КПА 26.10" })).status, 303);
+  html = (await get(`/deals/${gamma}`, team))[1];
+  assert.match(html, /<p class="refused-note" role="status"><b>Отказ<\/b> · Стоп-фактор: класс 3 на всех четырёх датах — КПА 26\.10/);
+  assert.ok(!html.includes('action="/deals/' + gamma + '/stage"'), "у отказной сделки нет смены стадии");
+  assert.match(html, /Вернуть в работу/);
+  assert.strictEqual((await get("/", team))[1].match(/Сделок в работе<\/span><b>(\d+)/)[1], String(before - 1));
+  const b2 = (await get("/deals", team))[1];
+  assert.match(b2, /<details class="panel refused-list"><summary><h2>Отказы<\/h2>/);
+  assert.strictEqual((await post(`/api/deals/${gamma}/stage`, team, { stage: "decision" }, "json")).status, 409);
+  assert.strictEqual((await post(`/deals/${gamma}/refuse`, curator, { reason: "Клиент отказался" })).status, 403);
+  await post(`/deals/${gamma}/reopen`, team, {});
+  html = (await get(`/deals/${gamma}`, team))[1];
+  assert.match(html, /Сделка возвращена в работу/);
+  assert.ok(!html.includes("refused-note"));
+});

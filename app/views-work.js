@@ -8,6 +8,8 @@ const ASSETS = ["Грузовой транспорт", "Легковой тра�
 const PIPE = ["application", "assessment", "decision", "contract"]; // до выдачи
 const OVERDUE = ["overdue_30", "overdue_30plus"];
 const FORWARD = [...PIPE, "monitoring"]; // обычный ход сделки; просрочка — не «следующий шаг», а событие
+const REFUSAL_REASONS = ["Стоп-фактор: класс 3 на всех четырёх датах", "Клиент не прошёл проверку", "Клиент отказался", "Не устроили условия", "Другое"];
+const active = (ds) => ds.filter((d) => !d.outcome);
 const mln = (v) => (v === null || v === undefined ? "—" : `${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`);
 const sum = (ds) => ds.reduce((s, d) => s + (d.amount_mln || 0), 0);
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
@@ -28,7 +30,7 @@ function newDealForm(form = {}) {
 
 // m: {deals, summary, keyRate, canEdit}
 function dashboardPage(user, m) {
-  const D = m.deals, s = m.summary, z = s.zones;
+  const D = active(m.deals), s = m.summary, z = s.zones;
   const by = (ids) => D.filter((d) => ids.includes(d.stage));
   const pipe = by(PIPE), mon = by(["monitoring"]), over = by(OVERDUE);
   const maxN = Math.max(1, ...STAGES.map((st) => D.filter((d) => d.stage === st.id).length));
@@ -65,7 +67,7 @@ ${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сд�
   </section>
   <section class="panel">
     <h2>Последние сделки</h2>
-    <ul class="list">${D.slice(0, 5).map((d) => `<li><a href="/deals/${d.id}"><span>${esc(d.title)}<br><span class="muted small">${esc(STAGES.find((st) => st.id === d.stage)?.title || d.stage)} · ${ago(d.updated_at)}</span></span>${d.cls ? clsBadge(d.cls) : ""}</a></li>`).join("")}</ul>
+    <ul class="list">${m.deals.slice(0, 5).map((d) => `<li><a href="/deals/${d.id}"><span>${esc(d.title)}<br><span class="muted small">${d.outcome ? "Отказ" : esc(STAGES.find((st) => st.id === d.stage)?.title || d.stage)} · ${ago(d.updated_at)}</span></span>${d.cls ? clsBadge(d.cls) : ""}</a></li>`).join("")}</ul>
     <h3>Ключевая ставка ЦБ</h3>
     ${kr ? `<p class="big">${kr.rate.toFixed(2).replace(".", ",")} %</p><p class="muted small">действует с ${fdate(kr.since)}${kr.sandbox_note ? " · условное значение" : ""}</p>` : `<p class="muted">Нет данных</p>`}
   </section>
@@ -74,17 +76,18 @@ ${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сд�
 }
 
 function dealCard(d, canEdit) {
-  return `<a class="kcard${d.demo ? " demo" : ""}" href="/deals/${d.id}" data-id="${d.id}"${canEdit ? ' draggable="true"' : ""}>
+  return `<a class="kcard${d.demo ? " demo" : ""}" href="/deals/${d.id}" data-id="${d.id}"${canEdit && !d.outcome ? ' draggable="true"' : ""}>
   <b>${esc(d.title)}</b>
   <span class="muted small">${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)}` : ""}</span>
-  ${d.note ? `<span class="small">${esc(d.note)}</span>` : ""}
-  <span class="kmeta">${d.cls ? `${clsBadge(d.cls)} ` : ""}<span class="muted small">${ago(d.updated_at)} на стадии</span>${d.demo ? ' <span class="badge muted">условно</span>' : ""}</span>
+  ${d.outcome ? `<span class="small refused-reason">Отказ: ${esc(d.outcome_reason)}</span>` : d.note ? `<span class="small">${esc(d.note)}</span>` : ""}
+  <span class="kmeta">${d.cls ? `${clsBadge(d.cls)} ` : ""}<span class="muted small">${d.outcome ? `отказ: ${ago(d.outcome_at)}` : `${ago(d.updated_at)} на стадии`}</span>${d.demo ? ' <span class="badge muted">условно</span>' : ""}</span>
 </a>`;
 }
 
 function dealsBoard(user, m) {
+  const live = active(m.deals), refused = m.deals.filter((d) => d.outcome);
   const cols = STAGES.map((st) => {
-    const ds = m.deals.filter((d) => d.stage === st.id);
+    const ds = live.filter((d) => d.stage === st.id);
     return `<section class="kcol ${st.status}" id="${st.id}" data-stage="${st.id}">
   <header><h2>${esc(st.title)}</h2><span class="muted small">${ds.length}${ds.length ? ` · ${mln(sum(ds))}` : ""}</span>${st.status === "working" ? "" : `<span class="badge muted">${STATUS[st.status]}</span>`}</header>
   <div class="kdrop">${ds.map((d) => dealCard(d, m.canEdit)).join("") || '<p class="kempty muted small">Нет сделок</p>'}</div>
@@ -97,6 +100,7 @@ function dealsBoard(user, m) {
     body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Новая сделка</a>' : ""}</div>
 <p class="muted small">${m.canEdit ? "Перетащите карточку в другую колонку, чтобы сменить стадию, или откройте сделку." : "Просмотр: менять стадии могут администратор, команда проекта и ТАЛК."} Условные сделки связаны с демо-данными калькулятора и мониторинга.</p>
 <div class="board" id="board">${cols}</div>
+${refused.length ? `<details class="panel refused-list"><summary><h2>Отказы</h2><span class="muted small">${refused.length} · ${mln(sum(refused))}</span></summary><div class="kgrid">${refused.map((d) => dealCard(d, false)).join("")}</div></details>` : ""}
 <p class="status" id="kstatus" role="status"></p>
 ${m.canEdit ? `<script>
 (() => {
@@ -165,7 +169,20 @@ ${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}
 </form></details>`;
 }
 
-// m: {deal, events, canEdit, client:{party, fin}|null, classes, form}
+// Отказ: при стоп-факторе — главное действие стадии (форма раскрыта), иначе — свёрнутая форма.
+// form: {values, error} — после неудачной отправки
+function refuseForm(d, stop, form = {}) {
+  const v = form.values || (stop ? { reason: REFUSAL_REASONS[0] } : {});
+  const body = `${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form method="post" action="/deals/${d.id}/refuse" class="eform">
+  <label class="wide">Причина отказа<select name="reason" required><option value="">— выберите —</option>${REFUSAL_REASONS.map((r) => `<option${r === v.reason ? " selected" : ""}>${esc(r)}</option>`).join("")}</select></label>
+  <label class="wide">Комментарий<textarea name="comment" rows="2" maxlength="300">${esc(v.comment || "")}</textarea></label>
+  <button type="submit" class="${stop ? "primary" : "danger"}" data-confirm="${esc(`Оформить отказ по сделке «${d.title}»? Сделка уйдёт из воронки и счётчиков; вернуть её можно кнопкой «Вернуть в работу».`)}">Оформить отказ</button>
+</form>`;
+  return stop ? `<div class="refuse stop"><p><b>Стоп-фактор:</b> ${esc(d.stop_factor)}. По правилу оценки сделка отклоняется.</p>${body}</div>`
+    : `<details class="refuse"${form.error ? " open" : ""}><summary>Оформить отказ…</summary>${body}</details>`;
+}
+
+// m: {deal, events, canEdit, client:{party, fin}|null, classes, form, refuse}
 function dealPage(user, m) {
   const d = m.deal;
   const i = STAGES.findIndex((s) => s.id === d.stage);
@@ -178,10 +195,11 @@ function dealPage(user, m) {
     overdue_30: [event("monitoring", "Просрочка погашена", "Она вернётся в мониторинг."), event("overdue_30plus", "Просрочка свыше 30 дней", "Начнётся работа с проблемной задолженностью.")],
     overdue_30plus: [event("monitoring", "Задолженность урегулирована", "Она вернётся в мониторинг.")],
   }[d.stage] || [];
+  const stop = d.stop_factor && !d.outcome && PIPE.includes(d.stage);
   const actions = [];
   if (["application", "assessment", "decision"].includes(d.stage)) {
     if (d.inn) actions.push(`<a class="btn${d.stage !== "application" ? "" : " primary"}" href="/check?inn=${esc(d.inn)}">Проверка по ИНН</a>`);
-    actions.push(`<a class="btn${d.stage === "assessment" ? " primary" : ""}" href="/calc#upload">Расчёт класса по отчётности (PDF)</a>`);
+    actions.push(`<a class="btn${d.stage === "assessment" && !d.stop_factor ? " primary" : ""}" href="/calc#upload">Расчёт класса по отчётности (PDF)</a>`);
   }
   if (d.client_code) actions.push(`<a class="btn primary" href="/monitoring#card=${encodeURIComponent(d.client_code)}">Карточка клиента в мониторинге</a>`);
   if (d.stage === "monitoring" && !d.client_code) actions.push(`<a class="btn" href="/monitoring">Мониторинг портфеля</a>`);
@@ -194,6 +212,7 @@ function dealPage(user, m) {
 <h1>${esc(d.title)}</h1>
 <p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.term_months ? ` · ${d.term_months} мес.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
 ${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
+${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(d.outcome_reason)} · ${new Date(d.outcome_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : ""}
 <ol class="stepper">${STAGES.map((s, k) => `<li class="${k < i ? "done" : k === i ? "now" : ""}"><span>${k + 1}</span>${esc(s.title)}</li>`).join("")}</ol>
 <div class="dash">
   <section class="panel wide">
@@ -201,8 +220,10 @@ ${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
     <p>${esc(st.summary)}</p>
     ${d.cls ? `<p>Класс кредитоспособности: ${clsBadge(d.cls)}${d.note ? ` <span class="muted small">${esc(d.note)}</span>` : ""}</p>` : d.note ? `<p class="muted">${esc(d.note)}</p>` : ""}
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}
-    ${m.canEdit ? `<form class="move" method="post" action="/deals/${d.id}/stage">
-      ${next ? `<button class="primary" type="submit" name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}${events.join("")}
+    ${m.canEdit && d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/reopen"><button type="submit" data-confirm="${esc(`Вернуть сделку «${d.title}» в работу? Она снова появится на стадии «${st.title}» и в счётчиках.`)}">Вернуть в работу</button></form>` : ""}
+    ${m.canEdit && !d.outcome && PIPE.includes(d.stage) ? refuseForm(d, stop, m.refuse) : ""}
+    ${m.canEdit && !d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/stage">
+      ${next ? `<button${stop ? "" : ' class="primary"'} type="submit" name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}${events.join("")}
       <label>или выбрать стадию <select name="stage_any">${STAGES.map((s) => `<option value="${s.id}"${s.id === d.stage ? " selected" : ""}>${esc(s.title)}</option>`).join("")}</select></label>
       <button type="submit" name="stage" value="__any">Сменить</button>
     </form>` : ""}
@@ -217,4 +238,4 @@ ${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
   });
 }
 
-module.exports = { dashboardPage, dealsBoard, dealPage, ASSETS };
+module.exports = { dashboardPage, dealsBoard, dealPage, ASSETS, REFUSAL_REASONS };
