@@ -104,6 +104,7 @@ ${refused.length ? `<details class="panel refused-list"><summary><h2>Отказ�
 <p class="status" id="kstatus" role="status"></p>
 ${m.canEdit ? `<script>
 (() => {
+  const FORWARD = ${JSON.stringify(FORWARD)};
   let dragId = null;
   document.querySelectorAll(".kcard[draggable]").forEach((c) => {
     c.addEventListener("dragstart", (e) => { dragId = c.dataset.id; e.dataTransfer.setData("text/plain", dragId); c.classList.add("dragging"); });
@@ -115,6 +116,11 @@ ${m.canEdit ? `<script>
     col.addEventListener("drop", async (e) => {
       e.preventDefault(); col.classList.remove("over");
       const id = e.dataTransfer.getData("text/plain") || dragId; if (!id) return;
+      const card = document.querySelector('.kcard[data-id="' + id + '"]'), from = card.closest(".kcol"), to = col.dataset.stage;
+      if (from === col) return;
+      const name = (c) => c.querySelector("h2").textContent;
+      if (FORWARD.indexOf(to) !== FORWARD.indexOf(from.dataset.stage) + 1 || FORWARD.indexOf(to) < 0)
+        if (!confirm("Перевести сделку «" + card.querySelector("b").textContent + "» со стадии «" + name(from) + "» на «" + name(col) + "»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.")) return;
       const st = document.getElementById("kstatus"); st.textContent = "Сохраняю…";
       const r = await fetch("/api/deals/" + id + "/stage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ stage: col.dataset.stage }) });
       if (r.ok) location.reload(); else st.textContent = "Не удалось сменить стадию: " + ((await r.json().catch(() => ({}))).error?.message || r.status);
@@ -189,7 +195,7 @@ function dealPage(user, m) {
   const next = FORWARD.includes(d.stage) && d.stage !== "monitoring" ? STAGES[i + 1] : null;
   // события после выдачи: отдельные кнопки с подтверждением, не главное действие
   const title = (id) => STAGES.find((s) => s.id === id).title;
-  const event = (to, label, effect) => `<button type="submit" name="stage" value="${to}" data-confirm="${esc(`${label}: сделка «${d.title}» перейдёт на стадию «${title(to)}». ${effect}`)}">${label}</button>`;
+  const event = (to, label, effect) => `<button type="submit" formnovalidate name="stage" value="${to}" data-confirm="${esc(`${label}: сделка «${d.title}» перейдёт на стадию «${title(to)}». ${effect}`)}">${label}</button>`;
   const events = {
     monitoring: [event("overdue_30", "Отметить просрочку до 30 дней", "Она войдёт в счётчик «В просрочке» на главной.")],
     overdue_30: [event("monitoring", "Просрочка погашена", "Она вернётся в мониторинг."), event("overdue_30plus", "Просрочка свыше 30 дней", "Начнётся работа с проблемной задолженностью.")],
@@ -223,9 +229,9 @@ ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(
     ${m.canEdit && d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/reopen"><button type="submit" data-confirm="${esc(`Вернуть сделку «${d.title}» в работу? Она снова появится на стадии «${st.title}» и в счётчиках.`)}">Вернуть в работу</button></form>` : ""}
     ${m.canEdit && !d.outcome && PIPE.includes(d.stage) ? refuseForm(d, stop, m.refuse) : ""}
     ${m.canEdit && !d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/stage">
-      ${next ? `<button${stop ? "" : ' class="primary"'} type="submit" name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}${events.join("")}
-      <label>или выбрать стадию <select name="stage_any">${STAGES.map((s) => `<option value="${s.id}"${s.id === d.stage ? " selected" : ""}>${esc(s.title)}</option>`).join("")}</select></label>
-      <button type="submit" name="stage" value="__any">Сменить</button>
+      ${next ? `<button${stop ? "" : ' class="primary"'} type="submit" formnovalidate name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}${events.join("")}
+      <label>или выбрать стадию <select name="stage_any" required><option value="">— другая стадия —</option>${STAGES.filter((s) => s.id !== d.stage).map((s) => `<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></label>
+      <button type="submit" name="stage" value="__any" data-confirm="${esc(`Перевести сделку «${d.title}» со стадии «${st.title}» на «{select}»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.`)}">Сменить</button>
     </form>` : ""}
   </section>
   ${d.client_code ? "" : clientBlock(d, m)}

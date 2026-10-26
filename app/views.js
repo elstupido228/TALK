@@ -31,8 +31,11 @@ ${body}
 <footer>Демонстрационный прототип. Все данные на страницах условные.</footer>
 ${user ? shell.close() : ""}
 <script>
-// Подтверждение действий с последствиями: data-confirm на кнопке отправки
-document.addEventListener("submit", (e) => { const m = e.submitter?.dataset.confirm; if (m && !confirm(m)) e.preventDefault(); });
+// Подтверждение действий с последствиями: data-confirm на кнопке отправки; {select} — выбранный пункт списка формы
+document.addEventListener("submit", (e) => {
+  const sel = e.target.querySelector("select"), m = e.submitter?.dataset.confirm?.replace("{select}", sel?.selectedOptions[0]?.text || "");
+  if (m && !confirm(m)) e.preventDefault();
+});
 </script>
 </body>
 </html>`;

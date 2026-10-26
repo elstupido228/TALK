@@ -75,6 +75,11 @@ test("смена стадии: перетаскивание (API) и форма;
   const html = (await get(`/deals/${id}`, team))[1];
   assert.match(html, /<li class="now"><span>5<\/span>Мониторинг<\/li>/);
   for (const t of ["«Заявка» → «Оценка клиента»", "«Оценка клиента» → «Решение»", "«Решение» → «Мониторинг»"]) assert.ok(html.includes(t), t);
+  // свободный выбор стадии: без текущей, обязателен выбор, с подтверждением
+  assert.match(html, /<select name="stage_any" required><option value="">— другая стадия —<\/option><option value="application">/);
+  assert.doesNotMatch(html, /<option value="monitoring">/);
+  assert.match(html, /value="__any" data-confirm="Перевести сделку «[^"]+» со стадии «Мониторинг» на «\{select\}»\?/);
+  assert.match((await get("/deals", team))[1], /const FORWARD = \["application","assessment","decision","contract","monitoring"\]/);
   // после выдачи главной кнопки «дальше» нет: просрочка — отдельное действие с подтверждением
   assert.doesNotMatch(html, /Перевести на стадию/);
   assert.match(html, /value="overdue_30" data-confirm="Отметить просрочку до 30 дней: сделка «[^"]+» перейдёт на стадию «Просрочка до 30 дней»/);
