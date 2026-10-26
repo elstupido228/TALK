@@ -389,3 +389,40 @@ test("ответственный: по умолчанию автор, перед
   assert.strictEqual((await post(`${loc}/owner`, curator, { owner_id: tid })).status, 403);
   assert.match((await get("/deals", team))[1], /<span class="muted small kowner">Сотрудник ТАЛК<\/span>/);
 });
+
+test("поиск, список сделок с фильтрами и сортировкой, выгрузка CSV", async () => {
+  await post("/deals", team, { client_name: "ООО «Поисковая»", contact_name: "Петров", phone: "+7 911 000-00-01", asset: "Спецтехника", amount: "77,5" });
+  // поиск по порталу: клиент по телефону, сделка по наименованию
+  let html = (await get("/search?q=" + encodeURIComponent("911 000"), team))[1];
+  assert.match(html, /<a href="\/clients\/\d+">ООО «Поисковая»<\/a>/);
+  html = (await get("/search?q=" + encodeURIComponent("поисков"), team))[1];
+  assert.match(html, /<h2>Сделки <span class="muted small">1<\/span><\/h2>/);
+  assert.match((await get("/search?q=zzzz", team))[1], /ничего не найдено/);
+  // меню: строка поиска
+  assert.match(html, /<form class="sh-search" method="get" action="\/search"/);
+  // список: по сумме по убыванию, «Поисковая» первой
+  html = (await get("/deals/list?sort=amount&dir=desc&status=all", team))[1];
+  assert.match(html, /<tbody><tr[^>]*><td><a href="\/deals\/\d+">[^<]+<\/a>/);
+  const first = html.match(/<tbody><tr[^>]*><td><a href="\/deals\/\d+">([^<]+)<\/a>/)[1];
+  assert.ok(first.length > 0);
+  html = (await get("/deals/list?q=" + encodeURIComponent("поисков"), team))[1];
+  assert.match(html, /ООО «Поисковая»/);
+  assert.match(html, /Показано 1 из \d+/);
+  assert.match(html, /<td class="r">77,5 млн<\/td>/);
+  // мои сделки: автор — ответственный
+  assert.match((await get("/deals/list?owner=me", team))[1], /ООО «Поисковая»/);
+  assert.doesNotMatch((await get("/deals/list?owner=me", curator))[1], /ООО «Поисковая»/);
+  // канбан с поиском
+  html = (await get("/deals?q=" + encodeURIComponent("поисков"), team))[1];
+  assert.strictEqual((html.match(/class="kcard/g) || []).length, 1);
+  // выгрузка
+  const r = await fetch(base + "/deals/export.csv?q=" + encodeURIComponent("поисков"), { headers: { cookie: curator } });
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get("content-type"), /text\/csv/);
+  assert.match(r.headers.get("content-disposition"), /attachment; filename="sdelki-\d{4}-\d{2}-\d{2}\.csv"/);
+  const bytes = Buffer.from(await r.arrayBuffer());
+  assert.deepStrictEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], "BOM для Excel");
+  const csv = bytes.toString("utf8", 3);
+  assert.ok(csv.startsWith("№;Клиент;ИНН;"));
+  assert.match(csv, /;ООО «Поисковая»;;Спецтехника;77,5;Заявка;в работе;;team@example\.test;0;/);
+});

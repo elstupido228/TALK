@@ -15,6 +15,9 @@ const { createClients, norm } = require("./clients");
 const W = require("./views-work");
 const VC = require("./views-clients");
 const VT = require("./views-tasks");
+const VL = require("./views-list");
+const DF = require("./deal-filter");
+const STAGES = require("./stages");
 const { createTasks } = require("./tasks");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
@@ -197,7 +200,10 @@ function createApp(db, opts = {}) {
     // /?inn=…&client_name=… — форма новой сделки с подставленным клиентом (из карточки клиента)
     "/": ["pages.view", async (u, url) => W.dashboardPage(u, { ...(await homeModel(u)), form: url.searchParams.has("client_name") || url.searchParams.has("inn") ? { values: { inn: url.searchParams.get("inn") || "", client_name: url.searchParams.get("client_name") || "" } } : undefined })],
     "/clients": ["pages.view", (u, url) => { const q = (url.searchParams.get("q") || "").trim(); return VC.clientsPage(u, { q, canEdit: can(u, "deals.edit"), clients: clients.list(q).map((c) => ({ ...c, deals: deals.byClient(c.id) })) }); }],
-    "/deals": ["pages.view", (u) => W.dealsBoard(u, { deals: deals.list(), canEdit: can(u, "deals.edit"), nextTasks: nextTasks() })],
+    // канбан: поиск и ответственный (стадия — колонки, отказы — отдельным блоком); список — все условия и сортировка
+    "/deals": ["pages.view", (u, url) => { const f = { ...DF.parseFilter(url), status: "all", stage: "", sort: "", dir: "" }; const all = deals.list(); return W.dealsBoard(u, { deals: DF.filterDeals(all, f, u.id), f, users: editors(), total: all.length, canEdit: can(u, "deals.edit"), nextTasks: nextTasks() }); }],
+    "/deals/list": ["pages.view", (u, url) => { const f = DF.parseFilter(url), all = deals.list(), t = nextTasks(); return VL.dealsList(u, { deals: DF.sortDeals(DF.filterDeals(all, f, u.id), f, t), f, users: editors(), total: all.length, tasks: t, canEdit: can(u, "deals.edit") }); }],
+    "/search": ["pages.view", (u, url) => { const q = (url.searchParams.get("q") || "").trim().slice(0, 100); return VL.searchPage(u, { q, clients: q ? clients.list(q) : [], deals: q ? DF.filterDeals(deals.list(), { q, status: "all" }, u.id) : [] }); }],
     "/tasks": ["pages.view", (u, url) => VT.tasksPage(u, { tasks: tasks.open(), done: tasks.recentDone(), mine: !url.searchParams.has("all"), canEdit: can(u, "deals.edit"), userId: u.id })],
     "/process": ["pages.view", (u) => V.processPage(u)],
     "/calc": ["calc.use", (u) => calcPage(u)],
@@ -398,6 +404,23 @@ function createApp(db, opts = {}) {
           return H.send(res, 400, VC.clientPage(user, { client, deals: deals.byClient(client.id), canEdit: true, form: { values: f, errors: e.errors } }));
         }
       }
+    }
+
+    // Выгрузка сделок для отчёта: CSV для Excel (UTF-8 с BOM, разделитель «;»), условия — как у списка
+    if (p === "/deals/export.csv" && req.method === "GET") {
+      if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p + url.search));
+      if (!can(user, "pages.view")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав для этой страницы."));
+      const f = DF.parseFilter(url), t = nextTasks();
+      const rows = DF.sortDeals(DF.filterDeals(deals.list(), f, user.id), f, t);
+      const cell = (v) => { const s = v === null || v === undefined ? "" : String(v); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+      const num = (v) => (v === null || v === undefined ? "" : String(v).replace(".", ","));
+      const date = (ms) => (ms ? new Date(ms).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" }) : "");
+      const stage = (d) => STAGES.find((s) => s.id === d.stage)?.title || d.stage;
+      const STATE = { active: "в работе", refused: "отказ", archived: "архив" };
+      const head = ["№", "Клиент", "ИНН", "Предмет", "Сумма, млн руб.", "Стадия", "Состояние", "Причина отказа", "Ответственный", "На стадии, дней", "Следующая задача", "Срок задачи", "Последняя активность", "Создана"];
+      const lines = rows.map((d) => [d.id, d.title, d.inn, d.asset, num(d.amount_mln), stage(d), STATE[DF.statusOf(d)], d.outcome_reason, d.owner_name || d.owner_email, Math.floor((Date.now() - (d.stage_at || d.created_at)) / 86400000), t.get(d.id)?.text, t.get(d.id)?.due?.split("-").reverse().join("."), date(d.last_at || d.updated_at), date(d.created_at)].map(cell).join(";"));
+      const name = `sdelki-${new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" })}.csv`;
+      return H.send(res, 200, "\uFEFF" + [head.join(";"), ...lines].join("\r\n"), "text/csv; charset=utf-8", { "content-disposition": `attachment; filename="${name}"` });
     }
 
     // Задача: выполнено / вернуть в работу; back — откуда пришли (только локальный путь)

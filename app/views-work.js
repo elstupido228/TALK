@@ -4,6 +4,7 @@ const { esc } = require("./http");
 const STAGES = require("./stages");
 const { layout, nf, fdate, clsBadge } = require("./views");
 const VT = require("./views-tasks");
+const VL = require("./views-list");
 const { today } = require("./tasks");
 
 const STATUS = { working: "рабочий модуль", target: "целевая схема", backlog: "бэклог" };
@@ -100,7 +101,7 @@ function dealCard(d, canEdit, task) {
   ${d.owner_name || d.owner_email ? `<span class="muted small kowner">${esc(d.owner_name || d.owner_email)}</span>` : ""}
   ${d.outcome ? `<span class="small refused-reason">Отказ: ${esc(d.outcome_reason)}</span>` : d.note ? `<span class="small">${esc(d.note)}</span>` : ""}
   ${VT.cardTask(task)}
-  <span class="kmeta">${d.cls ? `${clsBadge(d.cls)} ` : ""}<span class="muted small">${d.outcome ? `отказ: ${ago(d.outcome_at)}` : `${ago(d.updated_at)} на стадии`}</span>${d.demo ? ' <span class="badge muted">условно</span>' : ""}</span>
+  <span class="kmeta">${d.cls ? `${clsBadge(d.cls)} ` : ""}<span class="muted small">${d.outcome ? `отказ: ${ago(d.outcome_at)}` : `${ago(d.stage_at || d.created_at)} на стадии`}</span>${d.demo ? ' <span class="badge muted">условно</span>' : ""}</span>
 </a>`;
 }
 
@@ -118,6 +119,7 @@ function dealsBoard(user, m) {
     user,
     active: "deals",
     body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Новая сделка</a>' : ""}</div>
+${m.f ? VL.filterBar("board", m.f, m.users || [], m.total, m.deals.length) : ""}
 <p class="muted small">${m.canEdit ? "Перетащите карточку в другую колонку, чтобы сменить стадию, или откройте сделку." : "Просмотр: менять стадии могут администратор, команда проекта и ТАЛК."} Условные сделки связаны с демо-данными калькулятора и мониторинга.</p>
 <p class="status" id="kstatus" role="status"></p>
 <div class="board" id="board">${cols}</div>

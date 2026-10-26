@@ -84,16 +84,17 @@ function createDeals(db, { portfolio, clients = null } = {}) {
   if (!cols.has("owner_id")) { db.exec("ALTER TABLE deals ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL"); db.exec("UPDATE deals SET owner_id = created_by"); }
   const linkOld = !cols.has("client_id");
   if (linkOld) db.exec("ALTER TABLE deals ADD COLUMN client_id INTEGER REFERENCES clients(id)");
+  // в выборках: owner_* — ответственный, stage_at — вход на текущую стадию, last_at — последняя запись ленты
   const q = {
     count: db.prepare("SELECT count(*) n FROM deals"),
     insert: db.prepare("INSERT INTO deals (title, inn, client_code, client_id, asset, amount_mln, stage, cls, note, stop_factor, demo, created_by, owner_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"),
     setClient: db.prepare("UPDATE deals SET client_id = ?, title = ?, updated_at = ? WHERE id = ?"),
-    byClient: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email FROM deals d LEFT JOIN users u ON u.id = d.owner_id WHERE d.client_id = ? ORDER BY d.updated_at DESC"),
+    byClient: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email, (SELECT max(e.at) FROM deal_events e WHERE e.deal_id = d.id AND e.to_stage IS NOT NULL) stage_at, (SELECT max(e.at) FROM deal_events e WHERE e.deal_id = d.id) last_at FROM deals d LEFT JOIN users u ON u.id = d.owner_id WHERE d.client_id = ? ORDER BY d.updated_at DESC"),
     setOwner: db.prepare("UPDATE deals SET owner_id = ?, updated_at = ? WHERE id = ?"),
     event: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, from_stage, to_stage, text) VALUES (?,?,?,?,?,?)"),
     typed: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, text, kind) VALUES (?,?,?,?,?)"),
-    all: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email FROM deals d LEFT JOIN users u ON u.id = d.owner_id ORDER BY d.updated_at DESC"),
-    get: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email FROM deals d LEFT JOIN users u ON u.id = d.owner_id WHERE d.id = ?"),
+    all: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email, (SELECT max(e.at) FROM deal_events e WHERE e.deal_id = d.id AND e.to_stage IS NOT NULL) stage_at, (SELECT max(e.at) FROM deal_events e WHERE e.deal_id = d.id) last_at FROM deals d LEFT JOIN users u ON u.id = d.owner_id ORDER BY d.updated_at DESC"),
+    get: db.prepare("SELECT d.*, u.name owner_name, u.email owner_email, (SELECT max(e.at) FROM deal_events e WHERE e.deal_id = d.id AND e.to_stage IS NOT NULL) stage_at, (SELECT max(e.at) FROM deal_events e WHERE e.deal_id = d.id) last_at FROM deals d LEFT JOIN users u ON u.id = d.owner_id WHERE d.id = ?"),
     events: db.prepare("SELECT e.*, u.name user_name, u.email user_email FROM deal_events e LEFT JOIN users u ON u.id = e.user_id WHERE deal_id = ? ORDER BY at DESC, e.id DESC"),
     move: db.prepare("UPDATE deals SET stage = ?, updated_at = ? WHERE id = ?"),
     setCheck: db.prepare("UPDATE deals SET title = ?, cls = ?, note = ?, updated_at = ? WHERE id = ?"),

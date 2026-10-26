@@ -44,6 +44,8 @@ const CSS = `
 .sh-user b{display:block;color:var(--sh-ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sh-user button{margin-top:8px;font:inherit;font-size:13px;padding:5px 12px;border-radius:6px;border:1px solid var(--sh-line);background:transparent;color:var(--sh-ink);cursor:pointer}
 .sh-main{min-width:0}
+.sh-search{margin:0 0 8px}.sh-search input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--sh-line);border-radius:8px;background:var(--sh-bg);color:var(--sh-ink)}
+.sh-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .sh-toggle,.sh-burger{display:none}
 @media (max-width:900px){
   .sh{grid-template-columns:1fr}
@@ -64,6 +66,7 @@ function open(user, active) {
   <a class="sh-brand" href="/">Контур контроля лизинговой сделки<br><small>прототип</small></a>
   <input type="checkbox" id="sh-toggle" class="sh-toggle"><label class="sh-burger" for="sh-toggle">${icon('<path d="M4 7h16M4 12h16M4 17h16"/>')}Меню</label>
   <div class="sh-drawer">
+    <form class="sh-search" method="get" action="/search" role="search"><label class="sh-sr" for="sh-q">Поиск по порталу</label><input id="sh-q" name="q" placeholder="Поиск: клиент, ИНН, телефон" autocomplete="off"></form>
     <nav class="sh-nav">${WORK.map(link(active, user.tasksDue)).join("")}</nav>
     <div class="sh-cap">Справка</div>
     <nav class="sh-nav help">${help.map(link(active)).join("")}</nav>
