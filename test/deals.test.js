@@ -183,13 +183,13 @@ test("отказ: при стоп-факторе — главное действ
   // без причины — ошибка; «Другое» — только с комментарием
   assert.strictEqual((await post(`/deals/${gamma}/refuse`, team, { reason: "" })).status, 400);
   assert.match(await (await post(`/deals/${gamma}/refuse`, team, { reason: "Другое" })).text(), /опишите её в комментарии/);
-  const before = (await get("/", team))[1].match(/Сделок в работе<\/span><b>(\d+)/)[1];
+  const before = (await get("/", team))[1].match(/В работе до выдачи<\/span><b>(\d+)/)[1];
   assert.strictEqual((await post(`/deals/${gamma}/refuse`, team, { reason: "Стоп-фактор: класс 3 на всех четырёх датах", comment: "КПА 26.10" })).status, 303);
   html = (await get(`/deals/${gamma}`, team))[1];
   assert.match(html, /<p class="refused-note" role="status"><b>Отказ<\/b> · Стоп-фактор: класс 3 на всех четырёх датах — КПА 26\.10/);
   assert.ok(!html.includes('action="/deals/' + gamma + '/stage"'), "у отказной сделки нет смены стадии");
   assert.match(html, /Вернуть в работу/);
-  assert.strictEqual((await get("/", team))[1].match(/Сделок в работе<\/span><b>(\d+)/)[1], String(before - 1));
+  assert.strictEqual((await get("/", team))[1].match(/В работе до выдачи<\/span><b>(\d+)/)[1], String(before - 1));
   const b2 = (await get("/deals", team))[1];
   assert.match(b2, /<details class="panel refused-list"><summary><h2>Отказы<\/h2>/);
   assert.strictEqual((await post(`/api/deals/${gamma}/stage`, team, { stage: "decision" }, "json")).status, 409);
@@ -527,4 +527,18 @@ test("одна главная кнопка на стадии: инструмен
   assert.strictEqual(primaries, 1, "ровно одна главная кнопка в блоке стадии");
   assert.match(stage, /<button class="primary" type="submit" formnovalidate name="stage" value="assessment">Перевести на стадию «Оценка клиента» →/);
   assert.match(stage, /<a class="btn" href="\/check\?inn=0000000001&amp;deal=\d+">Проверка по ИНН<\/a>/);
+});
+
+test("главная: число на плитке = строки списка, куда она ведёт; «Заключено за месяц» — переход на «Договор»", async () => {
+  const loc = (await post("/deals", team, { client_name: "ООО «Заключённая»", asset: "Спецтехника", amount: "11" })).headers.get("location");
+  await post(`${loc}/stage`, team, { stage: "__any", stage_any: "contract" });
+  const home = (await get("/", team))[1];
+  const tile = (label) => Number(home.match(new RegExp(`<span>${label}</span><b>([0-9]+)</b>`))[1]);
+  const rows = async (href) => ((await get(href, team))[1].match(/<tr[^>]*><td><a href="\/deals\/\d+">/g) || []).length;
+  for (const [label, href] of [["В работе до выдачи", "/deals/list?set=pipe"], ["Заключено за месяц", "/deals/list?set=contract"], ["Дольше 14 дней на стадии", "/deals/list?set=stuck"], ["В мониторинге", "/deals/list?stage=monitoring"], ["В просрочке", "/deals/list?set=overdue"]])
+    assert.strictEqual(tile(label), await rows(href), label);
+  assert.ok(tile("Заключено за месяц") >= 1);
+  const list = (await get("/deals/list?set=contract", team))[1];
+  assert.match(list, /Показаны сделки: <b>заключены в этом месяце \(переход на «Договор»\)<\/b>/);
+  assert.match(list, /ООО «Заключённая»/);
 });

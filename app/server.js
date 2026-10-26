@@ -18,7 +18,7 @@ const VT = require("./views-tasks");
 const VL = require("./views-list");
 const DF = require("./deal-filter");
 const STAGES = require("./stages");
-const { createTasks } = require("./tasks");
+const { createTasks, today: taskToday } = require("./tasks");
 const { createFiles, sizeText } = require("./files");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
@@ -78,6 +78,8 @@ function createApp(db, opts = {}) {
   const clients = createClients(db);
   const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary(), clients });
   const tasks = createTasks(db, deals);
+  // просроченные задачи: всего и у пользователя (плитка главной)
+  const lateTasks = (user) => { const late = tasks.open().filter((t) => t.due < taskToday()); return { lateTasks: late.length, myLate: late.filter((t) => t.assignee_id === user.id).length }; };
   // документы сделок — рядом с базой (DATA_DIR/files); в тестах — отдельный каталог (opts.filesDir)
   const files = createFiles(db, deals, opts.filesDir || path.join(process.env.DATA_DIR || path.join(__dirname, "..", "data"), "files"));
   // исполнители задач — те, кто может вести сделки
@@ -89,7 +91,7 @@ function createApp(db, opts = {}) {
     // к следующему открытию). Без сохранённого значения ждём источник не дольше 1,5 с.
     const fresh = connectors.call("cbr", "key-rate", {}, { userId: user.id }).catch(() => null);
     const keyRate = connectors.peek("cbr", "key-rate", {}) || (await Promise.race([fresh, new Promise((r) => setTimeout(() => r(null), 1500))]));
-    return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit"), myTasks: tasks.open().filter((t) => t.assignee_id === user.id) };
+    return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit"), myTasks: tasks.open().filter((t) => t.assignee_id === user.id), ...lateTasks(user) };
   }
 
   // Поля сделки из формы (запуск и правка). Ошибка — {status: 400, field}

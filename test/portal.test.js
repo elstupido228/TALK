@@ -64,9 +64,13 @@ test("вход под каждой ролью и доступ к страниц�
 test("дашборд: показатели, сделки по стадиям, портфель; запуск сделки — только с правом", async () => {
   const cookie = sid(await login("curator@example.test", PASS, "10.0.0.3"));
   const html = await (await req("/", { cookie })).text();
-  assert.match(html, /Сделок в работе/);
-  assert.strictEqual((html.match(/<li><a href="\/deals#/g) || []).length, 7, "воронка по семи стадиям");
-  assert.match(html, /34 клиентов портфеля в красной зоне/);
+  // плитки — только сделки портала, каждая ведёт к своему отбору в списке
+  for (const [label, href] of [["В работе до выдачи", "/deals/list?set=pipe"], ["Заключено за месяц", "/deals/list?set=contract"], ["Дольше 14 дней на стадии", "/deals/list?set=stuck&sort=days"], ["Просроченные задачи", "/tasks?all=1"], ["В мониторинге", "/deals/list?stage=monitoring"], ["В просрочке", "/deals/list?set=overdue"]])
+    assert.ok(html.includes(`<a class="tile" href="${href.replace(/&/g, "&amp;")}"><span>${label}</span>`) || html.includes(`<a class="tile" href="${href}"><span>${label}</span>`), label);
+  assert.match(html, /переход на «Договор» с 1 по \d+ [а-я]+/);
+  assert.strictEqual((html.match(/<li><a href="\/deals\/list\?stage=/g) || []).length, 7, "воронка по семи стадиям");
+  assert.match(html, /<h2>Портфель мониторинга на [\d.]+<\/h2>/);
+  assert.doesNotMatch(html, /клиентов портфеля в красной зоне/, "портфель — не в плитках сделок");
   assert.ok(!html.includes('action="/deals"'), "куратору форма запуска сделки не показывается");
   const team = sid(await login("team@example.test", PASS, "10.0.0.4"));
   assert.match(await (await req("/", { cookie: team })).text(), /<form class="launch" method="post" action="\/deals" data-draft>/);

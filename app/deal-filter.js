@@ -4,6 +4,18 @@ const { norm } = require("./clients");
 const STAGES = require("./stages");
 
 const STATUSES = { active: "В работе", refused: "Отказы", archived: "Архив", all: "Все" };
+
+// Наборы для плиток главной: одна функция и для числа на плитке, и для списка, в который ведёт плитка
+const STUCK_DAYS = 14;
+const PIPE = ["application", "assessment", "decision", "contract"];
+const monthStart = (now = Date.now()) => { const [y, m] = new Date(now).toLocaleDateString("sv-SE", { timeZone: "Europe/Moscow" }).split("-"); return Date.parse(`${y}-${m}-01T00:00:00+03:00`); };
+const monthName = (now = Date.now()) => new Date(now).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", month: "long" });
+const SETS = {
+  pipe: { title: "в работе до выдачи (заявка — договор)", test: (d) => PIPE.includes(d.stage) },
+  stuck: { title: `дольше ${STUCK_DAYS} дней на одной стадии до выдачи`, test: (d) => PIPE.includes(d.stage) && Date.now() - (d.stage_at || d.created_at) > STUCK_DAYS * 86400000 },
+  contract: { title: "заключены в этом месяце (переход на «Договор»)", test: (d) => (d.contract_at || 0) >= monthStart() },
+  overdue: { title: "в просрочке (до 30 и свыше 30 дней)", test: (d) => ["overdue_30", "overdue_30plus"].includes(d.stage) },
+};
 const SORTS = { activity: "Активность", client: "Клиент", stage: "Стадия", amount: "Сумма", days: "Дней на стадии", task: "Следующая задача", owner: "Ответственный" };
 
 function parseFilter(url) {
@@ -13,6 +25,7 @@ function parseFilter(url) {
     owner: /^(me|\d+)$/.test(g("owner")) ? g("owner") : "",
     stage: STAGES.some((s) => s.id === g("stage")) ? g("stage") : "",
     status: STATUSES[g("status")] ? g("status") : "active",
+    set: SETS[g("set")] ? g("set") : "",
     sort: SORTS[g("sort")] ? g("sort") : "activity",
     dir: g("dir") === "asc" ? "asc" : g("dir") === "desc" ? "desc" : "",
   };
@@ -28,7 +41,8 @@ const statusOf = (d) => (d.archived_at ? "archived" : d.outcome ? "refused" : "a
 
 function filterDeals(ds, f, userId) {
   const owner = f.owner === "me" ? userId : f.owner ? Number(f.owner) : null;
-  return ds.filter((d) => (f.status === "all" || statusOf(d) === f.status) && (!f.stage || d.stage === f.stage) && (!owner || d.owner_id === owner) && matches(d, f.q));
+  const set = SETS[f.set];
+  return ds.filter((d) => (f.status === "all" || statusOf(d) === f.status) && (!f.stage || d.stage === f.stage) && (!owner || d.owner_id === owner) && (!set || set.test(d)) && matches(d, f.q));
 }
 
 // tasks — Map(deal_id → ближайшая открытая задача)
@@ -57,4 +71,4 @@ function qs(f, patch = {}) {
   return s ? "?" + s : "";
 }
 
-module.exports = { parseFilter, filterDeals, sortDeals, qs, STATUSES, SORTS, statusOf };
+module.exports = { parseFilter, filterDeals, sortDeals, qs, STATUSES, SORTS, SETS, STUCK_DAYS, monthStart, monthName, statusOf };

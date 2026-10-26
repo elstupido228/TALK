@@ -5,6 +5,7 @@ const STAGES = require("./stages");
 const { layout, nf, fdate, clsBadge } = require("./views");
 const VT = require("./views-tasks");
 const VL = require("./views-list");
+const DF = require("./deal-filter");
 const { today } = require("./tasks");
 
 const STATUS = { working: "рабочий модуль", target: "целевая схема", backlog: "бэклог" };
@@ -51,6 +52,10 @@ function dashboardPage(user, m) {
   const D = active(m.deals), s = m.summary, z = s.zones;
   const by = (ids) => D.filter((d) => ids.includes(d.stage));
   const pipe = by(PIPE), mon = by(["monitoring"]), over = by(OVERDUE);
+  // те же отборы, что у списка, куда ведёт плитка (app/deal-filter.js) — число на плитке и строки списка совпадают
+  const set = (name) => DF.filterDeals(m.deals, { set: name, status: "active" });
+  const won = set("contract"), stuck = set("stuck");
+  const today = new Date().toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "numeric", month: "long" });
   const maxN = Math.max(1, ...STAGES.map((st) => D.filter((d) => d.stage === st.id).length));
   const pct = (n) => Math.round((100 * n) / s.total);
   const kr = m.keyRate?.data;
@@ -62,20 +67,24 @@ function dashboardPage(user, m) {
     body: `<h1>Дашборд</h1>
 ${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сделка</h2>${newDealForm(m.form)}</section>` : ""}
 ${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) : ""}
-<div class="tiles4">
-  ${tile("Сделок в работе", pipe.length, `${mln(sum(pipe))} · до выдачи`, "/deals")}
-  ${tile("На оценке клиента", by(["assessment"]).length, "ждут расчёта класса", "/deals#assessment")}
-  ${tile("В мониторинге", mon.length, `портфель: ${s.total} клиентов`, "/deals#monitoring")}
-  ${tile("В просрочке", over.length, `${z.red} клиентов портфеля в красной зоне`, "/deals#overdue_30")}
+<h2 class="tiles-title">Сделки портала</h2>
+<div class="tiles4 tiles6">
+  ${tile("В работе до выдачи", pipe.length, `${mln(sum(pipe))} · заявка — договор`, "/deals/list?set=pipe")}
+  ${tile("Заключено за месяц", won.length, `${won.length ? `${mln(sum(won))} · ` : ""}переход на «Договор» с 1 по ${today}`, "/deals/list?set=contract")}
+  ${tile(`Дольше ${DF.STUCK_DAYS} дней на стадии`, stuck.length, "до выдачи; самые долгие — первыми", "/deals/list?set=stuck&sort=days")}
+  ${tile("Просроченные задачи", m.lateTasks ?? 0, `по всем сделкам${m.myLate ? ` · мои: ${m.myLate}` : ""}`, "/tasks?all=1")}
+  ${tile("В мониторинге", mon.length, `сделок · ${mln(sum(mon))}`, "/deals/list?stage=monitoring")}
+  ${tile("В просрочке", over.length, `сделок до 30 и свыше 30 дней · ${mln(sum(over))}`, "/deals/list?set=overdue")}
 </div>
 <div class="dash">
   <section class="panel wide">
     <h2>Сделки по стадиям</h2>
-    <ul class="funnel">${STAGES.map((st) => { const ds = D.filter((d) => d.stage === st.id); return `<li><a href="/deals#${st.id}"><span class="fl">${esc(st.title)}${st.status === "working" ? "" : ` <em>${STATUS[st.status]}</em>`}</span><span class="fb"><i style="width:${Math.round((100 * ds.length) / maxN)}%"></i></span><span class="fn">${ds.length}</span><span class="fs">${ds.length ? mln(sum(ds)) : ""}</span></a></li>`; }).join("")}</ul>
+    <ul class="funnel">${STAGES.map((st) => { const ds = D.filter((d) => d.stage === st.id); return `<li><a href="/deals/list?stage=${st.id}"><span class="fl">${esc(st.title)}${st.status === "working" ? "" : ` <em>${STATUS[st.status]}</em>`}</span><span class="fb"><i style="width:${Math.round((100 * ds.length) / maxN)}%"></i></span><span class="fn">${ds.length}</span><span class="fs">${ds.length ? mln(sum(ds)) : ""}</span></a></li>`; }).join("")}</ul>
     <p><a class="btn" href="/deals">Открыть канбан →</a></p>
   </section>
   <section class="panel">
-    <h2>Портфель на ${fdate(s.today)}</h2>
+    <h2>Портфель мониторинга на ${fdate(s.today)}</h2>
+    <p class="muted small">Клиенты с действующими договорами (условные данные): ${s.total}. Это не сделки портала.</p>
     <div class="zbar" role="img" aria-label="Зоны: красная ${z.red}, жёлтая ${z.yellow}, зелёная ${z.green}, просрочка ${z.grey}">
       <i class="z-red" style="width:${pct(z.red)}%"></i><i class="z-yellow" style="width:${pct(z.yellow)}%"></i><i class="z-green" style="width:${pct(z.green)}%"></i><i class="z-grey" style="width:${pct(z.grey)}%"></i>
     </div>
