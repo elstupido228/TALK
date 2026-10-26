@@ -75,6 +75,13 @@ test("смена стадии: перетаскивание (API) и форма;
   const html = (await get(`/deals/${id}`, team))[1];
   assert.match(html, /<li class="now"><span>5<\/span>Мониторинг<\/li>/);
   for (const t of ["«Заявка» → «Оценка клиента»", "«Оценка клиента» → «Решение»", "«Решение» → «Мониторинг»"]) assert.ok(html.includes(t), t);
+  // после выдачи главной кнопки «дальше» нет: просрочка — отдельное действие с подтверждением
+  assert.doesNotMatch(html, /Перевести на стадию/);
+  assert.match(html, /value="overdue_30" data-confirm="Отметить просрочку до 30 дней: сделка «[^"]+» перейдёт на стадию «Просрочка до 30 дней»/);
+  await post(`/deals/${id}/stage`, team, { stage: "overdue_30" });
+  const od = (await get(`/deals/${id}`, team))[1];
+  assert.match(od, /value="monitoring" data-confirm="Просрочка погашена/);
+  assert.match(od, /value="overdue_30plus" data-confirm="Просрочка свыше 30 дней/);
   assert.strictEqual((await post(`/api/deals/${id}/stage`, curator, { stage: "contract" }, "json")).status, 403);
   assert.strictEqual((await post("/deals", curator, { asset: "Оборудование" })).status, 403);
   const ch = (await get(`/deals/${id}`, curator))[1];

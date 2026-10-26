@@ -30,6 +30,10 @@ ${body}
 </main>
 <footer>Демонстрационный прототип. Все данные на страницах условные.</footer>
 ${user ? shell.close() : ""}
+<script>
+// Подтверждение действий с последствиями: data-confirm на кнопке отправки
+document.addEventListener("submit", (e) => { const m = e.submitter?.dataset.confirm; if (m && !confirm(m)) e.preventDefault(); });
+</script>
 </body>
 </html>`;
 }

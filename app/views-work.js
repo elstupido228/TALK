@@ -7,6 +7,7 @@ const STATUS = { working: "рабочий модуль", target: "целевая
 const ASSETS = ["Грузовой транспорт", "Легковой транспорт", "Спецтехника", "Оборудование", "Другое"];
 const PIPE = ["application", "assessment", "decision", "contract"]; // до выдачи
 const OVERDUE = ["overdue_30", "overdue_30plus"];
+const FORWARD = [...PIPE, "monitoring"]; // обычный ход сделки; просрочка — не «следующий шаг», а событие
 const mln = (v) => (v === null || v === undefined ? "—" : `${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`);
 const sum = (ds) => ds.reduce((s, d) => s + (d.amount_mln || 0), 0);
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
@@ -168,7 +169,15 @@ ${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}
 function dealPage(user, m) {
   const d = m.deal;
   const i = STAGES.findIndex((s) => s.id === d.stage);
-  const next = STAGES[i + 1];
+  const next = FORWARD.includes(d.stage) && d.stage !== "monitoring" ? STAGES[i + 1] : null;
+  // события после выдачи: отдельные кнопки с подтверждением, не главное действие
+  const title = (id) => STAGES.find((s) => s.id === id).title;
+  const event = (to, label, effect) => `<button type="submit" name="stage" value="${to}" data-confirm="${esc(`${label}: сделка «${d.title}» перейдёт на стадию «${title(to)}». ${effect}`)}">${label}</button>`;
+  const events = {
+    monitoring: [event("overdue_30", "Отметить просрочку до 30 дней", "Она войдёт в счётчик «В просрочке» на главной.")],
+    overdue_30: [event("monitoring", "Просрочка погашена", "Она вернётся в мониторинг."), event("overdue_30plus", "Просрочка свыше 30 дней", "Начнётся работа с проблемной задолженностью.")],
+    overdue_30plus: [event("monitoring", "Задолженность урегулирована", "Она вернётся в мониторинг.")],
+  }[d.stage] || [];
   const actions = [];
   if (["application", "assessment", "decision"].includes(d.stage)) {
     if (d.inn) actions.push(`<a class="btn${d.stage !== "application" ? "" : " primary"}" href="/check?inn=${esc(d.inn)}">Проверка по ИНН</a>`);
@@ -193,7 +202,7 @@ ${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
     ${d.cls ? `<p>Класс кредитоспособности: ${clsBadge(d.cls)}${d.note ? ` <span class="muted small">${esc(d.note)}</span>` : ""}</p>` : d.note ? `<p class="muted">${esc(d.note)}</p>` : ""}
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}
     ${m.canEdit ? `<form class="move" method="post" action="/deals/${d.id}/stage">
-      ${next ? `<button type="submit" name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}
+      ${next ? `<button class="primary" type="submit" name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}${events.join("")}
       <label>или выбрать стадию <select name="stage_any">${STAGES.map((s) => `<option value="${s.id}"${s.id === d.stage ? " selected" : ""}>${esc(s.title)}</option>`).join("")}</select></label>
       <button type="submit" name="stage" value="__any">Сменить</button>
     </form>` : ""}
