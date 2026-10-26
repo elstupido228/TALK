@@ -66,7 +66,8 @@ function demoDeals(portfolio) {
   return [...early, ...fromPortfolio].map((d) => ({ ...d, at: now - d.ago * DAY }));
 }
 
-function createDeals(db, { portfolio } = {}) {
+// clients — модуль app/clients.js: сделка ссылается на клиента (client_id), название сделки — его наименование
+function createDeals(db, { portfolio, clients = null } = {}) {
   db.exec(SCHEMA);
   // базы, созданные до появления срока и комментария
   const cols = new Set(db.prepare("PRAGMA table_info(deals)").all().map((c) => c.name));
@@ -77,9 +78,13 @@ function createDeals(db, { portfolio } = {}) {
     db.exec("ALTER TABLE deals ADD COLUMN outcome TEXT; ALTER TABLE deals ADD COLUMN outcome_reason TEXT; ALTER TABLE deals ADD COLUMN outcome_at INTEGER; ALTER TABLE deals ADD COLUMN stop_factor TEXT");
     db.exec(`UPDATE deals SET stop_factor = note WHERE demo = 1 AND note LIKE 'Класс 3 на всех четырёх датах%'`);
   }
+  const linkOld = !cols.has("client_id");
+  if (linkOld) db.exec("ALTER TABLE deals ADD COLUMN client_id INTEGER REFERENCES clients(id)");
   const q = {
     count: db.prepare("SELECT count(*) n FROM deals"),
-    insert: db.prepare("INSERT INTO deals (title, inn, client_code, asset, amount_mln, stage, cls, note, stop_factor, demo, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"),
+    insert: db.prepare("INSERT INTO deals (title, inn, client_code, client_id, asset, amount_mln, stage, cls, note, stop_factor, demo, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"),
+    setClient: db.prepare("UPDATE deals SET client_id = ?, title = ?, updated_at = ? WHERE id = ?"),
+    byClient: db.prepare("SELECT * FROM deals WHERE client_id = ? ORDER BY updated_at DESC"),
     event: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, from_stage, to_stage, text) VALUES (?,?,?,?,?,?)"),
     all: db.prepare("SELECT * FROM deals ORDER BY updated_at DESC"),
     get: db.prepare("SELECT * FROM deals WHERE id = ?"),
@@ -91,21 +96,41 @@ function createDeals(db, { portfolio } = {}) {
   };
   const stageTitle = (id) => STAGES.find((s) => s.id === id)?.title || id;
 
-  function create({ title, inn = null, client_code = null, asset = null, amount_mln = null, term_months = null, comment = null, stage = "application", cls = null, note = null, stop_factor = null, demo = 0, userId = null, at = Date.now() }) {
+  // Клиент для сделки без явного client_id (демо-наполнение, перенос старых баз): по ИНН, коду портфеля или названию.
+  // «ИНН …» и «Новая заявка · …» — не наименование.
+  const named = (t) => !!t && !/^(ИНН d|Новая заявка)/.test(t);
+  function clientFor({ inn, client_code, title }) {
+    if (!clients) return null;
+    const c = clients.ensure({ inn, client_code, name: named(title) ? title : inn ? `ИНН ${inn}` : null, source: named(title) ? (inn ? "dadata" : "manual") : "placeholder" });
+    return c?.id ?? null;
+  }
+
+  function create({ title, inn = null, client_code = null, client_id, asset = null, amount_mln = null, term_months = null, comment = null, stage = "application", cls = null, note = null, stop_factor = null, demo = 0, userId = null, at = Date.now() }) {
     if (!STAGE_IDS.includes(stage)) throw new Error(`неизвестная стадия ${stage}`);
-    const id = Number(q.insert.run(title, inn, client_code, asset, amount_mln, stage, cls, note, stop_factor, demo, userId, at, at).lastInsertRowid);
+    if (client_id === undefined) client_id = clientFor({ inn, client_code, title });
+    const id = Number(q.insert.run(title, inn, client_code, client_id, asset, amount_mln, stage, cls, note, stop_factor, demo, userId, at, at).lastInsertRowid);
     if (term_months !== null || comment) q.edit.run(inn, asset, amount_mln, term_months, comment, at, id);
     q.event.run(id, at, userId, null, stage, `Сделка создана на стадии «${stageTitle(stage)}»`);
     return id;
   }
 
   if (q.count.get().n === 0 && portfolio) for (const d of demoDeals(portfolio)) create({ ...d, demo: 1 });
+  // базы до появления клиентов: связать сделки с клиентами (название сделки не меняется)
+  if (linkOld && clients) for (const d of q.all.all()) if (!d.client_id) { const cid = clientFor(d); if (cid) q.setClient.run(cid, clients.get(cid).name, d.updated_at, d.id); }
 
   return {
     STAGE_IDS,
     stageTitle,
     create,
     list: () => q.all.all(),
+    byClient: (clientId) => q.byClient.all(clientId),
+    // привязать сделку к клиенту (новый ИНН, наименование для заявки без клиента); название — по клиенту
+    setClient(id, client, userId) {
+      const d = q.get.get(id);
+      if (!d || !client || d.client_id === client.id) return;
+      q.setClient.run(client.id, client.name, Date.now(), id);
+      q.event.run(id, Date.now(), userId, null, null, `Клиент: ${client.name}`);
+    },
     get: (id) => q.get.get(id) || null,
     events: (id) => q.events.all(id),
     note: (id, userId, text) => q.event.run(id, Date.now(), userId, null, null, text),

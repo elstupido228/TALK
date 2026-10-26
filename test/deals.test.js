@@ -209,7 +209,7 @@ test("запуск сделки: дубль по ИНН — предупрежд
   // ни ИНН, ни предмета — не создаётся
   r = await post("/deals", team, { inn: "", asset: "", amount: "5" });
   assert.strictEqual(r.status, 400);
-  assert.match(await r.text(), /Укажите ИНН клиента или выберите предмет лизинга/);
+  assert.match(await r.text(), /Укажите ИНН или наименование клиента либо выберите предмет лизинга/);
   // буквы в ИНН не вырезаются молча
   r = await post("/deals", team, { inn: "77O7083893", asset: "Оборудование" });
   assert.strictEqual(r.status, 400);
@@ -287,4 +287,35 @@ test("главная не ждёт медленный ЦБ: сохранённа
   assert.ok(Date.now() - t < 1000, `с кэшем — сразу (было ${Date.now() - t} мс)`);
   assert.match(html, /17,00 %/);
   s2.closeAllConnections(); s2.close(); d2.close();
+});
+
+test("клиенты: наименование и контакты при создании, карточка клиента со сделками и суммой, переименование", async () => {
+  // без ИНН — клиент по наименованию, с контактом и телефоном
+  let r = await post("/deals", team, { client_name: "ООО «Тест-Клиент»", contact_name: "Иванов Иван", phone: "+7 900 123-45-67", asset: "Спецтехника", amount: "10" });
+  assert.strictEqual(r.status, 303);
+  const d1 = r.headers.get("location");
+  let html = (await get(d1, team))[1];
+  assert.match(html, /<h1>ООО «Тест-Клиент»<\/h1>/);
+  const cid = html.match(/Клиент: <a href="\/clients\/(\d+)">ООО «Тест-Клиент»<\/a> · Иванов Иван · <a href="tel:\+79001234567">/)[1];
+  // вторая сделка того же клиента — предупреждение о дубле по наименованию, затем осознанно
+  r = await post("/deals", team, { client_name: "ооо тест-клиент", asset: "Оборудование", amount: "5" });
+  assert.strictEqual(r.status, 409);
+  assert.match(await r.text(), /У клиента с таким наименованием уже есть сделки в работе/);
+  r = await post("/deals", team, { client_name: "ооо тест-клиент", asset: "Оборудование", amount: "5", dup_ok: "1" });
+  assert.match((await get(r.headers.get("location"), team))[1], new RegExp(`href="/clients/${cid}"`));
+  // карточка клиента: две сделки, сумма 15 млн
+  html = (await get(`/clients/${cid}`, team))[1];
+  assert.match(html, /В работе: <b>2<\/b> на <b>15 млн<\/b>/);
+  // переименование — во всех сделках клиента
+  r = await post(`/clients/${cid}/edit`, team, { name: "ООО «Тест-Клиент Плюс»", contact_name: "Иванов Иван", phone: "+7 900 123-45-67" });
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /Сохранено: наименование/);
+  assert.match((await get(d1, team))[1], /<h1>ООО «Тест-Клиент Плюс»<\/h1>/);
+  assert.match((await get("/clients?q=плюс", team))[1], /ООО «Тест-Клиент Плюс»/);
+  assert.strictEqual((await post(`/clients/${cid}/edit`, team, { name: "", phone: "abc" })).status, 400);
+  assert.strictEqual((await post(`/clients/${cid}/edit`, curator, { name: "X" })).status, 403);
+  // по ИНН — наименование из DaData
+  r = await post("/deals", team, { inn: "0000000001", asset: "Спецтехника", dup_ok: "1" });
+  assert.match((await get(r.headers.get("location"), team))[1], /Клиент: <a href="\/clients\/\d+">ООО «Альфа-Пример»<\/a>/);
+  // демо-сделки привязаны к клиентам
+  assert.match((await get("/clients", team))[1], /ООО «Гамма-Пример»/);
 });

@@ -28,15 +28,19 @@ function newDealForm(form = {}) {
   const v = form.values || {}, E = fieldErr(form.errors);
   // дубль по ИНН: ссылки на сделки и кнопка внутри формы — введённые значения уходят вместе с подтверждением.
   // Блок стоит после «Запустить сделку»: Enter в поле отправляет форму основной кнопкой, а не подтверждением дубля
-  const dups = form.dups?.length ? `<div class="notice dups" role="alert"><p>По ИНН ${esc(v.inn)} уже есть сделки в работе: ${form.dups.map((d) => `<a href="/deals/${d.id}">${esc(d.title)}</a> (${esc(STAGES.find((s) => s.id === d.stage)?.title || d.stage)}${d.amount_mln ? `, ${mln(d.amount_mln)}` : ""})`).join("; ")}.</p><p>Откройте нужную сделку или создайте ещё одну, если это новая заявка того же клиента.</p><button type="submit" name="dup_ok" value="1">Всё равно создать новую сделку</button></div>` : "";
+  const dups = form.dups?.length ? `<div class="notice dups" role="alert"><p>${form.byInn === false ? "У клиента с таким наименованием" : `По ИНН ${esc(v.inn)}`} уже есть сделки в работе: ${form.dups.map((d) => `<a href="/deals/${d.id}">${esc(d.title)}</a> (${esc(STAGES.find((s) => s.id === d.stage)?.title || d.stage)}${d.amount_mln ? `, ${mln(d.amount_mln)}` : ""})`).join("; ")}.</p><p>Откройте нужную сделку или создайте ещё одну, если это новая заявка того же клиента.</p><button type="submit" name="dup_ok" value="1">Всё равно создать новую сделку</button></div>` : "";
+  const field = (k, id, label, attrs) => `<div class="f"><label for="${id}">${label}</label><input id="${id}" name="${k}"${attrs} value="${esc(v[k] || "")}"${E.bad(k, id)}>${E.msg(k, id)}</div>`;
   return `${form.error && !dups ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals" data-draft>
-  <input type="hidden" name="once" value="${esc(/^[w-]{16,64}$/.test(v.once || "") ? v.once : crypto.randomUUID())}">
-  <div class="f"><label for="nd-inn">ИНН клиента</label><input id="nd-inn" name="inn" inputmode="numeric" autocomplete="off" placeholder="необязательно" value="${esc(v.inn || "")}"${E.bad("inn", "nd-inn")}>${E.msg("inn", "nd-inn")}</div>
+  <input type="hidden" name="once" value="${esc(/^[\w-]{16,64}$/.test(v.once || "") ? v.once : crypto.randomUUID())}">
+  ${field("inn", "nd-inn", "ИНН клиента", ' inputmode="numeric" autocomplete="off" placeholder="если известен"')}
+  ${field("client_name", "nd-name", "Наименование клиента", ' autocomplete="organization" placeholder="при ИНН — из DaData"')}
+  ${field("contact_name", "nd-contact", "Контактное лицо", ' autocomplete="name" placeholder="необязательно"')}
+  ${field("phone", "nd-phone", "Телефон", ' type="tel" inputmode="tel" autocomplete="tel" placeholder="необязательно"')}
   <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset"${E.bad("asset", "nd-asset")}><option value="">— выберите —</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select>${E.msg("asset", "nd-asset")}</div>
-  <div class="f"><label for="nd-amount">Сумма, млн руб.</label><input id="nd-amount" name="amount" inputmode="decimal" placeholder="например, 25" value="${esc(v.amount || "")}"${E.bad("amount", "nd-amount")}>${E.msg("amount", "nd-amount")}</div>
+  ${field("amount", "nd-amount", "Сумма, млн руб.", ' inputmode="decimal" placeholder="например, 25"')}
   <button type="submit" data-busy-text="Создаю сделку…">Запустить сделку</button>${dups}
 </form>
-<p class="muted small">Сделка появится в колонке «Заявка». Если указан ИНН, портал сразу проверит клиента (DaData, ГИР БО) и покажет предварительный класс.</p>`;
+<p class="muted small">Сделка появится в колонке «Заявка». Достаточно ИНН, наименования клиента или предмета лизинга. По ИНН портал сразу проверит клиента (DaData, ГИР БО) и покажет предварительный класс.</p>`;
 }
 
 // m: {deals, summary, keyRate, canEdit}
@@ -162,6 +166,13 @@ ${m.canEdit ? `<script>
   });
 }
 
+// Клиент сделки под заголовком: ссылка на карточку клиента и контакты (звонок — в одно касание)
+function clientLine(c, canEdit) {
+  if (!c) return `<p class="client-line muted">Клиент не указан.${canEdit ? " Укажите ИНН или наименование в разделе «Данные сделки»." : ""}</p>`;
+  const tel = c.phone ? ` · <a href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">${esc(c.phone)}</a>` : "";
+  return `<p class="client-line">Клиент: <a href="/clients/${c.id}">${esc(c.name)}</a>${c.contact_name ? ` · ${esc(c.contact_name)}` : ""}${tel}${!c.contact_name && !c.phone && canEdit ? ` · <a href="/clients/${c.id}">добавить контакт</a>` : ""}</p>`;
+}
+
 // Клиент в карточке сделки: DaData и годовая отчётность (ГИР БО) с классом по годам
 function clientBlock(d, m) {
   if (!d.inn) return `<section class="panel"><h2>Клиент</h2><p class="muted">ИНН ещё не указан.${m.canEdit ? " Укажите его в разделе «Данные сделки» — портал проверит клиента." : ""}</p></section>`;
@@ -201,6 +212,7 @@ ${c ? `<div class="notice" role="alert"><p>Пока вы редактирова�
 <form method="post" action="/deals/${d.id}/edit" class="eform" data-draft>
   <input type="hidden" name="orig" value="${esc(JSON.stringify(orig))}">
   <label for="ed-inn">ИНН клиента<input id="ed-inn" name="inn" inputmode="numeric" autocomplete="off" value="${esc(v.inn ?? "")}"${E.bad("inn", "ed-inn")}>${E.msg("inn", "ed-inn")}</label>
+  ${d.client_id ? "" : `<label for="ed-name">Наименование клиента<input id="ed-name" name="client_name" autocomplete="organization" value="${esc(v.client_name ?? "")}" placeholder="если ИНН нет"></label>`}
   <label>Предмет лизинга<select name="asset"><option value="">не указан</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></label>
   <label for="ed-amount">Сумма, млн руб.<input id="ed-amount" name="amount" inputmode="decimal" value="${esc(v.amount ?? "")}"${E.bad("amount", "ed-amount")}>${E.msg("amount", "ed-amount")}</label>
   <label for="ed-term">Срок, мес.<input id="ed-term" name="term" inputmode="numeric" value="${esc(v.term ?? "")}"${E.bad("term", "ed-term")}>${E.msg("term", "ed-term")}</label>
@@ -251,6 +263,7 @@ function dealPage(user, m) {
     active: "deals",
     body: `<p class="crumbs"><a href="/deals">Сделки</a> / ${esc(d.title)}</p>
 <h1>${esc(d.title)}</h1>
+${clientLine(m.clientRec, m.canEdit)}
 <p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.term_months ? ` · ${d.term_months} мес.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
 ${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
 ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(d.outcome_reason)} · ${new Date(d.outcome_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : ""}

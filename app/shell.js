@@ -7,6 +7,7 @@ const { can, ROLE_TITLES } = require("./auth");
 const WORK = [
   ["home", "/", "Главная", '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'],
   ["deals", "/deals", "Сделки", '<rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="13" rx="1"/>'],
+  ["clients", "/clients", "Клиенты", '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'],
   ["check", "/check", "Проверка по ИНН", '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'],
   ["calc", "/calc", "Расчёт класса", '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M16 12h0M8 16h2M12 16h2"/>'],
   ["monitoring", "/monitoring", "Мониторинг", '<path d="M3 12h4l3 7 4-14 3 7h4"/>'],

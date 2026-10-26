@@ -11,7 +11,9 @@ const { createGateway } = require("./extract/gateway");
 const { monitoringPage } = require("./monitoring/build");
 const { portfolioSummary } = require("./monitoring/summary");
 const { createDeals } = require("./deals");
+const { createClients, norm } = require("./clients");
 const W = require("./views-work");
+const VC = require("./views-clients");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
 const { toDocs, annualClasses } = require("./check");
@@ -64,7 +66,8 @@ function createApp(db, opts = {}) {
       return { inn, name: party?.name || fin?.org?.name || null, cls: y ? y.cls : null, year: y?.year || null };
     });
   }
-  const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary() });
+  const clients = createClients(db);
+  const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary(), clients });
   async function homeModel(user) {
     // Ставка ЦБ не задерживает главную: сохранённое значение — сразу, обновление — в фоне (результат попадёт в кэш
     // к следующему открытию). Без сохранённого значения ждём источник не дольше 1,5 с.
@@ -87,14 +90,17 @@ function createApp(db, opts = {}) {
     const term = num(f.term);
     if (term !== null && !(Number.isInteger(term) && term >= 1 && term <= 120)) errors.term = "Срок — целое число месяцев от 1 до 120.";
     const asset = W.ASSETS.includes(f.asset) ? f.asset : null;
-    if (launch && !inn && !asset && !errors.inn) errors.asset = "Укажите ИНН клиента или выберите предмет лизинга.";
+    const client_name = String(f.client_name || "").trim().slice(0, 200) || null, contact_name = String(f.contact_name || "").trim().slice(0, 120) || null;
+    const phone = String(f.phone || "").trim().slice(0, 40) || null;
+    if (phone && !/^[+\d\s()-]{5,40}$/.test(phone)) errors.phone = "Телефон — цифры, пробелы, скобки, «+» и «-».";
+    if (launch && !inn && !asset && !client_name && !errors.inn) errors.asset = "Укажите ИНН или наименование клиента либо выберите предмет лизинга.";
     if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors).join(" ")), { status: 400, errors });
-    return { inn: inn || null, asset, amount_mln: amount, term_months: term, comment: String(f.comment || "").trim().slice(0, 500) || null };
+    return { inn: inn || null, asset, amount_mln: amount, term_months: term, comment: String(f.comment || "").trim().slice(0, 500) || null, client: { name: client_name, contact_name, phone } };
   }
 
   // Ответ после успешного действия: перенаправление и короткое сообщение (cookie flash читает скрипт форм)
   const done = (res, to, msg) => H.redirect(res, to, { "set-cookie": `flash=${encodeURIComponent(msg)}; Path=/; Max-Age=60; SameSite=Lax` });
-  const FIELD_LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма", term_months: "срок", comment: "комментарий" };
+  const FIELD_LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма", term_months: "срок", comment: "комментарий", client: "клиент" };
 
   // Одноразовые токены формы запуска: повторная отправка той же формы (двойной клик, повтор после обрыва связи)
   // не создаёт вторую сделку, а ведёт к уже созданной. null — сделка ещё создаётся.
@@ -136,23 +142,33 @@ function createApp(db, opts = {}) {
   async function dealModel(user, deal) {
     const client = deal.inn ? await checkClient(user, deal.inn) : null;
     const classes = client?.fin?.data?.reports?.length ? annualClasses(client.fin.data) : [];
-    return { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit"), client, classes };
+    return { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit"), client, classes, clientRec: deal.client_id ? clients.get(deal.client_id) : null };
   }
 
   async function launchDeal(user, f) {
     const v = dealFields(f, { launch: true });
     // по этому ИНН уже есть сделки в работе — новая создаётся только после явного подтверждения
-    const dups = v.inn && f.dup_ok !== "1" ? deals.list().filter((d) => d.inn === v.inn && !d.outcome) : [];
-    if (dups.length) throw Object.assign(new Error("По этому ИНН уже есть сделки в работе."), { status: 409, dups });
-    let sum = { title: v.inn ? `ИНН ${v.inn}` : `Новая заявка${v.asset ? ` · ${v.asset}` : ""}`, cls: null, note: v.inn ? null : "ИНН ещё не указан" };
+    // (без ИНН — у клиента с тем же наименованием)
+    const known = v.inn ? clients.byInn(v.inn) : v.client.name ? clients.list(v.client.name).find((c) => !c.inn && norm(c.name) === norm(v.client.name)) : null;
+    const dups = f.dup_ok !== "1" ? deals.list().filter((d) => !d.outcome && ((v.inn && d.inn === v.inn) || (known && d.client_id === known.id))) : [];
+    if (dups.length) throw Object.assign(new Error(v.inn ? "По этому ИНН уже есть сделки в работе." : "У клиента с таким наименованием уже есть сделки в работе."), { status: 409, dups, byInn: !!v.inn });
+    let sum = { title: null, cls: null, note: v.inn ? null : "ИНН ещё не указан" };
     if (v.inn) sum = checkSummary(v.inn, await checkClient(user, v.inn));
-    return deals.create({ ...v, title: sum.title, cls: sum.cls, note: sum.note, userId: user.id });
+    // наименование: введённое пользователем > DaData > временное «ИНН …»
+    const fromSource = v.inn && sum.ok && sum.title !== `ИНН ${v.inn}` ? sum.title : null;
+    let client = clients.ensure({ inn: v.inn, name: v.client.name || fromSource || (v.inn ? `ИНН ${v.inn}` : null), source: v.client.name ? "manual" : fromSource ? "dadata" : "placeholder", contact_name: v.client.contact_name, phone: v.client.phone });
+    if (client && fromSource) client = clients.nameFromSource(client.id, fromSource);
+    const title = client ? client.name : `Новая заявка${v.asset ? ` · ${v.asset}` : ""}`;
+    return deals.create({ ...v, title, client_id: client?.id ?? null, cls: sum.cls, note: sum.note, userId: user.id });
   }
 
   // Повторная проверка клиента сделки (после смены ИНН или когда источник был недоступен)
   async function recheckDeal(user, deal, reason) {
     if (!deal.inn) return deals.setCheck(deal.id, { title: deal.title, cls: null, note: "ИНН ещё не указан" }, user.id, null);
     const sum = checkSummary(deal.inn, await checkClient(user, deal.inn));
+    // название сделки — по клиенту: DaData заменяет только временное «ИНН …»
+    const client = deal.client_id && sum.ok && sum.title !== `ИНН ${deal.inn}` ? clients.nameFromSource(deal.client_id, sum.title) : deal.client_id ? clients.get(deal.client_id) : null;
+    if (client) sum.title = client.name;
     deals.setCheck(deal.id, sum, user.id, `${reason}: ${sum.ok ? `${sum.title}${sum.cls ? `, класс ${sum.cls}` : ""}` : "источник недоступен"}`);
   }
 
@@ -171,7 +187,9 @@ function createApp(db, opts = {}) {
 
   // Страницы для вошедших: [путь, право, рендер]
   const PAGES = {
-    "/": ["pages.view", async (u) => W.dashboardPage(u, await homeModel(u))],
+    // /?inn=…&client_name=… — форма новой сделки с подставленным клиентом (из карточки клиента)
+    "/": ["pages.view", async (u, url) => W.dashboardPage(u, { ...(await homeModel(u)), form: url.searchParams.has("client_name") || url.searchParams.has("inn") ? { values: { inn: url.searchParams.get("inn") || "", client_name: url.searchParams.get("client_name") || "" } } : undefined })],
+    "/clients": ["pages.view", (u, url) => { const q = (url.searchParams.get("q") || "").trim(); return VC.clientsPage(u, { q, canEdit: can(u, "deals.edit"), clients: clients.list(q).map((c) => ({ ...c, deals: deals.byClient(c.id) })) }); }],
     "/deals": ["pages.view", (u) => W.dealsBoard(u, { deals: deals.list(), canEdit: can(u, "deals.edit") })],
     "/process": ["pages.view", (u) => V.processPage(u)],
     "/calc": ["calc.use", (u) => calcPage(u)],
@@ -254,7 +272,7 @@ function createApp(db, opts = {}) {
       } catch (e) {
         if (!e.status) throw e;
         // ошибка ввода — у полей формы на дашборде, введённые значения сохраняются
-        return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups } }));
+        return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups, byInn: e.byInn } }));
       }
     }
     const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen)?$/);
@@ -283,6 +301,9 @@ function createApp(db, opts = {}) {
             return H.send(res, 409, W.dealPage(user, { ...(await dealModel(user, deal)), form: { values: f, conflict: { fields: clash.map((k) => ({ label: FIELD_LABEL[k], key: k, theirs: deal[k], mine: v[k] })), by: by?.user_name || by?.user_email || "другой пользователь", at: by?.at } } }));
           }
           const changed = deals.edit(deal.id, v, user.id);
+          // новый ИНН — другой клиент (найденный или новый); заявке без клиента — клиент по введённому наименованию
+          if (changed.includes("inn") && v.inn) deals.setClient(deal.id, clients.ensure({ inn: v.inn, name: `ИНН ${v.inn}`, source: "placeholder" }), user.id);
+          if (!deal.client_id && !v.inn && v.client.name) { deals.setClient(deal.id, clients.ensure({ name: v.client.name, contact_name: v.client.contact_name, phone: v.client.phone }), user.id); changed.push("client"); }
           if (changed.includes("inn")) await recheckDeal(user, deals.get(deal.id), "Проверка клиента по новому ИНН");
           return done(res, `/deals/${deal.id}`, changed.length ? `Сохранено: ${changed.map((k) => FIELD_LABEL[k]).join(", ")}` : "Изменений нет — данные сделки те же.");
         } catch (e) {
@@ -312,6 +333,30 @@ function createApp(db, opts = {}) {
         return done(res, `/deals/${deal.id}`, stage === deal.stage ? "Стадия не изменилась." : `Стадия изменена: «${deals.stageTitle(deal.stage)}» → «${deals.stageTitle(stage)}»`);
       }
       if (!dp[2] && req.method === "GET") return H.send(res, 200, W.dealPage(user, await dealModel(user, deal)));
+    }
+
+    // Клиент: карточка и правка
+    const cp = p.match(/^\/clients\/(\d+)(\/edit)?$/);
+    if (cp) {
+      if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
+      if (!can(user, "pages.view")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав для этой страницы."));
+      const client = clients.get(+cp[1]);
+      if (!client) return H.send(res, 404, V.errorPage(user, 404, "Клиент не найден."));
+      if (!cp[2] && req.method === "GET") return H.send(res, 200, VC.clientPage(user, { client, deals: deals.byClient(client.id), canEdit: can(user, "deals.edit") }));
+      if (cp[2] && req.method === "GET") return H.redirect(res, `/clients/${client.id}`);
+      if (cp[2] && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const f = await H.readForm(req);
+        try {
+          const { changed } = clients.update(client.id, f);
+          const L = { name: "наименование", inn: "ИНН", contact_name: "контактное лицо", phone: "телефон", email: "email", note: "примечание" };
+          if (changed.length) for (const d of deals.byClient(client.id)) deals.note(d.id, user.id, `Клиент изменён: ${changed.map((k) => L[k]).join(", ")}`);
+          return done(res, `/clients/${client.id}`, changed.length ? `Сохранено: ${changed.map((k) => L[k]).join(", ")}` : "Изменений нет — данные клиента те же.");
+        } catch (e) {
+          if (!e.status) throw e;
+          return H.send(res, 400, VC.clientPage(user, { client, deals: deals.byClient(client.id), canEdit: true, form: { values: f, errors: e.errors } }));
+        }
+      }
     }
 
     if (p === "/logout" && req.method === "POST") {
