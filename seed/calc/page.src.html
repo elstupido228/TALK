@@ -625,12 +625,24 @@ $("runBtn").onclick=async()=>{
 };
 
 // Начальный режим: по умолчанию — новый расчёт; пример — по #example или если он был открыт до обновления страницы.
-// /calc#upload (из карточки сделки) — всегда новый расчёт без чужого импорта.
+// /calc#upload и /calc#deal=<id> (из карточки сделки) — всегда новый расчёт без чужого импорта.
+const FROM_DEAL=/^#(upload|deal=\d+)$/.test(location.hash);
 (function(){
   let view=null; try{ view=JSON.parse(sessionStorage.getItem(VIEW_KEY)||"null"); }catch(e){}
-  if(location.hash==="#upload") dropImport();
+  if(FROM_DEAL) dropImport();
   if(view?.pkg&&DEMO_PKGS.some(p=>p.id===view.pkg)) $("pkgSel").value=view.pkg;
-  setMode(location.hash==="#example"||(view?.mode==="demo"&&location.hash!=="#upload")?"demo":"live");
+  setMode(location.hash==="#example"||(view?.mode==="demo"&&!FROM_DEAL)?"demo":"live");
+})();
+// Документы сделки (/calc#deal=<id>): PDF сделки сразу в пакет, ИНН и наименование — из сделки
+(async function(){
+  const m=location.hash.match(/^#deal=(\d+)$/); if(!m) return;
+  try{
+    const r=await fetch("/api/deals/"+m[1]+"/files"); if(!r.ok) throw new Error("ошибка сервера "+r.status);
+    const j=await r.json(), pdf=j.files.filter(f=>f.mime==="application/pdf"), fl=[];
+    for(const f of pdf){ const b=await fetch(f.url); if(!b.ok) throw new Error("файл «"+f.name+"» недоступен"); fl.push(new File([await b.blob()],f.name,{type:"application/pdf"})); }
+    addFiles(fl); $("innIn").value=j.deal.inn||""; $("nameIn").value=j.deal.title||"";
+    $("status").textContent=`Сделка №${j.deal.id} «${j.deal.title}»: в пакет добавлены PDF сделки (${fl.length}). Нажмите «Извлечь данные».`;
+  }catch(e){ $("status").textContent="Не удалось взять документы сделки: "+(e.message||e)+". Добавьте PDF вручную."; }
 })();
 // Годовая отчётность со страницы «Проверка по ИНН» (передаётся через sessionStorage и хранится там,
 // пока пользователь не перейдёт к примеру или не загрузит свои PDF — обновление страницы её не теряет)

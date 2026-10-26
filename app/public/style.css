@@ -338,3 +338,7 @@ ul.plain li:first-child { border-top: 0; }
 .archive-zone { padding-top: 10px; padding-bottom: 10px; }
 .archive-zone button.danger { background: var(--card); border-color: var(--error); color: var(--error); }
 .archive-zone button.primary-btn { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+/* Документы сделки */
+.docs li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.link-danger { border: 0; background: none; padding: 0; color: var(--error); font: inherit; font-size: 0.85rem; cursor: pointer; text-decoration: underline; }

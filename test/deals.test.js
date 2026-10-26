@@ -8,7 +8,7 @@ const { createGateway } = require("../app/extract/gateway");
 const { createConnectors } = require("../app/connectors/core");
 
 const PASS = "Test-pass-123";
-let server, base, db, team, curator;
+let server, base, db, team, curator, filesDir;
 before(async () => {
   db = open(":memory:");
   const auth = createAuth(db);
@@ -16,14 +16,15 @@ before(async () => {
   auth.upsertUser({ email: "curator@example.test", role: "curator", password: PASS });
   const all = [require("../app/connectors/cbr"), require("../app/connectors/dadata"), require("../app/connectors/fin"), ...require("../app/connectors/sandboxes")];
   const env = Object.fromEntries(all.map((x) => [`CONNECTOR_${x.id.toUpperCase()}_MODE`, "sandbox"])); // без сети
-  server = createApp(db, { gateway: createGateway({ db, env: {} }), connectors: createConnectors(db, all, { env }) }).listen(0);
+  filesDir = require("node:fs").mkdtempSync(require("node:path").join(require("node:os").tmpdir(), "talk-files-"));
+  server = createApp(db, { gateway: createGateway({ db, env: {} }), connectors: createConnectors(db, all, { env }), filesDir }).listen(0);
   await new Promise((r) => server.once("listening", r));
   base = `http://127.0.0.1:${server.address().port}`;
   const login = async (email, ip) => (await fetch(base + "/login", { method: "POST", redirect: "manual", headers: { origin: base, "content-type": "application/x-www-form-urlencoded", "x-forwarded-for": ip }, body: new URLSearchParams({ email, password: PASS }) })).headers.get("set-cookie").split(";")[0];
   team = await login("team@example.test", "10.1.0.1");
   curator = await login("curator@example.test", "10.1.0.2");
 });
-after(() => (server.close(), db.close()));
+after(() => (server.close(), db.close(), require("node:fs").rmSync(filesDir, { recursive: true, force: true })));
 
 const get = async (p, cookie) => { const r = await fetch(base + p, { headers: { cookie }, redirect: "manual" }); return [r.status, await r.text(), r]; };
 const post = (p, cookie, body, type = "form") => fetch(base + p, { method: "POST", redirect: "manual", headers: { cookie, origin: base, "content-type": type === "json" ? "application/json" : "application/x-www-form-urlencoded" }, body: type === "json" ? JSON.stringify(body) : new URLSearchParams(body) });
@@ -445,4 +446,37 @@ test("архив: сделка скрывается из канбана и сч�
   assert.match(decodeURIComponent(r.headers.get("set-cookie")), /возвращена из архива/);
   assert.match((await get("/deals", team))[1], /ООО «Архивная»/);
   assert.match((await get(loc, team))[1], /Сделка возвращена из архива/);
+});
+
+test("документы сделки: загрузка, просмотр, недопустимый тип, убрать из карточки, PDF для калькулятора", async () => {
+  const loc = (await post("/deals", team, { client_name: "ООО «Документы»", inn: "7702070139", asset: "Оборудование", dup_ok: "1" })).headers.get("location");
+  const id = loc.split("/").pop();
+  const up = (name, body, cookie = team) => fetch(base + `${loc}/files`, { method: "POST", headers: { cookie, origin: base, "x-file-name": encodeURIComponent(name), "content-type": "application/octet-stream" }, body });
+  let r = await up("Баланс 2025.pdf", Buffer.from("%PDF-1.4 test"));
+  assert.strictEqual(r.status, 201);
+  const f = (await r.json()).file;
+  assert.strictEqual(f.name, "Баланс 2025.pdf");
+  assert.strictEqual((await up("script.exe", Buffer.from("x"))).status, 400);
+  assert.strictEqual((await up("../../evil.pdf", Buffer.from("%PDF"))).status, 201, "путь из имени отбрасывается");
+  assert.strictEqual((await up("x.pdf", Buffer.from("x"), curator)).status, 403);
+  let html = (await get(loc, team))[1];
+  assert.match(html, /<a href="\/files\/\d+" target="_blank" rel="noopener">Баланс 2025\.pdf<\/a>/);
+  assert.match(html, /<a href="\/files\/\d+" target="_blank" rel="noopener">evil\.pdf<\/a>/);
+  assert.match(html, /href="\/calc#deal=\d+">Рассчитать класс по PDF сделки \(2\)/);
+  assert.match(html, /Файл добавлен: Баланс 2025\.pdf/);
+  // просмотр — тем, кто видит портал
+  r = await fetch(base + `/files/${f.id}`, { headers: { cookie: curator } });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.headers.get("content-type"), "application/pdf");
+  assert.match(r.headers.get("content-disposition"), /^inline; filename\*=UTF-8''/);
+  assert.strictEqual(Buffer.from(await r.arrayBuffer()).toString(), "%PDF-1.4 test");
+  // для калькулятора
+  const j = await (await fetch(base + `/api/deals/${id}/files`, { headers: { cookie: team } })).json();
+  assert.strictEqual(j.deal.inn, "7702070139");
+  assert.strictEqual(j.files.length, 2);
+  // убрать из карточки
+  r = await post(`/files/${f.id}/delete`, team, {});
+  assert.strictEqual(r.headers.get("location"), `${loc}#docs`);
+  assert.strictEqual((await fetch(base + `/files/${f.id}`, { headers: { cookie: team } })).status, 404);
+  assert.match((await get(loc, team))[1], /Файл удалён из карточки: Баланс 2025\.pdf/);
 });

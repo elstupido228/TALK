@@ -180,6 +180,36 @@ function clientLine(c, canEdit) {
   return `<p class="client-line">Клиент: <a href="/clients/${c.id}">${esc(c.name)}</a>${c.contact_name ? ` · ${esc(c.contact_name)}` : ""}${tel}${!c.contact_name && !c.phone && canEdit ? ` · <a href="/clients/${c.id}">добавить контакт</a>` : ""}</p>`;
 }
 
+// Документы сделки: список (открыть, убрать из карточки), загрузка нескольких файлов, расчёт класса по PDF сделки.
+// Загрузка — fetch с телом-файлом по одному (без multipart); после последнего — перезагрузка с сообщением.
+function docsBlock(d, m, ed) {
+  const size = (n) => (n >= 1048576 ? `${(n / 1048576).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} МБ` : `${Math.max(1, Math.round(n / 1024))} КБ`);
+  const pdfs = m.files.filter((f) => f.mime === "application/pdf").length;
+  const rows = m.files.map((f) => `<li><a href="/files/${f.id}" target="_blank" rel="noopener">${esc(f.name)}</a> <span class="muted small">${size(f.size)} · ${new Date(f.at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })} · ${esc(f.user_name || f.user_email || "—")}</span>${ed ? `<form method="post" action="/files/${f.id}/delete" class="inline"><button type="submit" class="link-danger" data-confirm="${esc(`Убрать файл «${f.name}» из карточки сделки? Запись об этом останется в ленте.`)}">убрать</button></form>` : ""}</li>`).join("");
+  return `<section class="panel wide" id="docs">
+  <h2>Документы <span class="muted small">${m.files.length ? `файлов: ${m.files.length}` : "нет"}</span></h2>
+  ${rows ? `<ul class="plain docs">${rows}</ul>` : `<p class="muted">Документов нет.${ed ? " Добавьте отчётность клиента (PDF), договор, сканы — они будут здесь при каждом открытии сделки." : ""}</p>`}
+  <p class="actions">${ed ? `<label class="btn" for="up-${d.id}">Добавить файлы</label><input type="file" id="up-${d.id}" multiple hidden accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png">` : ""}${pdfs ? `<a class="btn" href="/calc#deal=${d.id}">Рассчитать класс по PDF сделки (${pdfs})</a>` : ""}</p>
+  ${ed ? `<p class="status" id="up-status" role="status"></p>
+<script>
+(() => {
+  const input = document.getElementById("up-${d.id}"), st = document.getElementById("up-status");
+  input.addEventListener("change", async () => {
+    const list = [...input.files];
+    for (let i = 0; i < list.length; i++) {
+      st.className = "status"; st.textContent = "Загрузка " + (i + 1) + " из " + list.length + ": «" + list[i].name + "»…";
+      try {
+        const r = await fetch("/deals/${d.id}/files", { method: "POST", headers: { "x-file-name": encodeURIComponent(list[i].name) }, body: list[i] });
+        if (!r.ok) { st.className = "status err"; st.textContent = "«" + list[i].name + "» не загружен: " + ((await r.json().catch(() => ({}))).error?.message || "ошибка " + r.status); input.value = ""; return; }
+      } catch (e) { st.className = "status err"; st.textContent = "Нет связи с сервером — «" + list[i].name + "» не загружен. Повторите."; input.value = ""; return; }
+    }
+    location.hash = "docs"; location.reload();
+  });
+})();
+</script>` : ""}
+</section>`;
+}
+
 // Архив — внизу карточки, отдельно от частых действий; перенос с подтверждением, возврат — без
 function archiveZone(d) {
   return d.archived_at
@@ -330,6 +360,7 @@ ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(
   </section>
   ${m.tasks ? VT.dealTasks(d, m) : ""}
   ${feed(d, m)}
+  ${m.files ? docsBlock(d, m, ed) : ""}
   ${d.client_code ? "" : clientBlock(d, m)}
   ${ed ? editForm(d, m.form) : ""}
   ${m.canEdit ? archiveZone(d) : ""}

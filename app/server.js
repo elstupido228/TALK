@@ -19,6 +19,7 @@ const VL = require("./views-list");
 const DF = require("./deal-filter");
 const STAGES = require("./stages");
 const { createTasks } = require("./tasks");
+const { createFiles, sizeText } = require("./files");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
 const { toDocs, annualClasses } = require("./check");
@@ -74,6 +75,8 @@ function createApp(db, opts = {}) {
   const clients = createClients(db);
   const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary(), clients });
   const tasks = createTasks(db, deals);
+  // документы сделок — рядом с базой (DATA_DIR/files); в тестах — отдельный каталог (opts.filesDir)
+  const files = createFiles(db, deals, opts.filesDir || path.join(process.env.DATA_DIR || path.join(__dirname, "..", "data"), "files"));
   // исполнители задач — те, кто может вести сделки
   const editors = () => auth.listUsers().filter((u) => !u.disabled && can(u, "deals.edit"));
   // ближайшая открытая задача по каждой сделке (для карточек канбана)
@@ -152,7 +155,7 @@ function createApp(db, opts = {}) {
   async function dealModel(user, deal) {
     const client = deal.inn ? await checkClient(user, deal.inn) : null;
     const classes = client?.fin?.data?.reports?.length ? annualClasses(client.fin.data) : [];
-    return { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit"), client, classes, clientRec: deal.client_id ? clients.get(deal.client_id) : null, tasks: tasks.byDeal(deal.id), users: editors(), user };
+    return { deal, events: deals.events(deal.id), canEdit: can(user, "deals.edit"), client, classes, clientRec: deal.client_id ? clients.get(deal.client_id) : null, tasks: tasks.byDeal(deal.id), users: editors(), user, files: files.byDeal(deal.id) };
   }
 
   async function launchDeal(user, f) {
@@ -263,6 +266,14 @@ function createApp(db, opts = {}) {
         const d = deals.move(+dm[1], body.stage, user.id);
         return d ? H.sendJson(res, 200, { deal: d }) : H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
       }
+      // PDF сделки для калькулятора (/calc#deal=…): список файлов и реквизиты клиента
+      const df = p.match(/^\/api\/deals\/(\d+)\/files$/);
+      if (df && req.method === "GET") {
+        if (!can(user, "calc.use")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });
+        const d = deals.get(+df[1]);
+        if (!d) return H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
+        return H.sendJson(res, 200, { deal: { id: d.id, title: d.title, inn: d.inn }, files: files.byDeal(d.id).map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, url: `/files/${f.id}` })) });
+      }
       if (p === "/api/connectors" && req.method === "GET") return H.sendJson(res, 200, { connectors: connectors.describe() });
       const m = p.match(/^\/api\/connectors\/([a-z0-9_-]+)\/([a-z0-9_-]+)$/);
       if (m && req.method === "GET" && connectors.has(m[1])) {
@@ -291,7 +302,7 @@ function createApp(db, opts = {}) {
         return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups, byInn: e.byInn } }));
       }
     }
-    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment|\/tasks|\/owner|\/archive|\/unarchive)?$/);
+    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment|\/tasks|\/owner|\/archive|\/unarchive|\/files)?$/);
     if (dp) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
@@ -338,6 +349,21 @@ function createApp(db, opts = {}) {
         deals.comment(deal.id, user.id, text);
         if (next) tasks.add(deal.id, { ...next, assignee_id: user.id }, user.id);
         return done(res, `/deals/${deal.id}#feed`, next ? `Комментарий добавлен, задача «Следующий контакт» — на ${next.due.split("-").reverse().join(".")}.` : "Комментарий добавлен.");
+      }
+      // загрузка документа: тело — сам файл, имя — в заголовке X-File-Name (encodeURIComponent); ответ JSON
+      if (dp[2] === "/files" && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });
+        if (deal.archived_at) return H.sendJson(res, 409, { error: { code: "archived", message: "Сделка в архиве." } });
+        let name = "";
+        try { name = decodeURIComponent(req.headers["x-file-name"] || ""); } catch {}
+        const pre = files.check(name, Number(req.headers["content-length"]) || 1);
+        if (pre.error) return H.sendJson(res, 400, { error: { code: "bad_file", message: pre.error } });
+        const body = await H.readBody(req, files.MAX_BYTES).catch((e) => { if (e.status === 413) return null; throw e; });
+        if (!body) return H.sendJson(res, 413, { error: { code: "too_large", message: `Файл больше ${sizeText(files.MAX_BYTES)}.` } });
+        const ok = files.check(name, body.length);
+        if (ok.error) return H.sendJson(res, 400, { error: { code: "bad_file", message: ok.error } });
+        const f = files.add(deal.id, { name: ok.name, mime: ok.mime, body }, user.id);
+        return H.sendJson(res, 201, { file: { id: f.id, name: f.name, size: f.size } }, { "set-cookie": `flash=${encodeURIComponent(`Файл добавлен: ${f.name}`)}; Path=/; Max-Age=60; SameSite=Lax` });
       }
       if ((dp[2] === "/archive" || dp[2] === "/unarchive") && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
@@ -411,6 +437,24 @@ function createApp(db, opts = {}) {
           if (!e.status) throw e;
           return H.send(res, 400, VC.clientPage(user, { client, deals: deals.byClient(client.id), canEdit: true, form: { values: f, errors: e.errors } }));
         }
+      }
+    }
+
+    // Документ сделки: просмотр или скачивание; удаление из карточки (мягкое) — с подтверждением на странице
+    const fp = p.match(/^\/files\/(\d+)(\/delete)?$/);
+    if (fp) {
+      if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
+      if (!can(user, "pages.view")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав для этой страницы."));
+      const f = files.get(+fp[1]);
+      if (!f || f.deleted_at) return H.send(res, 404, V.errorPage(user, 404, "Файл не найден или удалён из карточки сделки."));
+      if (!fp[2] && req.method === "GET") {
+        const inline = /^(application\/pdf|image\/)/.test(f.mime);
+        return H.send(res, 200, files.read(f), f.mime, { "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(f.name)}`, "x-content-type-options": "nosniff" });
+      }
+      if (fp[2] && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        files.remove(f.id, user.id);
+        return done(res, `/deals/${f.deal_id}#docs`, `Файл «${f.name}» убран из карточки сделки.`);
       }
     }
 
