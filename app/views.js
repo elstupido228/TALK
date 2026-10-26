@@ -183,12 +183,17 @@ document.getElementById("toCalc").onclick = () => {
     }
     const side = m.side || {};
     const sb = (title, r, render) => `<div class="card"><h3>${title} <span class="badge target">песочница</span></h3>${r ? render(r.data) : '<p class="muted">нет ответа</p>'}</div>`;
-    const sides = `<h2>Другие источники</h2><p class="muted small">Контур.Фокус, СПАРК, 1С и CRM подключены только интерфейсом: ответы условные.</p>
+    // сделки портала по этому ИНН — вместо условной заявки из песочницы CRM
+    const pd = m.portal?.deals || [], pc = m.portal?.client;
+    const stageName = (d) => (d.archived_at ? "архив" : d.outcome ? "отказ" : STAGES.find((s) => s.id === d.stage)?.title || d.stage);
+    const portal = `<h2>Сделки в портале</h2>${pd.length
+      ? `<ul class="plain">${pd.map((d) => `<li><a href="/deals/${d.id}">Сделка №${d.id}</a> — ${esc(stageName(d))}${d.amount_mln ? `, ${nf(d.amount_mln)} млн руб.` : ""}${d.asset ? `, ${esc(d.asset)}` : ""}</li>`).join("")}</ul>${pc ? `<p><a href="/clients/${pc.id}">Карточка клиента «${esc(pc.name)}» →</a></p>` : ""}`
+      : `<p class="muted">По этому ИНН сделок в портале нет.${can(user, "deals.edit") ? ` <a href="/?inn=${esc(m.inn)}#new">Создать сделку</a>` : ""}</p>`}`;
+    const sides = `${portal}<h2>Другие источники</h2><p class="muted small">Контур.Фокус, СПАРК и 1С подключены только интерфейсом: ответы условные.</p>
 <div class="grid2">
 ${sb("Контур.Фокус", side.kontur, (d) => `<p>Арбитраж (ответчик, 12 мес.): ${d.arbitration.as_defendant_12m} дел на ${nf(d.arbitration.sum_mln)} млн руб.</p><p>Исполнительные производства: ${d.fssp.open}</p>${d.flags.length ? `<p>${d.flags.map(esc).join("; ")}</p>` : ""}`)}
 ${sb("СПАРК", side.spark, (d) => `<p>Должная осмотрительность: ${d.due_diligence_index} · платёжная дисциплина: ${d.payment_discipline_index} · финансовый риск: ${d.financial_risk_index}</p>`)}
 ${sb("1С", side.onec, (d) => `<p>${d.contracts.map((c) => `${esc(c.number)} — ${esc(c.asset)}, ${nf(c.amount_mln)} млн руб.${c.overdue_days ? `, просрочка ${c.overdue_days} дн.` : ""}`).join("<br>")}</p>`)}
-${sb("CRM", side.crm, (d) => `<p>${d.applications.map((a) => `${esc(a.id)}: ${esc(a.stage)}, ${esc(a.asset)}, ${nf(a.amount_mln)} млн руб.`).join("<br>")}</p>`)}
 </div>`;
     body = card + fin + sides;
   }

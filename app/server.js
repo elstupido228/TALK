@@ -198,7 +198,8 @@ function createApp(db, opts = {}) {
     const [party, fin, kontur, spark, onec, crm] = await Promise.all([call("dadata", "party"), call("fin", "reports"), call("kontur", "check"), call("spark", "risk"), call("onec", "contracts"), call("crm", "applications")]);
     if (party.failed) return { ...m, error: `DaData: ${party.failed}` };
     const ok = (r) => (r.failed ? null : r);
-    return { ...m, party, fin: ok(fin), classes: fin.data?.reports ? annualClasses(fin.data) : [], docs: fin.data?.reports ? toDocs(fin.data) : [], side: { kontur: ok(kontur), spark: ok(spark), onec: ok(onec), crm: ok(crm) } };
+    const portal = { client: clients.byInn(inn), deals: deals.list().filter((d) => d.inn === inn) };
+    return { ...m, party, fin: ok(fin), classes: fin.data?.reports ? annualClasses(fin.data) : [], docs: fin.data?.reports ? toDocs(fin.data) : [], side: { kontur: ok(kontur), spark: ok(spark), onec: ok(onec), crm: ok(crm) }, portal };
   }
 
   // Страницы для вошедших: [путь, право, рендер]

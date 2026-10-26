@@ -124,7 +124,11 @@ test("страница «Проверка по ИНН» и «Источники 
   assert.match(html, /<a href="\/check" aria-current="page">/);
   assert.match(html, /talk-calc-import/);
   assert.ok(!/<\/script>[^]*"docs"[^]*<\/script>/.test(html.split("talk-calc-import")[1].split("location.href")[0]), "данные не обрывают скрипт");
-  for (const t of ["Контур.Фокус", "СПАРК", "1С", "CRM"]) assert.ok(html.includes(t), t);
+  for (const t of ["Контур.Фокус", "СПАРК", "1С"]) assert.ok(html.includes(t), t);
+  // вместо условной заявки CRM — сделки портала по этому ИНН (у демо-сделки «Альфа-Пример» ИНН 0000000001)
+  assert.match(html, /<h2>Сделки в портале<\/h2><ul class="plain"><li><a href="\/deals\/\d+">Сделка №\d+<\/a> — Решение, 60 млн руб\./);
+  assert.match(html, /Карточка клиента «ООО «Альфа-Пример»» →/);
+  assert.ok(!html.includes("З-3792") && !/<h3>CRM/.test(html), "условной заявки CRM нет");
   [st, html] = await get("/check?inn=12");
   assert.match(html, /ИНН — 10 или 12 цифр/);
   [st, html] = await get("/sources");
