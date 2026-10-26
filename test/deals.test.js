@@ -43,7 +43,7 @@ test("демо-наполнение: 14 условных сделок во вс�
 });
 
 test("запуск сделки по ИНН: заявка, карточка из DaData, предварительный класс, история", async () => {
-  const r = await post("/deals", team, { inn: "0000000002", asset: "Спецтехника", amount: "25,5" });
+  const r = await post("/deals", team, { inn: "0000000002", asset: "Спецтехника", amount: "25,5", dup_ok: "1" });
   assert.strictEqual(r.status, 303);
   const loc = r.headers.get("location");
   assert.match(loc, /^\/deals\/\d+$/);
@@ -96,7 +96,7 @@ test("смена стадии: перетаскивание (API) и форма;
 });
 
 test("карточка сделки: блок клиента (DaData, отчётность по годам) и форма правки", async () => {
-  const loc = (await post("/deals", team, { inn: "0000000003", asset: "Оборудование", amount: "12" })).headers.get("location");
+  const loc = (await post("/deals", team, { inn: "0000000003", asset: "Оборудование", amount: "12", dup_ok: "1" })).headers.get("location");
   const html = (await get(loc, team))[1];
   assert.match(html, /<h2>Клиент<\/h2>/);
   assert.match(html, /<dt>Адрес<\/dt><dd>условный адрес, г\. Москва<\/dd>/);
@@ -194,4 +194,26 @@ test("отказ: при стоп-факторе — главное действ
   html = (await get(`/deals/${gamma}`, team))[1];
   assert.match(html, /Сделка возвращена в работу/);
   assert.ok(!html.includes("refused-note"));
+});
+
+test("запуск сделки: дубль по ИНН — предупреждение со ссылками; пустая заявка и буквы в ИНН — ошибка", async () => {
+  // у демо-сделки «Бета-Пример» ИНН 0000000002
+  let r = await post("/deals", team, { inn: "0000000002", asset: "Оборудование", amount: "7" });
+  assert.strictEqual(r.status, 409);
+  let html = await r.text();
+  assert.match(html, /По ИНН 0000000002 уже есть сделки в работе: <a href="\/deals\/\d+">ООО «Бета-Пример»<\/a>/);
+  assert.match(html, /<button type="submit" name="dup_ok" value="1">Всё равно создать новую сделку<\/button>/);
+  assert.match(html, /value="7"/, "введённая сумма сохраняется");
+  r = await post("/deals", team, { inn: "0000000002", asset: "Оборудование", amount: "7", dup_ok: "1" });
+  assert.strictEqual(r.status, 303);
+  // ни ИНН, ни предмета — не создаётся
+  r = await post("/deals", team, { inn: "", asset: "", amount: "5" });
+  assert.strictEqual(r.status, 400);
+  assert.match(await r.text(), /Укажите ИНН клиента или выберите предмет лизинга/);
+  // буквы в ИНН не вырезаются молча
+  r = await post("/deals", team, { inn: "77O7083893", asset: "Оборудование" });
+  assert.strictEqual(r.status, 400);
+  assert.match(await r.text(), /ИНН — только цифры/);
+  // пробелы в ИНН допустимы
+  assert.strictEqual((await post("/deals", team, { inn: "7707 083 893", asset: "Оборудование" })).status, 303);
 });

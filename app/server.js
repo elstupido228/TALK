@@ -72,8 +72,9 @@ function createApp(db, opts = {}) {
   // Поля сделки из формы (запуск и правка). Ошибка — {status: 400, field}
   function dealFields(f) {
     const bad = (field, message) => Object.assign(new Error(message), { status: 400, field });
+    if (/[^\d\s]/.test(String(f.inn || ""))) throw bad("inn", "ИНН — только цифры: 10 для организации, 12 для ИП.");
     const inn = String(f.inn || "").replace(/\D/g, "");
-    if (inn && !/^(\d{10}|\d{12})$/.test(inn)) throw bad("inn", "ИНН — 10 или 12 цифр.");
+    if (inn &&!/^(\d{10}|\d{12})$/.test(inn)) throw bad("inn", "ИНН — 10 или 12 цифр.");
     const num = (x) => (x === undefined || String(x).trim() === "" ? null : Number(String(x).replace(/\s/g, "").replace(",", ".")));
     const amount = num(f.amount);
     if (amount !== null && !(amount > 0 && amount < 1e6)) throw bad("amount", "Сумма — положительное число, млн руб.");
@@ -111,6 +112,10 @@ function createApp(db, opts = {}) {
 
   async function launchDeal(user, f) {
     const v = dealFields(f);
+    if (!v.inn && !v.asset) throw Object.assign(new Error("Укажите ИНН клиента или выберите предмет лизинга."), { status: 400, field: "asset" });
+    // по этому ИНН уже есть сделки в работе — новая создаётся только после явного подтверждения
+    const dups = v.inn && f.dup_ok !== "1" ? deals.list().filter((d) => d.inn === v.inn && !d.outcome) : [];
+    if (dups.length) throw Object.assign(new Error("По этому ИНН уже есть сделки в работе."), { status: 409, field: "inn", dups });
     let sum = { title: v.inn ? `ИНН ${v.inn}` : `Новая заявка${v.asset ? ` · ${v.asset}` : ""}`, cls: null, note: v.inn ? null : "ИНН ещё не указан" };
     if (v.inn) sum = checkSummary(v.inn, await checkClient(user, v.inn));
     return deals.create({ ...v, title: sum.title, cls: sum.cls, note: sum.note, userId: user.id });
@@ -220,7 +225,7 @@ function createApp(db, opts = {}) {
       } catch (e) {
         if (!e.status) throw e;
         // ошибка ввода — сообщением в форме на дашборде, введённые значения сохраняются
-        return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, error: e.message, field: e.field } }));
+        return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, error: e.message, field: e.field, dups: e.dups } }));
       }
     }
     const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen)?$/);

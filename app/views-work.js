@@ -19,11 +19,14 @@ const ago = (t) => { const d = daysAgo(t); return d === 0 ? "сегодня" : `
 // form: {values, error, field} — после неудачной отправки
 function newDealForm(form = {}) {
   const v = form.values || {}, bad = (k) => (form.field === k ? ' aria-invalid="true"' : "");
-  return `${form.error ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals">
+  // дубль по ИНН: ссылки на сделки и кнопка внутри формы — введённые значения уходят вместе с подтверждением.
+  // Блок стоит после «Запустить сделку»: Enter в поле отправляет форму основной кнопкой, а не подтверждением дубля
+  const dups = form.dups?.length ? `<div class="notice dups" role="alert"><p>По ИНН ${esc(v.inn)} уже есть сделки в работе: ${form.dups.map((d) => `<a href="/deals/${d.id}">${esc(d.title)}</a> (${esc(STAGES.find((s) => s.id === d.stage)?.title || d.stage)}${d.amount_mln ? `, ${mln(d.amount_mln)}` : ""})`).join("; ")}.</p><p>Откройте нужную сделку или создайте ещё одну, если это новая заявка того же клиента.</p><button type="submit" name="dup_ok" value="1">Всё равно создать новую сделку</button></div>` : "";
+  return `${form.error && !dups ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals">
   <div class="f"><label for="nd-inn">ИНН клиента</label><input id="nd-inn" name="inn" inputmode="numeric" autocomplete="off" placeholder="необязательно" value="${esc(v.inn || "")}"${bad("inn")}></div>
-  <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset">${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></div>
+  <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset"${bad("asset")}><option value="">— выберите —</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></div>
   <div class="f"><label for="nd-amount">Сумма, млн руб.</label><input id="nd-amount" name="amount" inputmode="decimal" placeholder="например, 25" value="${esc(v.amount || "")}"${bad("amount")}></div>
-  <button type="submit">Запустить сделку</button>
+  <button type="submit">Запустить сделку</button>${dups}
 </form>
 <p class="muted small">Сделка появится в колонке «Заявка». Если указан ИНН, портал сразу проверит клиента (DaData, ГИР БО) и покажет предварительный класс.</p>`;
 }
