@@ -274,3 +274,15 @@ form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }
 .list-table .r { text-align: right; }
 .list-table tr.muted td { color: var(--muted); }
 .empty { padding: 16px; background: var(--gray-bg); border-radius: 8px; }
+
+/* Лента сделки */
+.comment-form { display: grid; gap: 8px; margin: 8px 0 14px; }
+.comment-form textarea { font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); resize: vertical; }
+.comment-form button { justify-self: start; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; padding: 9px 16px; border-radius: 8px; }
+.feed { list-style: none; margin: 0; padding: 0; }
+.feed li { padding: 8px 0; border-top: 1px solid var(--line); }
+.feed li:first-child { border-top: 0; }
+.feed li p { margin: 0 0 2px; white-space: pre-wrap; }
+.feed li.sys p { color: var(--muted); font-size: 0.92rem; }
+.feed li.comment p { background: var(--gray-bg); border-radius: 8px; padding: 8px 10px; color: var(--text); }
+.feed li.task p::before { content: "Задача · "; font-weight: 600; }

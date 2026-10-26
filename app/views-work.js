@@ -216,10 +216,27 @@ ${c ? `<div class="notice" role="alert"><p>Пока вы редактирова�
   <label>Предмет лизинга<select name="asset"><option value="">не указан</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select></label>
   <label for="ed-amount">Сумма, млн руб.<input id="ed-amount" name="amount" inputmode="decimal" value="${esc(v.amount ?? "")}"${E.bad("amount", "ed-amount")}>${E.msg("amount", "ed-amount")}</label>
   <label for="ed-term">Срок, мес.<input id="ed-term" name="term" inputmode="numeric" value="${esc(v.term ?? "")}"${E.bad("term", "ed-term")}>${E.msg("term", "ed-term")}</label>
-  <label class="wide">Комментарий<textarea name="comment" rows="2" maxlength="500">${esc(v.comment ?? "")}</textarea></label>
+  <label class="wide">Примечание к сделке (видно под заголовком; звонки и договорённости — в ленте)<textarea name="comment" rows="2" maxlength="500">${esc(v.comment ?? "")}</textarea></label>
   <p class="muted small wide">При смене ИНН клиент будет проверен заново. Все изменения попадают в историю.</p>
   <button type="submit" data-busy-text="Сохраняю…">Сохранить</button>
 </form></details>`;
+}
+
+// Лента сделки: комментарии (результаты звонков, договорённости) и служебные записи — изменения, стадии, проверки.
+// Новые сверху; комментарий выделен, у каждой записи — время и автор. m.feed: {error} после пустой отправки.
+function feed(d, m) {
+  const when = (t) => new Date(t).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const who = (e) => esc(e.user_name || e.user_email || "система");
+  const nComments = m.events.filter((e) => e.kind === "comment").length;
+  return `<section class="panel wide" id="feed">
+  <h2>Лента <span class="muted small">${nComments ? `комментариев: ${nComments} · ` : ""}записей: ${m.events.length}</span></h2>
+  ${m.canEdit && !d.archived_at ? `<form class="comment-form" method="post" action="/deals/${d.id}/comment" data-draft>
+    ${m.feed?.error ? `<p class="error" role="alert">${esc(m.feed.error)}</p>` : ""}
+    <label class="sr" for="cm-text">Комментарий</label><textarea id="cm-text" name="text" rows="2" maxlength="2000" placeholder="Результат звонка, договорённости, следующий шаг"${m.feed?.error ? ' aria-invalid="true"' : ""}></textarea>
+    <button type="submit" data-busy-text="Добавляю…">Добавить комментарий</button>
+  </form>` : ""}
+  <ul class="feed">${m.events.map((e) => `<li class="${e.kind || "sys"}"><p>${esc(e.text)}</p><span class="muted small">${when(e.at)} · ${who(e)}</span></li>`).join("")}</ul>
+</section>`;
 }
 
 // Отказ: при стоп-факторе — главное действие стадии (форма раскрыта), иначе — свёрнутая форма.
@@ -282,12 +299,9 @@ ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(
       <button type="submit" name="stage" value="__any" data-confirm="${esc(`Перевести сделку «${d.title}» со стадии «${st.title}» на «{select}»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.`)}">Сменить</button>
     </form>` : ""}
   </section>
+  ${feed(d, m)}
   ${d.client_code ? "" : clientBlock(d, m)}
   ${m.canEdit ? editForm(d, m.form) : ""}
-  <section class="panel">
-    <h2>История</h2>
-    <ul class="list hist">${m.events.map((e) => `<li><span>${esc(e.text)}<br><span class="muted small">${new Date(e.at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}${e.user_name || e.user_email ? ` · ${esc(e.user_name || e.user_email)}` : ""}</span></span></li>`).join("")}</ul>
-  </section>
 </div>`,
   });
 }

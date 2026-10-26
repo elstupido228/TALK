@@ -100,7 +100,7 @@ function createApp(db, opts = {}) {
 
   // Ответ после успешного действия: перенаправление и короткое сообщение (cookie flash читает скрипт форм)
   const done = (res, to, msg) => H.redirect(res, to, { "set-cookie": `flash=${encodeURIComponent(msg)}; Path=/; Max-Age=60; SameSite=Lax` });
-  const FIELD_LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма", term_months: "срок", comment: "комментарий", client: "клиент" };
+  const FIELD_LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма", term_months: "срок", comment: "примечание", client: "клиент" };
 
   // Одноразовые токены формы запуска: повторная отправка той же формы (двойной клик, повтор после обрыва связи)
   // не создаёт вторую сделку, а ведёт к уже созданной. null — сделка ещё создаётся.
@@ -275,7 +275,7 @@ function createApp(db, opts = {}) {
         return H.send(res, e.status, W.dashboardPage(user, { ...(await homeModel(user)), form: { values: f, errors: e.errors, error: e.errors ? null : e.message, dups: e.dups, byInn: e.byInn } }));
       }
     }
-    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen)?$/);
+    const dp = p.match(/^\/deals\/(\d+)(\/stage|\/edit|\/recheck|\/refuse|\/reopen|\/comment)?$/);
     if (dp) {
       if (!user) return H.redirect(res, "/login?next=" + encodeURIComponent(p));
       const deal = deals.get(+dp[1]);
@@ -310,6 +310,13 @@ function createApp(db, opts = {}) {
           if (!e.status) throw e;
           return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), form: { values: f, errors: e.errors } }));
         }
+      }
+      if (dp[2] === "/comment" && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
+        const text = String((await H.readForm(req)).text || "").trim().slice(0, 2000);
+        if (!text) return H.send(res, 400, W.dealPage(user, { ...(await dealModel(user, deal)), feed: { error: "Напишите комментарий." } }));
+        deals.comment(deal.id, user.id, text);
+        return done(res, `/deals/${deal.id}#feed`, "Комментарий добавлен.");
       }
       if ((dp[2] === "/refuse" || dp[2] === "/reopen") && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));

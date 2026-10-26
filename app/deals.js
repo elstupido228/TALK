@@ -78,6 +78,8 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     db.exec("ALTER TABLE deals ADD COLUMN outcome TEXT; ALTER TABLE deals ADD COLUMN outcome_reason TEXT; ALTER TABLE deals ADD COLUMN outcome_at INTEGER; ALTER TABLE deals ADD COLUMN stop_factor TEXT");
     db.exec(`UPDATE deals SET stop_factor = note WHERE demo = 1 AND note LIKE 'Класс 3 на всех четырёх датах%'`);
   }
+  // тип записи ленты: comment — комментарий пользователя, task — задача; без типа — служебная запись
+  if (!new Set(db.prepare("PRAGMA table_info(deal_events)").all().map((c) => c.name)).has("kind")) db.exec("ALTER TABLE deal_events ADD COLUMN kind TEXT");
   const linkOld = !cols.has("client_id");
   if (linkOld) db.exec("ALTER TABLE deals ADD COLUMN client_id INTEGER REFERENCES clients(id)");
   const q = {
@@ -86,6 +88,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     setClient: db.prepare("UPDATE deals SET client_id = ?, title = ?, updated_at = ? WHERE id = ?"),
     byClient: db.prepare("SELECT * FROM deals WHERE client_id = ? ORDER BY updated_at DESC"),
     event: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, from_stage, to_stage, text) VALUES (?,?,?,?,?,?)"),
+    comment: db.prepare("INSERT INTO deal_events (deal_id, at, user_id, text, kind) VALUES (?,?,?,?,'comment')"),
     all: db.prepare("SELECT * FROM deals ORDER BY updated_at DESC"),
     get: db.prepare("SELECT * FROM deals WHERE id = ?"),
     events: db.prepare("SELECT e.*, u.name user_name, u.email user_email FROM deal_events e LEFT JOIN users u ON u.id = e.user_id WHERE deal_id = ? ORDER BY at DESC, e.id DESC"),
@@ -134,6 +137,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     get: (id) => q.get.get(id) || null,
     events: (id) => q.events.all(id),
     note: (id, userId, text) => q.event.run(id, Date.now(), userId, null, null, text),
+    comment: (id, userId, text) => q.comment.run(id, Date.now(), userId, text),
     // результат проверки клиента (DaData, ГИР БО): название, предварительный класс, пояснение
     setCheck(id, { title, cls, note }, userId, text) {
       q.setCheck.run(title, cls, note, Date.now(), id);
@@ -143,7 +147,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     edit(id, v, userId) {
       const d = q.get.get(id);
       if (!d) return null;
-      const LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма, млн", term_months: "срок, мес.", comment: "комментарий" };
+      const LABEL = { inn: "ИНН", asset: "предмет", amount_mln: "сумма, млн", term_months: "срок, мес.", comment: "примечание" };
       const changed = Object.keys(LABEL).filter((k) => (d[k] ?? null) !== (v[k] ?? null));
       if (!changed.length) return [];
       q.edit.run(v.inn, v.asset, v.amount_mln, v.term_months, v.comment, Date.now(), id);

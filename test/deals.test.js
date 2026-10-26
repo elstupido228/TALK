@@ -112,7 +112,7 @@ test("правка сделки: поля и история; ИНН указан
   let r = await post(`${loc}/edit`, team, { inn: "", asset: "Спецтехника", amount: "30", term: "36", comment: "Звонок клиенту в пятницу" });
   assert.strictEqual(r.status, 303);
   let html = (await get(loc, team))[1];
-  assert.match(html, /Изменено: предмет Оборудование → Спецтехника; сумма, млн 25\.5 → 30; срок, мес\. — → 36; комментарий — → «Звонок клиенту в пятницу»/);
+  assert.match(html, /Изменено: предмет Оборудование → Спецтехника; сумма, млн 25\.5 → 30; срок, мес\. — → 36; примечание — → «Звонок клиенту в пятницу»/);
   assert.match(html, /36 мес\./);
   assert.match(html, /<p class="comment">Звонок клиенту в пятницу<\/p>/);
   r = await post(`${loc}/edit`, team, { inn: "0000000001", asset: "Спецтехника", amount: "30", term: "36", comment: "Звонок клиенту в пятницу" });
@@ -255,7 +255,7 @@ test("правка поверх чужой: не перезаписываетс�
   const html = await r.text();
   assert.match(html, /Пока вы редактировали, сделку изменил/);
   assert.match(html, /<li>сумма: сейчас в сделке 20 млн, у вас 15 млн<\/li>/);
-  assert.match(html, /<li>комментарий: сейчас в сделке «первая вкладка», у вас —<\/li>/);
+  assert.match(html, /<li>примечание: сейчас в сделке «первая вкладка», у вас —<\/li>/);
   assert.match((await get(loc, team))[1], /20 млн руб\./, "значение первой вкладки на месте");
   // в форме конфликта orig — текущие значения: повторная отправка сохраняет
   const orig2 = html.match(/name="orig" value="([^"]+)"/)[1].replace(/&quot;/g, '"');
@@ -318,4 +318,19 @@ test("клиенты: наименование и контакты при соз
   assert.match((await get(r.headers.get("location"), team))[1], /Клиент: <a href="\/clients\/\d+">ООО «Альфа-Пример»<\/a>/);
   // демо-сделки привязаны к клиентам
   assert.match((await get("/clients", team))[1], /ООО «Гамма-Пример»/);
+});
+
+test("лента: комментарии отдельными записями с автором, служебные записи рядом", async () => {
+  const loc = (await post("/deals", team, { client_name: "ООО «Лента»", asset: "Оборудование" })).headers.get("location");
+  let r = await post(`${loc}/comment`, team, { text: "Звонок: клиент ждёт КП" });
+  assert.strictEqual(r.status, 303);
+  assert.strictEqual(r.headers.get("location"), `${loc}#feed`);
+  await post(`${loc}/comment`, team, { text: "Перезвонить 28.10" });
+  const html = (await get(loc, team))[1];
+  assert.match(html, /<li class="comment"><p>Перезвонить 28\.10<\/p><span class="muted small">[\d.]+, [\d:]+ · team@example\.test<\/span><\/li><li class="comment"><p>Звонок: клиент ждёт КП<\/p>/);
+  assert.match(html, /<li class="sys"><p>Сделка создана на стадии «Заявка»<\/p>/);
+  assert.match(html, /комментариев: 2/);
+  assert.strictEqual((await post(`${loc}/comment`, team, { text: "  " })).status, 400);
+  assert.strictEqual((await post(`${loc}/comment`, curator, { text: "x" })).status, 403);
+  assert.ok(!(await get(loc, curator))[1].includes('action="' + loc + '/comment"'), "куратору форма комментария не показывается");
 });
