@@ -326,7 +326,7 @@ function dealPage(user, m) {
   const actions = [];
   if (["application", "assessment", "decision"].includes(d.stage)) {
     if (d.inn) actions.push(`<a class="btn${d.stage !== "application" ? "" : " primary"}" href="/check?inn=${esc(d.inn)}">Проверка по ИНН</a>`);
-    actions.push(`<a class="btn${d.stage === "assessment" && !d.stop_factor ? " primary" : ""}" href="/calc#upload">Расчёт класса по отчётности (PDF)</a>`);
+    actions.push(`<a class="btn${d.stage === "assessment" && !d.stop_factor ? " primary" : ""}" href="/calc#deal=${d.id}">Расчёт класса по отчётности (PDF)</a>`);
   }
   if (d.client_code) actions.push(`<a class="btn primary" href="/monitoring#card=${encodeURIComponent(d.client_code)}">Карточка клиента в мониторинге</a>`);
   if (d.stage === "monitoring" && !d.client_code) actions.push(`<a class="btn" href="/monitoring">Мониторинг портфеля</a>`);

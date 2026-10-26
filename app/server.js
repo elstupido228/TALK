@@ -267,6 +267,24 @@ function createApp(db, opts = {}) {
         return d ? H.sendJson(res, 200, { deal: d }) : H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
       }
       // PDF сделки для калькулятора (/calc#deal=…): список файлов и реквизиты клиента
+      // результат калькулятора — в сделку: {classes: [{date, cls}], title, sub, stop}
+      const dc = p.match(/^\/api\/deals\/(\d+)\/class$/);
+      if (dc && req.method === "POST") {
+        if (!can(user, "deals.edit")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });
+        const d = deals.get(+dc[1]);
+        if (!d) return H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
+        let b = null;
+        try { b = JSON.parse((await H.readBody(req, 8192)).toString("utf8")); } catch {}
+        const cl = Array.isArray(b?.classes) ? b.classes.filter((c) => /^\d{4}-\d{2}-\d{2}$/.test(c?.date) && [1, 2, 3].includes(c?.cls)) : [];
+        if (!cl.length || cl.length > 5 || typeof b.title !== "string") return H.sendJson(res, 400, { error: { code: "bad_request", message: "Нужны классы по датам и заключение." } });
+        const last = [...cl].sort((x, y) => y.date.localeCompare(x.date))[0];
+        const dt = (s) => s.split("-").reverse().join(".");
+        const title = b.title.slice(0, 100), sub = String(b.sub || "").slice(0, 300);
+        const stop = b.stop ? "Класс 3 на всех четырёх датах — п. 14.1.6" : null;
+        deals.setClass(d.id, { cls: last.cls, note: `${title} (калькулятор, ${dt(last.date)})`, stop }, user.id,
+          `Расчёт класса: ${cl.map((c) => `${dt(c.date)} — ${c.cls}`).join(", ")}. Заключение: ${title}${sub ? `. ${sub}` : ""}`);
+        return H.sendJson(res, 200, { ok: true, cls: last.cls, url: `/deals/${d.id}` }, { "set-cookie": `flash=${encodeURIComponent(`Класс ${last.cls} из калькулятора сохранён в сделке`)}; Path=/; Max-Age=60; SameSite=Lax` });
+      }
       const df = p.match(/^\/api\/deals\/(\d+)\/files$/);
       if (df && req.method === "GET") {
         if (!can(user, "calc.use")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Недостаточно прав." } });

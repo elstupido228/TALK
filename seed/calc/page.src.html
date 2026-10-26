@@ -38,6 +38,8 @@ header.top .meta{display:flex;flex-direction:column;gap:4px;min-width:0}
 .panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:baseline}
 .btn{font:500 14px var(--f-body);border-radius:var(--r);padding:9px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:transparent;color:var(--accent)}
+.back-deal{display:inline-block;margin-bottom:6px;color:var(--accent);text-decoration:none;font-size:14px}
+.to-deal{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn:focus-visible,.seg button:focus-visible,input:focus-visible,select:focus-visible,td.cell:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* Сводка */
@@ -245,6 +247,7 @@ const fmt=n=>n===null||n===undefined||n===""?"—":Number(n).toLocaleString("ru-
 const fk=(x,d=3)=>x===""?"ошибка деления":Number(x).toLocaleString("ru-RU",{minimumFractionDigits:d,maximumFractionDigits:d});
 
 let S={mode:"demo", docs:[], cons:null, V:{}, extra:{}, M:{}, ref:null, sel:null, pageImgs:{}, name:"", files:[]};
+let DEAL=null; // {id, title, inn} — калькулятор открыт из карточки сделки (/calc#deal=…)
 
 function refFromTemplate(bytes){ // значения ячеек ввода из заполненного файла «Пробивка»
   return JSZip.loadAsync(bytes).then(z=>z.file("xl/worksheets/sheet1.xml").async("string")).then(x=>{
@@ -454,6 +457,21 @@ function renderVerdict(R,AL){
   el.innerHTML=`<div class="v-main ${cls}"><span class="eyebrow">Заключение</span><div class="v-title">${title}</div><p class="small"></p><p class="small">${sub}</p><p class="small" style="color:${nAct?"var(--bad)":"var(--good)"}">${nAct?`Предупреждений, требующих реакции: ${nAct}. В целевой схеме пакет передаётся ассистенту.`:"Предупреждений, требующих реакции, нет. В целевой схеме пакет проходит без ассистента."}</p></div>
   <div class="v-dates">${R.res.map((r,i)=>R.empty[i]?`<div class="v-date"><span class="eyebrow">${fmtDate(d[i+1])}</span><span class="small muted">нет данных</span></div>`:`<div class="v-date"><span class="eyebrow">${fmtDate(d[i+1])}</span><span class="cls cls-${r.cls}">${r.cls}</span><span class="small muted num">S = ${r.S.toFixed(2).replace(".",",")}</span></div>`).join("")}</div>`;
   el.querySelector(".v-main p.small").textContent=nameStr;
+  // открыт из сделки, свой пакет (не пример) и все даты рассчитаны — результат можно сохранить в сделку
+  if(DEAL&&S.mode==="live"&&!emptyDates.length){
+    const p=document.createElement("p"); p.className="to-deal";
+    p.innerHTML='<button class="btn" type="button">Сохранить класс в сделку №'+DEAL.id+'</button> <span class="small"></span>';
+    el.querySelector(".v-main").append(p);
+    p.querySelector("button").onclick=async()=>{
+      const b=p.querySelector("button"), st=p.querySelector("span"); b.disabled=true; st.textContent="Сохраняю…";
+      try{
+        const r=await fetch("/api/deals/"+DEAL.id+"/class",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({classes:R.res.map((x,i)=>({date:d[i+1],cls:x.cls})),title,sub,stop:!main.pass})});
+        const j=await r.json().catch(()=>({}));
+        if(!r.ok) throw new Error(j.error?.message||"ошибка сервера "+r.status);
+        st.innerHTML='Сохранено: класс '+j.cls+'. <a href="'+j.url+'">Открыть сделку →</a>';
+      }catch(e){ st.textContent="Не сохранено: "+(e.message||e)+". Повторите."; b.disabled=false; }
+    };
+  }
 }
 // ---------- Предупреждения ----------
 const CONF={fns_receipt:"квитанция ФНС или оператора ЭДО о приёме",edo_signature:"электронная подпись, передан через ЭДО",paper_signature:"скан с подписью и печатью",none:"без подписи и подтверждения"};
@@ -633,12 +651,17 @@ const FROM_DEAL=/^#(upload|deal=\d+)$/.test(location.hash);
   if(view?.pkg&&DEMO_PKGS.some(p=>p.id===view.pkg)) $("pkgSel").value=view.pkg;
   setMode(location.hash==="#example"||(view?.mode==="demo"&&!FROM_DEAL)?"demo":"live");
 })();
-// Документы сделки (/calc#deal=<id>): PDF сделки сразу в пакет, ИНН и наименование — из сделки
+// Документы сделки (/calc#deal=<id>): PDF сделки сразу в пакет, ИНН и наименование — из сделки;
+// над заголовком — «← К сделке», в заключении — «Сохранить класс в сделку»
 (async function(){
   const m=location.hash.match(/^#deal=(\d+)$/); if(!m) return;
   try{
     const r=await fetch("/api/deals/"+m[1]+"/files"); if(!r.ok) throw new Error("ошибка сервера "+r.status);
     const j=await r.json(), pdf=j.files.filter(f=>f.mime==="application/pdf"), fl=[];
+    DEAL=j.deal;
+    const back=document.createElement("a"); back.href="/deals/"+DEAL.id; back.className="back-deal"; back.textContent="← К сделке №"+DEAL.id+" «"+DEAL.title+"»";
+    document.querySelector("h1").before(back);
+    renderAll();
     for(const f of pdf){ const b=await fetch(f.url); if(!b.ok) throw new Error("файл «"+f.name+"» недоступен"); fl.push(new File([await b.blob()],f.name,{type:"application/pdf"})); }
     addFiles(fl); $("innIn").value=j.deal.inn||""; $("nameIn").value=j.deal.title||"";
     $("status").textContent=`Сделка №${j.deal.id} «${j.deal.title}»: в пакет добавлены PDF сделки (${fl.length}). Нажмите «Извлечь данные».`;

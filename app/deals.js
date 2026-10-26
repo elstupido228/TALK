@@ -102,6 +102,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     setCheck: db.prepare("UPDATE deals SET title = ?, cls = ?, note = ?, updated_at = ? WHERE id = ?"),
     edit: db.prepare("UPDATE deals SET inn = ?, asset = ?, amount_mln = ?, term_months = ?, comment = ?, updated_at = ? WHERE id = ?"),
     outcome: db.prepare("UPDATE deals SET outcome = ?, outcome_reason = ?, outcome_at = ?, updated_at = ? WHERE id = ?"),
+    setCalc: db.prepare("UPDATE deals SET cls = ?, note = ?, stop_factor = ?, updated_at = ? WHERE id = ?"),
     archive: db.prepare("UPDATE deals SET archived_at = ?, updated_at = ? WHERE id = ?"),
   };
   const stageTitle = (id) => STAGES.find((s) => s.id === id)?.title || id;
@@ -157,6 +158,12 @@ function createDeals(db, { portfolio, clients = null } = {}) {
     setCheck(id, { title, cls, note }, userId, text) {
       q.setCheck.run(title, cls, note, Date.now(), id);
       if (text) q.event.run(id, Date.now(), userId, null, null, text);
+    },
+    // результат калькулятора: класс, заключение и стоп-фактор (класс 3 на всех четырёх датах); в ленту — text
+    setClass(id, { cls, note, stop }, userId, text) {
+      const now = Date.now();
+      q.setCalc.run(cls, note, stop, now, id);
+      q.event.run(id, now, userId, null, null, text);
     },
     // правка полей; в историю — список изменений. Возвращает изменённые поля.
     edit(id, v, userId) {

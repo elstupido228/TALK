@@ -480,3 +480,20 @@ test("документы сделки: загрузка, просмотр, не�
   assert.strictEqual((await fetch(base + `/files/${f.id}`, { headers: { cookie: team } })).status, 404);
   assert.match((await get(loc, team))[1], /Файл удалён из карточки: Баланс 2025\.pdf/);
 });
+
+test("калькулятор → сделка: класс, заключение и стоп-фактор сохраняются; кнопка расчёта ведёт с номером сделки", async () => {
+  const loc = (await post("/deals", team, { client_name: "ООО «Расчёт»", asset: "Оборудование" })).headers.get("location");
+  const id = loc.split("/").pop();
+  assert.ok((await get(loc, team))[1].includes(`href="/calc#deal=${id}">Расчёт класса по отчётности (PDF)`));
+  const send = (body, cookie = team) => fetch(base + `/api/deals/${id}/class`, { method: "POST", headers: { cookie, origin: base, "content-type": "application/json" }, body: JSON.stringify(body) });
+  assert.strictEqual((await send({ classes: [], title: "x" })).status, 400);
+  assert.strictEqual((await send({ classes: [{ date: "2026-06-30", cls: 3 }], title: "x" }, curator)).status, 403);
+  const r = await send({ classes: [{ date: "2025-09-30", cls: 3 }, { date: "2025-12-31", cls: 3 }, { date: "2026-03-31", cls: 3 }, { date: "2026-06-30", cls: 3 }], title: "Финансирование невозможно", sub: "Класс 3 на всех четырёх отчётных датах (п. 14.1.6).", stop: true });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual((await r.json()).cls, 3);
+  const html = (await get(loc, team))[1];
+  assert.match(html, /class="cls cls-3"/);
+  assert.match(html, /Финансирование невозможно \(калькулятор, 30\.06\.2026\)/);
+  assert.match(html, /Расчёт класса: 30\.09\.2025 — 3, 31\.12\.2025 — 3, 31\.03\.2026 — 3, 30\.06\.2026 — 3\. Заключение: Финансирование невозможно/);
+  assert.match(html, /<div class="refuse stop"><p><b>Стоп-фактор:<\/b> Класс 3 на всех четырёх датах/, "стоп-фактор → главное действие «Оформить отказ»");
+});
