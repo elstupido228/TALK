@@ -1,9 +1,9 @@
 // Задачи: блок в карточке сделки, «Мои задачи» на главной, страница «Задачи», отметка на карточке канбана.
 const { esc } = require("./http");
+const { plural } = require("./format");
 const { layout } = require("./views");
 const { today, addDays, fmt, status, daysLate } = require("./tasks");
 
-const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
 const who = (t) => esc(t.assignee_name || t.assignee_email || "без исполнителя");
 
 // срок задачи словами и цветом: просрочена / сегодня / завтра / дата

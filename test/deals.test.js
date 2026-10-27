@@ -116,7 +116,7 @@ test("правка сделки: поля и история; ИНН указан
   let r = await post(`${loc}/edit`, team, { inn: "", asset: "Спецтехника", amount: "30", term: "36", comment: "Звонок клиенту в пятницу" });
   assert.strictEqual(r.status, 303);
   let html = (await get(loc, team))[1];
-  assert.match(html, /Изменено: предмет Оборудование → Спецтехника; сумма, млн 25\.5 → 30; срок, мес\. — → 36; примечание — → «Звонок клиенту в пятницу»/);
+  assert.match(html, /Изменено: предмет Оборудование → Спецтехника; сумма, млн 25,5 → 30; срок, мес\. — → 36; примечание — → «Звонок клиенту в пятницу»/);
   assert.match(html, /36 мес\./);
   assert.match(html, /<p class="comment">Звонок клиенту в пятницу<\/p>/);
   r = await post(`${loc}/edit`, team, { inn: "0000000001", asset: "Спецтехника", amount: "30", term: "36", comment: "Звонок клиенту в пятницу" });

@@ -1,9 +1,9 @@
 // Клиенты: список с поиском и карточка клиента (контакты, правка, сделки и их сумма).
 const { esc } = require("./http");
+const { mln } = require("./format");
 const STAGES = require("./stages");
 const { layout } = require("./views");
 
-const mln = (v) => (v === null || v === undefined ? "—" : `${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`);
 const sum = (ds) => ds.reduce((s, d) => s + (d.amount_mln || 0), 0);
 const live = (ds) => ds.filter((d) => !d.outcome && !d.archived_at);
 const stageTitle = (d) => (d.archived_at ? "Архив" : d.outcome ? "Отказ" : STAGES.find((s) => s.id === d.stage)?.title || d.stage);

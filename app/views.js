@@ -36,13 +36,12 @@ ${user ? shell.close() : ""}
 }
 
 const nf = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("ru-RU"));
-const fdate = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "—");
+const { fdate, plural } = require("./format");
 const innForm = (inn = "", big = false) => `<form class="inn-form${big ? " big" : ""}" method="get" action="/check">
   <label for="inn">ИНН клиента</label>
   <div class="inn-row"><input id="inn" name="inn" inputmode="numeric" autocomplete="off" pattern="\\d{10}|\\d{12}" title="10 или 12 цифр" required placeholder="10 или 12 цифр" value="${esc(inn)}"><button type="submit" data-busy-text="Проверяю клиента…">Проверить клиента</button></div>
 </form>`;
 const clsBadge = (c) => (c === null || c === undefined ? `<span class="muted small">нет данных</span>` : `<span class="cls cls-${c}" title="класс ${c}">${c}</span>`);
-const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
 
 function loginPage({ error = "", email = "", next = "/" } = {}) {
   return layout({
@@ -160,7 +159,7 @@ ${m.demo?.length ? `<p class="muted small">Подготовленные для �
     const card = warn + (p.found === false
       ? `<p class="error">DaData: организация с ИНН ${esc(m.inn)} не найдена.</p>`
       : `<div class="card"><h2>${esc(p.name)}</h2>
-<p><span class="badge ${p.status === "ACTIVE" ? "ok" : "target"}">${esc(p.status_label || p.status || "статус неизвестен")}</span> ИНН ${esc(p.inn)}${p.ogrn ? ` · ОГРН ${esc(p.ogrn)}` : ""}${p.registered ? ` · зарегистрирована ${esc(p.registered)}` : ""}</p>
+<p><span class="badge ${p.status === "ACTIVE" ? "ok" : "target"}">${esc(p.status_label || p.status || "статус неизвестен")}</span> ИНН ${esc(p.inn)}${p.ogrn ? ` · ОГРН ${esc(p.ogrn)}` : ""}${p.registered ? ` · зарегистрирована ${fdate(p.registered)}` : ""}</p>
 <p>${esc(p.address || "")}</p>
 <p>ОКВЭД ${esc(p.okved || "—")}${p.management ? ` · ${esc(p.management.post || "")}: ${esc(p.management.name)}` : ""}</p>
 ${srcLine(m.party)}</div>`);

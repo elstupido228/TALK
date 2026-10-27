@@ -1,6 +1,7 @@
 // Рабочие страницы: дашборд с запуском сделки, канбан сделок по стадиям, карточка сделки.
 const crypto = require("node:crypto");
 const { esc } = require("./http");
+const { mln, numInput, plural } = require("./format");
 const STAGES = require("./stages");
 const { layout, nf, fdate, clsBadge } = require("./views");
 const VT = require("./views-tasks");
@@ -15,9 +16,7 @@ const OVERDUE = ["overdue_30", "overdue_30plus"];
 const FORWARD = [...PIPE, "monitoring"]; // обычный ход сделки; просрочка — не «следующий шаг», а событие
 const REFUSAL_REASONS = ["Стоп-фактор: класс 3 на всех четырёх датах", "Клиент не прошёл проверку", "Клиент отказался", "Не устроили условия", "Другое"];
 const active = (ds) => ds.filter((d) => !d.outcome && !d.archived_at);
-const mln = (v) => (v === null || v === undefined ? "—" : `${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`);
 const sum = (ds) => ds.reduce((s, d) => s + (d.amount_mln || 0), 0);
-const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
 const daysAgo = (t) => Math.max(0, Math.floor((Date.now() - t) / 86400000));
 const ago = (t) => { const d = daysAgo(t); return d === 0 ? "сегодня" : `${d} ${plural(d, "день", "дня", "дней")}`; };
 
@@ -267,7 +266,7 @@ ${org}${fin}
 // form: {values, errors, conflict: {fields: [{label, key, theirs, mine}], by, at}} — после неудачной отправки.
 // orig — значения сделки на момент показа формы: по ним сервер узнаёт чужую правку (см. server.js).
 function editForm(d, form = {}) {
-  const v = form.values || { inn: d.inn, asset: d.asset, amount: d.amount_mln, term: d.term_months, comment: d.comment };
+  const v = form.values || { inn: d.inn, asset: d.asset, amount: numInput(d.amount_mln), term: d.term_months, comment: d.comment };
   const E = fieldErr(form.errors), c = form.conflict;
   const show = (k, x) => (x === null || x === undefined || x === "" ? "—" : k === "amount_mln" ? mln(x) : k === "term_months" ? `${x} мес.` : k === "comment" ? `«${esc(String(x).slice(0, 80))}»` : esc(x));
   const orig = { inn: d.inn, asset: d.asset, amount_mln: d.amount_mln, term_months: d.term_months, comment: d.comment };

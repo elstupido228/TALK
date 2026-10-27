@@ -176,7 +176,7 @@ function createDeals(db, { portfolio, clients = null } = {}) {
       const changed = Object.keys(LABEL).filter((k) => (d[k] ?? null) !== (v[k] ?? null));
       if (!changed.length) return [];
       q.edit.run(v.inn, v.asset, v.amount_mln, v.term_months, v.comment, Date.now(), id);
-      const show = (k, x) => (x === null || x === undefined || x === "" ? "—" : k === "comment" ? `«${String(x).slice(0, 60)}»` : String(x));
+      const show = (k, x) => (x === null || x === undefined || x === "" ? "—" : k === "comment" ? `«${String(x).slice(0, 60)}»` : k === "amount_mln" ? String(x).replace(".", ",") : String(x));
       q.event.run(id, Date.now(), userId, null, null, `Изменено: ${changed.map((k) => `${LABEL[k]} ${show(k, d[k])} → ${show(k, v[k])}`).join("; ")}`);
       return changed;
     },

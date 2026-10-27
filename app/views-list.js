@@ -1,13 +1,12 @@
 // Сделки списком (с фильтрами и сортировкой), панель фильтров для канбана и списка, поиск по всему порталу.
 const { esc } = require("./http");
+const { mln, plural } = require("./format");
 const STAGES = require("./stages");
 const { layout } = require("./views");
 const { qs, STATUSES, SORTS, SETS, statusOf } = require("./deal-filter");
 const { fmt, status: taskStatus } = require("./tasks");
 
-const mln = (v) => (v === null || v === undefined ? "—" : `${Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`);
 const sum = (ds) => ds.reduce((s, d) => s + (d.amount_mln || 0), 0);
-const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
 const days = (t) => Math.max(0, Math.floor((Date.now() - t) / 86400000));
 const ago = (t) => { const n = days(t); return n === 0 ? "сегодня" : `${n} ${plural(n, "день", "дня", "дней")} назад`; };
 const stageName = (d) => (statusOf(d) === "archived" ? "Архив" : statusOf(d) === "refused" ? "Отказ" : STAGES.find((s) => s.id === d.stage)?.title || d.stage);
