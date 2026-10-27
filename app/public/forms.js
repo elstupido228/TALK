@@ -36,7 +36,7 @@
 
     root.querySelectorAll("form[data-draft]").forEach((f) => {
       // после ответа с ошибкой в форме уже введённые значения — они не сохранены
-      const fromServer = !!f.querySelector('[aria-invalid="true"]') || !!f.closest("details")?.querySelector('.notice[role="alert"]');
+      const fromServer = !!f.querySelector('[aria-invalid="true"]') || !!f.closest("details")?.querySelector('[role="alert"]');
       let saved = null;
       try { saved = JSON.parse(sessionStorage.getItem(draftKey(f)) || "null"); } catch (e) {}
       if (fromServer) { dirty.add(f); store(f); }
@@ -57,12 +57,18 @@
       f.addEventListener("input", () => { dirty.add(f); store(f); });
     });
 
-    const bad = root.querySelector('[aria-invalid="true"]') || root.querySelector('details .notice[role="alert"]');
+    const bad = root.querySelector('[aria-invalid="true"]') || root.querySelector('details [role="alert"]');
     if (bad) {
       bad.closest("details")?.setAttribute("open", "");
       bad.scrollIntoView({ block: "center" });
       if (bad.matches("input, select, textarea")) bad.focus({ preventScroll: true });
     }
+
+    // Кнопка data-open прячется, пока её форма открыта: на экране одна «Создать сделку», а не две с разным действием
+    root.querySelectorAll("details[id]").forEach((d) => {
+      const sync = () => document.querySelectorAll(`[data-open="${d.id}"]`).forEach((b) => { b.hidden = d.open; });
+      if (document.querySelector(`[data-open="${d.id}"]`)) { sync(); d.addEventListener("toggle", sync); }
+    });
   }
 
   function netError(f, text) {

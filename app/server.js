@@ -114,7 +114,8 @@ function createApp(db, opts = {}) {
     const client_name = String(f.client_name || "").trim().slice(0, 200) || null, contact_name = String(f.contact_name || "").trim().slice(0, 120) || null;
     const phone = String(f.phone || "").trim().slice(0, 40) || null;
     if (phone && !/^[+\d\s()-]{5,40}$/.test(phone)) errors.phone = "Телефон — цифры, пробелы, скобки, «+» и «-».";
-    if (launch && !inn && !asset && !client_name && !errors.inn) errors.asset = "Укажите ИНН или наименование клиента либо выберите предмет лизинга.";
+    // ошибка не одного поля, а формы целиком — показывается над полями (errors.any)
+    if (launch && !inn && !asset && !client_name && !errors.inn) errors.any = "Укажите ИНН или наименование клиента либо выберите предмет лизинга.";
     if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors).join(" ")), { status: 400, errors });
     return { inn: inn || null, asset, amount_mln: amount, term_months: term, comment: String(f.comment || "").trim().slice(0, 500) || null, client: { name: client_name, contact_name, phone } };
   }

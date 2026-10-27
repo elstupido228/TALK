@@ -33,7 +33,7 @@ function newDealForm(form = {}) {
   // Блок стоит после «Создать сделку»: Enter в поле отправляет форму основной кнопкой, а не подтверждением дубля
   const dups = form.dups?.length ? `<div class="notice dups" role="alert"><p>${form.byInn === false ? "У клиента с таким наименованием" : `По ИНН ${esc(v.inn)}`} уже есть сделки в работе: ${form.dups.map((d) => `<a href="/deals/${d.id}">${esc(d.title)}</a> (${esc(STAGES.find((s) => s.id === d.stage)?.title || d.stage)}${d.amount_mln ? `, ${mln(d.amount_mln)}` : ""})`).join("; ")}.</p><p>Откройте нужную сделку или создайте ещё одну, если это новая заявка того же клиента.</p><button type="submit" name="dup_ok" value="1">Всё равно создать новую сделку</button></div>` : "";
   const field = (k, id, label, attrs) => `<div class="f"><label for="${id}">${label}</label><input id="${id}" name="${k}"${attrs} value="${esc(v[k] || "")}"${E.bad(k, id)}>${E.msg(k, id)}</div>`;
-  return `${form.error && !dups ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals" data-draft>
+  return `${form.error && !dups ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}${form.errors?.any ? `<p class="error" role="alert">${esc(form.errors.any)}</p>` : ""}<form class="launch" method="post" action="/deals" data-draft>
   <input type="hidden" name="once" value="${esc(/^[\w-]{16,64}$/.test(v.once || "") ? v.once : crypto.randomUUID())}">
   ${field("inn", "nd-inn", "ИНН клиента", ' inputmode="numeric" autocomplete="off" placeholder="если известен"')}
   ${field("client_name", "nd-name", "Наименование клиента", ' autocomplete="organization" placeholder="при ИНН — из DaData"')}
@@ -41,7 +41,7 @@ function newDealForm(form = {}) {
   ${field("phone", "nd-phone", "Телефон", ' type="tel" inputmode="tel" autocomplete="tel" placeholder="необязательно"')}
   <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset"${E.bad("asset", "nd-asset")}><option value="">— выберите —</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select>${E.msg("asset", "nd-asset")}</div>
   ${field("amount", "nd-amount", "Сумма, млн руб.", ' inputmode="decimal" placeholder="например, 25"')}
-  <button type="submit" data-busy-text="Создаю сделку…">Создать сделку</button>${dups}
+  <div class="form-actions"><button type="submit" data-busy-text="Создаю сделку…">Создать сделку</button><button type="button" class="cancel" data-cancel>Отмена</button></div>${dups}
 </form>
 <p class="muted small">Сделка появится в колонке «Заявка». Достаточно ИНН, наименования клиента или предмета лизинга. По ИНН портал сразу проверит клиента (<abbr title="DaData — сервис сведений об организациях по ИНН (наименование, статус, адрес, руководитель)">DaData</abbr>, <abbr title="ГИР БО — государственный информационный ресурс бухгалтерской отчётности ФНС (bo.nalog.gov.ru)">ГИР БО</abbr>) и покажет предварительный класс.</p>`;
 }
