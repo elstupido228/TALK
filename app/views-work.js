@@ -220,11 +220,12 @@ function docsBlock(d, m, ed) {
 </section>`;
 }
 
-// Архив — внизу карточки, отдельно от частых действий; перенос с подтверждением, возврат — без
+// Архив: перенос — среди редких действий («Ещё действия»), с подтверждением; возврат — панель под блоком стадии, без подтверждения
 function archiveZone(d) {
-  return d.archived_at
-    ? `<section class="panel wide archive-zone"><form method="post" action="/deals/${d.id}/unarchive" class="inline-form"><span>Сделка в архиве.</span><button type="submit" class="primary-btn">Вернуть из архива</button></form></section>`
-    : `<section class="panel wide archive-zone"><form method="post" action="/deals/${d.id}/archive" class="inline-form"><span class="muted">Создана по ошибке или больше не нужна?</span><button type="submit" class="danger" data-confirm="${esc(`Перенести сделку «${d.title}» в архив? Она пропадёт с канбана, из списка «В работе» и счётчиков; задачи по ней скроются. Вернуть: «Сделки» → «Список» → «Архив» → открыть сделку → «Вернуть из архива».`)}">В архив</button></form></section>`;
+  return `<section class="panel wide archive-zone"><form method="post" action="/deals/${d.id}/unarchive" class="inline-form"><span>Сделка в архиве.</span><button type="submit" class="primary-btn">Вернуть из архива</button></form></section>`;
+}
+function archiveForm(d) {
+  return `<form method="post" action="/deals/${d.id}/archive" class="inline-form archive-form"><span class="muted">Создана по ошибке или больше не нужна?</span><button type="submit" class="danger" data-confirm="${esc(`Перенести сделку «${d.title}» в архив? Она пропадёт с канбана, из списка «В работе» и счётчиков; задачи по ней скроются. Вернуть: «Сделки» → «Список» → «Архив» → открыть сделку → «Вернуть из архива».`)}">В архив</button></form>`;
 }
 
 // Ответственный за сделку; передача другому — с подтверждением, с именем нового ответственного
@@ -235,7 +236,7 @@ function ownerLine(d, m) {
   <label class="sr" for="ow-to">Новый ответственный</label><select id="ow-to" name="owner_id" required><option value="">— кому —</option>${others.map((u) => `<option value="${u.id}">${esc(u.name || u.email)}</option>`).join("")}</select>
   <button type="submit" data-confirm="${esc(`Передать сделку «${d.title}» сотруднику «{select}»? Он станет ответственным; запись появится в ленте.`)}">Передать</button>
 </form></details>` : "";
-  return `<div class="owner-line">Ответственный: <b>${name ? esc(name) : "не назначен"}</b>${form}</div>`;
+  return `<section class="panel owner-line">Ответственный: <b>${name ? esc(name) : "не назначен"}</b>${form}</section>`;
 }
 
 // Клиент в карточке сделки: DaData и годовая отчётность (ГИР БО) с классом по годам
@@ -258,11 +259,14 @@ ${row("Выручка", "revenue")}${row("Чистая прибыль", "net")}$
 <tr><td><b>Класс</b></td>${ys.map((y) => `<td class="r">${clsBadge(y.cls)}</td>`).join("")}</tr></tbody></table></div>
 <p class="muted small">Предварительно, по формулам калькулятора; пороги К4 — торговля и лизинг. Для заключения нужны квартальные даты.</p>`;
   } else if (f) fin = `<p class="muted">Годовая отчётность в ГИР БО не найдена или не раскрыта.</p>`;
-  return `<section class="panel wide"><h2>Клиент</h2>
+  // справочный блок: свёрнут, пока источники в порядке; «Проверить клиента по ИНН» — здесь, только если его нет среди инструментов стадии
+  const checkBtn = ["application", "assessment", "decision"].includes(d.stage) ? "" : `<a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверить клиента по ИНН</a>`;
+  const acts = checkBtn + (down.length ? "" : recheck);
+  return `<details class="panel client-info"${down.length ? " open" : ""}><summary><h2>Клиент</h2><span class="muted small">${p?.found === false ? "не найден в DaData" : "реквизиты, отчётность по годам"}</span></summary>
 ${down.length ? `<p class="notice">${down.length > 1 ? "Источники" : "Источник"} ${down.map((s) => `«${s}»`).join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"} — сведения ниже неполные (<a href="/sources">состояние источников</a>). ${recheck}</p>` : ""}
 ${org}${fin}
-<p class="actions"><a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверить клиента по ИНН</a>${down.length ? "" : recheck}</p>
-</section>`;
+${acts ? `<p class="actions">${acts}</p>` : ""}
+</details>`;
 }
 
 // form: {values, errors, conflict: {fields: [{label, key, theirs, mine}], by, at}} — после неудачной отправки.
@@ -350,32 +354,41 @@ function dealPage(user, m) {
     body: `<p class="crumbs"><a href="/deals">Сделки</a> / ${esc(d.title)}</p>
 <h1>${esc(d.title)}</h1>
 ${clientLine(m.clientRec, m.canEdit)}
-${ownerLine(d, m)}
 <p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.term_months ? ` · ${d.term_months} мес.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
 ${d.archived_at ? `<p class="archived-note" role="status"><b>В архиве</b> с ${new Date(d.archived_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}: сделка не видна на канбане, в списке «В работе» и в счётчиках.</p>` : ""}
 ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(d.outcome_reason)} · ${new Date(d.outcome_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : ""}
 <ol class="stepper">${STAGES.map((s, k) => `<li class="${k < i ? "done" : k === i ? "now" : ""}"><span>${k + 1}</span>${esc(s.title)}</li>`).join("")}</ol>
 ${d.comment ? `<p class="comment" title="${esc(d.comment)}"><span class="muted small">Примечание:</span> ${esc(d.comment)}</p>` : ""}
-<div class="dash">
+<div class="deal-grid">
+<div class="deal-main">
   <section class="panel wide">
     <h2>Стадия: ${esc(st.title)}${st.status === "working" ? "" : ` <span class="badge muted">${STATUS[st.status]}</span>`}</h2>
-    <p>${esc(st.summary)}</p>
     ${d.cls ? `<p>Класс кредитоспособности: ${clsBadge(d.cls)}${d.note ? ` <span class="muted small">${esc(d.note)}</span>` : ""}</p>` : d.note ? `<p class="muted">${esc(d.note)}</p>` : ""}
     ${actions.length ? `<div class="actions">${actions.join("")}</div>` : ""}
     ${ed && d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/reopen"><button type="submit" data-confirm="${esc(`Вернуть сделку «${d.title}» в работу? Она снова появится на стадии «${st.title}» и в счётчиках.`)}">Вернуть в работу</button></form>` : ""}
-    ${ed && !d.outcome && PIPE.includes(d.stage) ? refuseForm(d, stop, m.refuse) : ""}
-    ${ed && !d.outcome ? `<form class="move" method="post" action="/deals/${d.id}/stage">
+    ${stop && ed ? refuseForm(d, stop, m.refuse) : ""}
+    ${ed && !d.outcome && (next || events.length) ? `<form class="move" method="post" action="/deals/${d.id}/stage">
       ${next ? `<button${stop ? "" : ' class="primary"'} type="submit" formnovalidate name="stage" value="${next.id}">Перевести на стадию «${esc(next.title)}» →</button>` : ""}${events.join("")}
-      <label>или выбрать стадию <select name="stage_any" required><option value="">— другая стадия —</option>${STAGES.filter((s) => s.id !== d.stage).map((s) => `<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></label>
-      <button type="submit" name="stage" value="__any" data-confirm="${esc(`Перевести сделку «${d.title}» со стадии «${st.title}» на «{select}»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.`)}">Сменить</button>
     </form>` : ""}
+    ${ed ? `<details class="more"${m.refuse?.error ? " open" : ""}><summary>Ещё действия</summary>
+    ${d.outcome ? "" : `<form class="move" method="post" action="/deals/${d.id}/stage">
+      <label>Другая стадия <select name="stage_any" required><option value="">— другая стадия —</option>${STAGES.filter((s) => s.id !== d.stage).map((s) => `<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></label>
+      <button type="submit" name="stage" value="__any" data-confirm="${esc(`Перевести сделку «${d.title}» со стадии «${st.title}» на «{select}»? Это шаг вне обычного порядка стадий; он попадёт в историю и в счётчики главной.`)}">Сменить</button>
+    </form>`}
+    ${!stop && !d.outcome && PIPE.includes(d.stage) ? refuseForm(d, stop, m.refuse) : ""}
+    ${archiveForm(d)}
+    </details>` : ""}
   </section>
+  ${m.canEdit && d.archived_at ? archiveZone(d) : ""}
   ${m.tasks ? VT.dealTasks(d, m) : ""}
   ${feed(d, m)}
+</div>
+<div class="deal-side">
+  ${ownerLine(d, m)}
+  ${ed ? editForm(d, m.form) : ""}
   ${m.files ? docsBlock(d, m, ed) : ""}
   ${d.client_code ? "" : clientBlock(d, m)}
-  ${ed ? editForm(d, m.form) : ""}
-  ${m.canEdit ? archiveZone(d) : ""}
+</div>
 </div>`,
   });
 }

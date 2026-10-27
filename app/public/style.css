@@ -318,7 +318,7 @@ form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }
 @media (max-width: 560px) { .todo-list li.todo { grid-template-columns: 1fr; } }
 
 /* Ответственный */
-.owner-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: -4px 0 10px; }
+.owner-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .owner-pass summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
 .owner-pass[open] { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -366,7 +366,7 @@ abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cur
 /* Телефон: зоны нажатия не меньше 44 px */
 @media (max-width: 760px) {
   button, .btn, select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), summary, .crumbs a, .seg-links a, .link-danger { min-height: 44px; }
-  .crumbs a, .link-danger, .owner-pass summary, details.edit summary, .task-add summary, .refuse summary { display: inline-flex; align-items: center; }
+  .crumbs a, .link-danger, .owner-pass summary, details.edit summary, .task-add summary, .refuse summary, .more > summary, details.client-info > summary { display: inline-flex; align-items: center; }
   .link-danger { padding: 0 6px; }
 }
 .stepper li span { font-size: 0.8rem; width: 20px; height: 20px; }
@@ -379,3 +379,23 @@ abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cur
 .eform .form-actions button.cancel { background: var(--card); border-color: var(--line); color: var(--text); font-weight: 500; }
 #new-deal > summary { cursor: pointer; list-style: none; }
 #new-deal > summary h2 { display: inline; }
+
+/* Карточка сделки: слева — работа (стадия, задачи, лента), справа — сведения; уже 1200 px — одна колонка в том же порядке */
+.deal-grid { display: grid; gap: 12px; }
+.deal-main, .deal-side { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.deal-grid .panel.wide { grid-column: auto; }
+@media (min-width: 1200px) { .deal-grid { grid-template-columns: minmax(0, 1fr) 320px; } }
+.more { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.more > summary, details.client-info > summary { cursor: pointer; list-style: none; }
+.more > summary { color: var(--muted); }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::before, details.client-info > summary::before { content: "▸"; display: inline-block; width: 1em; color: var(--muted); }
+.more[open] > summary::before, details.client-info[open] > summary::before { content: "▾"; }
+.more[open] > summary { margin-bottom: 4px; }
+.more .move, .more .refuse { margin-top: 10px; padding-top: 0; border-top: 0; }
+.more .archive-form { margin-top: 14px; }
+.archive-form button.danger { background: var(--card); border-color: var(--error); color: var(--error); }
+details.client-info > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; cursor: pointer; list-style: none; }
+details.client-info > summary::-webkit-details-marker { display: none; }
+details.client-info > summary h2 { margin: 0; }
+details.client-info[open] > summary { margin-bottom: 10px; }
