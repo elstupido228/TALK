@@ -31,7 +31,7 @@ const fieldErr = (errors = {}) => ({
 function newDealForm(form = {}) {
   const v = form.values || {}, E = fieldErr(form.errors);
   // дубль по ИНН: ссылки на сделки и кнопка внутри формы — введённые значения уходят вместе с подтверждением.
-  // Блок стоит после «Запустить сделку»: Enter в поле отправляет форму основной кнопкой, а не подтверждением дубля
+  // Блок стоит после «Создать сделку»: Enter в поле отправляет форму основной кнопкой, а не подтверждением дубля
   const dups = form.dups?.length ? `<div class="notice dups" role="alert"><p>${form.byInn === false ? "У клиента с таким наименованием" : `По ИНН ${esc(v.inn)}`} уже есть сделки в работе: ${form.dups.map((d) => `<a href="/deals/${d.id}">${esc(d.title)}</a> (${esc(STAGES.find((s) => s.id === d.stage)?.title || d.stage)}${d.amount_mln ? `, ${mln(d.amount_mln)}` : ""})`).join("; ")}.</p><p>Откройте нужную сделку или создайте ещё одну, если это новая заявка того же клиента.</p><button type="submit" name="dup_ok" value="1">Всё равно создать новую сделку</button></div>` : "";
   const field = (k, id, label, attrs) => `<div class="f"><label for="${id}">${label}</label><input id="${id}" name="${k}"${attrs} value="${esc(v[k] || "")}"${E.bad(k, id)}>${E.msg(k, id)}</div>`;
   return `${form.error && !dups ? `<p class="error" role="alert">${esc(form.error)}</p>` : ""}<form class="launch" method="post" action="/deals" data-draft>
@@ -42,7 +42,7 @@ function newDealForm(form = {}) {
   ${field("phone", "nd-phone", "Телефон", ' type="tel" inputmode="tel" autocomplete="tel" placeholder="необязательно"')}
   <div class="f"><label for="nd-asset">Предмет лизинга</label><select id="nd-asset" name="asset"${E.bad("asset", "nd-asset")}><option value="">— выберите —</option>${ASSETS.map((a) => `<option${a === v.asset ? " selected" : ""}>${a}</option>`).join("")}</select>${E.msg("asset", "nd-asset")}</div>
   ${field("amount", "nd-amount", "Сумма, млн руб.", ' inputmode="decimal" placeholder="например, 25"')}
-  <button type="submit" data-busy-text="Создаю сделку…">Запустить сделку</button>${dups}
+  <button type="submit" data-busy-text="Создаю сделку…">Создать сделку</button>${dups}
 </form>
 <p class="muted small">Сделка появится в колонке «Заявка». Достаточно ИНН, наименования клиента или предмета лизинга. По ИНН портал сразу проверит клиента (DaData, ГИР БО) и покажет предварительный класс.</p>`;
 }
@@ -64,7 +64,7 @@ function dashboardPage(user, m) {
     title: "Главная",
     user,
     active: "home",
-    body: `<h1>Дашборд</h1>
+    body: `<h1>Главная</h1>
 ${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сделка</h2>${newDealForm(m.form)}</section>` : ""}
 ${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) : ""}
 <h2 class="tiles-title">Сделки портала</h2>
@@ -127,7 +127,7 @@ function dealsBoard(user, m) {
     title: "Сделки",
     user,
     active: "deals",
-    body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Новая сделка</a>' : ""}</div>
+    body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Создать сделку</a>' : ""}</div>
 ${m.f ? VL.filterBar("board", m.f, m.users || [], m.total, m.deals.length) : ""}
 <p class="muted small">${m.canEdit ? "Перетащите карточку в другую колонку, чтобы сменить стадию, или откройте сделку." : "Просмотр: менять стадии могут администратор, команда проекта и ТАЛК."} Условные сделки связаны с демо-данными калькулятора и мониторинга.</p>
 <p class="status" id="kstatus" role="status"></p>
@@ -260,7 +260,7 @@ ${row("Выручка", "revenue")}${row("Чистая прибыль", "net")}$
   return `<section class="panel wide"><h2>Клиент</h2>
 ${down.length ? `<p class="notice">${down.length > 1 ? "Источники" : "Источник"} ${down.map((s) => `«${s}»`).join(" и ")} ${down.length > 1 ? "недоступны" : "недоступен"} — сведения ниже неполные (<a href="/sources">состояние источников</a>). ${recheck}</p>` : ""}
 ${org}${fin}
-<p class="actions"><a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Полная проверка по ИНН</a>${down.length ? "" : recheck}</p>
+<p class="actions"><a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверить клиента по ИНН</a>${down.length ? "" : recheck}</p>
 </section>`;
 }
 
@@ -336,8 +336,8 @@ function dealPage(user, m) {
   // стоп-факторе), а после выдачи, где перехода «дальше» нет, — карточка клиента в мониторинге
   const actions = [];
   if (["application", "assessment", "decision"].includes(d.stage)) {
-    if (d.inn) actions.push(`<a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверка по ИНН</a>`);
-    actions.push(`<a class="btn" href="/calc#deal=${d.id}">Расчёт класса по отчётности (PDF)</a>`);
+    if (d.inn) actions.push(`<a class="btn" href="/check?inn=${esc(d.inn)}&amp;deal=${d.id}">Проверить клиента по ИНН</a>`);
+    actions.push(`<a class="btn" href="/calc#deal=${d.id}">Рассчитать класс</a>`);
   }
   if (d.client_code) actions.push(`<a class="btn${PIPE.includes(d.stage) ? "" : " primary"}" href="/monitoring?deal=${d.id}#card=${encodeURIComponent(d.client_code)}">Карточка клиента в мониторинге</a>`);
   if (d.stage === "monitoring" && !d.client_code) actions.push(`<a class="btn" href="/monitoring">Мониторинг портфеля</a>`);

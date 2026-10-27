@@ -52,7 +52,7 @@ test("вход под каждой ролью и доступ к страниц�
     assert.match(r.headers.get("set-cookie"), /HttpOnly; SameSite=Lax/);
     const home = await req("/", { cookie });
     assert.strictEqual(home.status, 200, role);
-    assert.match(await home.text(), /<h1>Дашборд<\/h1>/);
+    assert.match(await home.text(), /<h1>Главная<\/h1>/);
     for (const p of ["/process", "/sources", "/about", "/calc", "/monitoring"]) assert.strictEqual((await req(p, { cookie })).status, 200, `${role} ${p}`);
     const users = await req("/admin/users", { cookie });
     assert.strictEqual(users.status, role === "admin" ? 200 : 403, `${role} /admin/users`);

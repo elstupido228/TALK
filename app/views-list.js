@@ -43,7 +43,7 @@ function dealsList(user, m) {
     title: "Сделки — список",
     user,
     active: "deals",
-    body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Новая сделка</a>' : ""}</div>
+    body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Создать сделку</a>' : ""}</div>
 ${filterBar("list", f, m.users, m.total, m.deals.length)}
 ${m.deals.length ? `<div class="scroll"><table class="list-table deals-table"><thead><tr>${th("client", SORTS.client)}${th("stage", SORTS.stage)}${th("amount", SORTS.amount, "r")}${th("owner", SORTS.owner)}${th("days", "На стадии, дн.", "r")}${th("task", SORTS.task)}${th("activity", "Последняя активность")}</tr></thead><tbody>${rows}</tbody>
 <tfoot><tr><td>Итого: ${m.deals.length}</td><td></td><td class="r">${mln(sum(m.deals))}</td><td colspan="4"></td></tr></tfoot></table></div>

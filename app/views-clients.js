@@ -45,7 +45,7 @@ function clientPage(user, m) {
   <section class="panel">
     <h2>Контакты</h2>
     <dl class="kv"><dt>Контактное лицо</dt><dd>${esc(c.contact_name || "—")}</dd><dt>Телефон</dt><dd>${c.phone ? `<a href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">${esc(c.phone)}</a>` : "—"}</dd><dt>Email</dt><dd>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : "—"}</dd>${c.note ? `<dt>Примечание</dt><dd>${esc(c.note)}</dd>` : ""}</dl>
-    <p class="actions">${m.canEdit ? `<a class="btn primary" href="${esc(newDealHref(c))}">Новая сделка для клиента</a>` : ""}${c.inn ? `<a class="btn" href="/check?inn=${esc(c.inn)}">Проверка по ИНН</a>` : ""}</p>
+    <p class="actions">${m.canEdit ? `<a class="btn primary" href="${esc(newDealHref(c))}">Создать сделку для клиента</a>` : ""}${c.inn ? `<a class="btn" href="/check?inn=${esc(c.inn)}">Проверка по ИНН</a>` : ""}</p>
   </section>
   ${m.canEdit ? `<details class="panel edit"${m.form ? " open" : ""}><summary><h2>Данные клиента</h2><span class="muted small">изменить</span></summary>
 <form method="post" action="/clients/${c.id}/edit" class="eform" data-draft>

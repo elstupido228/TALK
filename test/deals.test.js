@@ -137,7 +137,7 @@ test("ошибка в форме запуска — на дашборде, вв�
   const r = await post("/deals", team, { inn: "12345", asset: "Оборудование", amount: "7" });
   assert.strictEqual(r.status, 400);
   const html = await r.text();
-  assert.match(html, /<h1>Дашборд<\/h1>/);
+  assert.match(html, /<h1>Главная<\/h1>/);
   assert.match(html, /<span class="ferr" id="err-nd-inn">ИНН — 10 или 12 цифр\.<\/span>/);
   assert.match(html, /value="12345" aria-invalid="true"/);
   assert.match(html, /<option selected>Оборудование<\/option>/);
@@ -233,7 +233,7 @@ test("формы: все ошибки сразу у полей, сообщени
   const once = "0123456789abcdef-once";
   r = await post("/deals", team, { asset: "Оборудование", amount: "3", once });
   assert.strictEqual(r.status, 303);
-  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /^flash=Сделка создана: «Новая заявка · Оборудование»/);
+  assert.match(decodeURIComponent(r.headers.get("set-cookie")), /^flash=Сделка создана: «Без клиента · Оборудование»/);
   const loc = r.headers.get("location");
   // та же форма ещё раз — та же сделка
   r = await post("/deals", team, { asset: "Оборудование", amount: "3", once });
@@ -487,7 +487,7 @@ test("документы сделки: загрузка, просмотр, не�
 test("калькулятор → сделка: класс, заключение и стоп-фактор сохраняются; кнопка расчёта ведёт с номером сделки", async () => {
   const loc = (await post("/deals", team, { client_name: "ООО «Расчёт»", asset: "Оборудование" })).headers.get("location");
   const id = loc.split("/").pop();
-  assert.ok((await get(loc, team))[1].includes(`href="/calc#deal=${id}">Расчёт класса по отчётности (PDF)`));
+  assert.ok((await get(loc, team))[1].includes(`href="/calc#deal=${id}">Рассчитать класс`));
   const send = (body, cookie = team) => fetch(base + `/api/deals/${id}/class`, { method: "POST", headers: { cookie, origin: base, "content-type": "application/json" }, body: JSON.stringify(body) });
   assert.strictEqual((await send({ classes: [], title: "x" })).status, 400);
   assert.strictEqual((await send({ classes: [{ date: "2026-06-30", cls: 3 }], title: "x" }, curator)).status, 403);
@@ -526,7 +526,7 @@ test("одна главная кнопка на стадии: инструмен
   const primaries = (stage.match(/class="(btn )?primary"|class="btn primary"/g) || []).length;
   assert.strictEqual(primaries, 1, "ровно одна главная кнопка в блоке стадии");
   assert.match(stage, /<button class="primary" type="submit" formnovalidate name="stage" value="assessment">Перевести на стадию «Оценка клиента» →/);
-  assert.match(stage, /<a class="btn" href="\/check\?inn=0000000001&amp;deal=\d+">Проверка по ИНН<\/a>/);
+  assert.match(stage, /<a class="btn" href="\/check\?inn=0000000001&amp;deal=\d+">Проверить клиента по ИНН<\/a>/);
 });
 
 test("главная: число на плитке = строки списка, куда она ведёт; «Заключено за месяц» — переход на «Договор»", async () => {

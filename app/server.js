@@ -176,7 +176,7 @@ function createApp(db, opts = {}) {
     const fromSource = v.inn && sum.ok && sum.title !== `ИНН ${v.inn}` ? sum.title : null;
     let client = clients.ensure({ inn: v.inn, name: v.client.name || fromSource || (v.inn ? `ИНН ${v.inn}` : null), source: v.client.name ? "manual" : fromSource ? "dadata" : "placeholder", contact_name: v.client.contact_name, phone: v.client.phone });
     if (client && fromSource) client = clients.nameFromSource(client.id, fromSource);
-    const title = client ? client.name : `Новая заявка${v.asset ? ` · ${v.asset}` : ""}`;
+    const title = client ? client.name : `Без клиента${v.asset ? ` · ${v.asset}` : ""}`;
     return deals.create({ ...v, title, client_id: client?.id ?? null, cls: sum.cls, note: sum.note, userId: user.id });
   }
 

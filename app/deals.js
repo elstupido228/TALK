@@ -85,6 +85,8 @@ function createDeals(db, { portfolio, clients = null } = {}) {
   // архив: сделка скрыта из канбана, списков и счётчиков, но не удалена и возвращается одним действием
   if (!cols.has("archived_at")) db.exec("ALTER TABLE deals ADD COLUMN archived_at INTEGER");
   const linkOld = !cols.has("client_id");
+  // сделка без клиента называлась «Новая заявка · …» — путалось с заявкой; теперь «Без клиента · …»
+  if (!linkOld) db.exec("UPDATE deals SET title = 'Без клиента' || substr(title, 13) WHERE client_id IS NULL AND title LIKE 'Новая заявка%'");
   if (linkOld) db.exec("ALTER TABLE deals ADD COLUMN client_id INTEGER REFERENCES clients(id)");
   // в выборках: owner_* — ответственный, stage_at — вход на текущую стадию, last_at — последняя запись ленты,
   // contract_at — переход на стадию «Договор» (сделка заключена)
@@ -109,8 +111,8 @@ function createDeals(db, { portfolio, clients = null } = {}) {
   const stageTitle = (id) => STAGES.find((s) => s.id === id)?.title || id;
 
   // Клиент для сделки без явного client_id (демо-наполнение, перенос старых баз): по ИНН, коду портфеля или названию.
-  // «ИНН …» и «Новая заявка · …» — не наименование.
-  const named = (t) => !!t && !/^(ИНН d|Новая заявка)/.test(t);
+  // «ИНН …» и «Без клиента · …» (прежде «Новая заявка · …») — не наименование.
+  const named = (t) => !!t && !/^(ИНН \d|Без клиента|Новая заявка)/.test(t);
   function clientFor({ inn, client_code, title }) {
     if (!clients) return null;
     const c = clients.ensure({ inn, client_code, name: named(title) ? title : inn ? `ИНН ${inn}` : null, source: named(title) ? (inn ? "dadata" : "manual") : "placeholder" });
