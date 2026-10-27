@@ -1,5 +1,5 @@
 # Сертификат Let's Encrypt выпускается автоматически (порты 80/443 открыты).
-{$DOMAIN} {
+(common) {
 	encode zstd gzip
 
 	header {
@@ -16,6 +16,15 @@
 	request_body {
 		max_size 25MB
 	}
+}
 
+{$DOMAIN} {
+	import common
 	reverse_proxy app:3000
+}
+
+# Тестовый стенд: тот же код, своя база с условными данными
+{$STAGING_DOMAIN} {
+	import common
+	reverse_proxy staging:3000
 }

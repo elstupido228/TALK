@@ -1,5 +1,5 @@
 # Отдельный Compose-проект. Не пересекается с ~/openclaw и ~/openclaw-team: своё имя, своя сеть, свои тома.
-# Потолок памяти стека — 600 МБ (app 480 + caddy 120).
+# Потолок памяти стека — 600 МБ (app 380 + staging 100 + caddy 120).
 name: talk-proto
 
 services:
@@ -15,8 +15,27 @@ services:
       - app_data:/data
     expose:
       - "3000"
-    mem_limit: 480m
-    memswap_limit: 480m
+    mem_limit: 380m
+    memswap_limit: 380m
+    networks: [talk]
+
+  # Тестовый стенд (staging.talk.perveev.com): тот же код, своя база на условных данных, без ключей —
+  # DaData и отчётность в песочнице, распознавание PDF выключено. Сюда выкатывается и проверяется до рабочего сайта:
+  #   docker compose up -d --build staging   (проверка)   docker compose up -d --build app
+  staging:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      NODE_OPTIONS: --max-old-space-size=64
+      CONNECTOR_DADATA_MODE: sandbox
+      CONNECTOR_FIN_MODE: sandbox
+    volumes:
+      - staging_data:/data
+    expose:
+      - "3000"
+    mem_limit: 100m
+    memswap_limit: 100m
     networks: [talk]
 
   caddy:
@@ -31,6 +50,7 @@ services:
       - "443:443/udp"
     environment:
       DOMAIN: ${DOMAIN:-talk.perveev.com}
+      STAGING_DOMAIN: ${STAGING_DOMAIN:-staging.talk.perveev.com}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -45,5 +65,6 @@ networks:
 
 volumes:
   app_data:
+  staging_data:
   caddy_data:
   caddy_config:
