@@ -199,8 +199,8 @@ main.page:has(.board) { max-width: none; }
 .kcard:hover { border-color: var(--accent); }
 .kcard.dragging { opacity: 0.5; }
 .kcard b { font-weight: 600; font-size: 0.93rem; }
-.kmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-.kmeta .cls { width: 22px; height: 22px; font-size: 0.8rem; }
+.kcard.demo { border-style: dashed; }
+.kcard b .cls { width: 22px; height: 22px; font-size: 0.8rem; margin-left: 4px; vertical-align: 1px; }
 .kempty { padding: 8px 4px; }
 
 /* Карточка сделки */
@@ -399,6 +399,7 @@ details.client-info > summary { display: flex; align-items: baseline; flex-wrap:
 details.client-info > summary::-webkit-details-marker { display: none; }
 details.client-info > summary h2 { margin: 0; }
 details.client-info[open] > summary { margin-bottom: 10px; }
-#new > summary::-webkit-details-marker { display: none; }
-#new > summary::before { content: "▸"; display: inline-block; width: 1em; color: var(--muted); }
-#new[open] > summary::before { content: "▾"; }
+#new > summary::-webkit-details-marker, #new-deal > summary::-webkit-details-marker { display: none; }
+#new > summary::before, #new-deal > summary::before { content: "▸"; display: inline-block; width: 1em; color: var(--muted); }
+#new[open] > summary::before, #new-deal[open] > summary::before { content: "▾"; }
+.ktask.stuck { color: var(--target); }

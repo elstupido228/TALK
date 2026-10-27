@@ -7,7 +7,7 @@ const { layout, nf, fdate, clsBadge } = require("./views");
 const VT = require("./views-tasks");
 const VL = require("./views-list");
 const DF = require("./deal-filter");
-const { today } = require("./tasks");
+const { today, status: taskStatus } = require("./tasks");
 
 const STATUS = { working: "работает", target: "в разработке", backlog: "в разработке" };
 const ASSETS = ["Грузовой транспорт", "Легковой транспорт", "Спецтехника", "Оборудование", "Другое"];
@@ -103,14 +103,19 @@ ${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) :
   });
 }
 
+// Карточка канбана: клиент (и класс), предмет · сумма, ответственный; ниже — строка только при сигнале:
+// отказ, стоп-фактор, задача просрочена или на сегодня, сделка дольше STUCK_DAYS на стадии. Условная сделка — пунктирная рамка
 function dealCard(d, canEdit, task) {
-  return `<a class="kcard${d.demo ? " demo" : ""}" href="/deals/${d.id}" data-id="${d.id}"${canEdit && !d.outcome ? ' draggable="true"' : ""}>
-  <b>${esc(d.title)}</b>
+  const days = daysAgo(d.stage_at || d.created_at);
+  const due = task && ["overdue", "today"].includes(taskStatus(task)) ? VT.cardTask(task) : "";
+  const signal = d.outcome ? `<span class="small refused-reason">Отказ: ${esc(d.outcome_reason)}</span>`
+    : d.stop_factor && PIPE.includes(d.stage) ? `<span class="small refused-reason">Стоп-фактор</span>`
+    : due || (DF.SETS.stuck.test(d) ? `<span class="small ktask stuck">${days} ${plural(days, "день", "дня", "дней")} на стадии</span>` : "");
+  return `<a class="kcard${d.demo ? " demo" : ""}" href="/deals/${d.id}" data-id="${d.id}"${canEdit && !d.outcome ? ' draggable="true"' : ""}${d.demo ? ' title="Условная сделка"' : ""}>
+  <b>${esc(d.title)}${d.cls ? ` ${clsBadge(d.cls)}` : ""}</b>
   <span class="muted small">${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)}` : ""}</span>
   ${d.owner_name || d.owner_email ? `<span class="muted small kowner">${esc(d.owner_name || d.owner_email)}</span>` : ""}
-  ${d.outcome ? `<span class="small refused-reason">Отказ: ${esc(d.outcome_reason)}</span>` : d.note ? `<span class="small">${esc(d.note)}</span>` : ""}
-  ${VT.cardTask(task)}
-  <span class="kmeta">${d.cls ? `${clsBadge(d.cls)} ` : ""}<span class="muted small">${d.outcome ? `отказ: ${ago(d.outcome_at)}` : `${ago(d.stage_at || d.created_at)} на стадии`}</span>${d.demo ? ' <span class="badge muted">условно</span>' : ""}</span>
+  ${signal}
 </a>`;
 }
 
@@ -130,7 +135,7 @@ function dealsBoard(user, m) {
     body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<button type="button" class="btn primary" data-open="new-deal">Создать сделку</button>' : ""}</div>
 ${m.canEdit ? `<details class="panel launch-panel" id="new-deal"><summary><h2>Новая сделка</h2></summary>${newDealForm()}</details>` : ""}
 ${m.f ? VL.filterBar("board", m.f, m.users || [], m.total, m.deals.length) : ""}
-<p class="muted small">${m.canEdit ? "Перетащите карточку в другую колонку, чтобы сменить стадию, или откройте сделку." : "Просмотр: менять стадии могут администратор, команда проекта и ТАЛК."} Условные сделки связаны с демо-данными калькулятора и мониторинга.</p>
+<p class="muted small">${m.canEdit ? "Перетащите карточку в другую колонку, чтобы сменить стадию, или откройте сделку." : "Просмотр: менять стадии могут администратор, команда проекта и ТАЛК."}${m.deals.some((d) => d.demo) ? " Пунктирная рамка — условная сделка (демо-данные калькулятора и мониторинга)." : ""}</p>
 <p class="status" id="kstatus" role="status"></p>
 <div class="board" id="board">${cols}</div>
 ${refused.length ? `<details class="panel refused-list"><summary><h2>Отказы</h2><span class="muted small">${refused.length} · ${mln(sum(refused))}</span></summary><div class="kgrid">${refused.map((d) => dealCard(d, false)).join("")}</div></details>` : ""}
