@@ -116,7 +116,7 @@ input.t.num{font-family:var(--f-num)}
 <div class="wrap">
   <header class="top">
     <div class="meta">
-      <span class="eyebrow">Проект ТАЛК · TALK-5, TALK-6 · прототип</span>
+      <span class="eyebrow">Оценка клиента · прототип</span>
       <h1>Расчёт класса кредитоспособности лизингополучателя</h1>
       <p class="muted small">Пакет «стандарт» (РСБУ, формы 0710001 и 0710002). Методика — Приложение 5 к Регламенту 285, расчёт по формулам файла <abbr title="«Пробивка» — Excel-файл расчёта класса, который сейчас заполняют вручную">«Пробивка»</abbr>.</p>
     </div>
@@ -587,7 +587,7 @@ let gw=null; // состояние шлюза: {enabled, reason, model, remainin
 fetch("/api/extract/status").then(r=>r.json()).then(j=>{gw=j; updRun();}).catch(()=>{gw={enabled:false,reason:"сервер распознавания недоступен"}; updRun();});
 function updRun(){ $("runBtn").disabled=!(S.files.length&&gw?.enabled);
   if(S.note){ $("status").textContent=S.note; return; }
-  if(S.mode==="live"&&gw&&!gw.enabled) $("status").textContent="Распознавание недоступно: "+(gw.reason||"шлюз отключён")+".";
+  if(S.mode==="live"&&gw&&!gw.enabled) $("status").textContent="Распознавание PDF сейчас недоступно ("+(gw.reason||"отключено")+"). Значения можно ввести вручную в таблицу показателей.";
   else if(S.mode==="live"&&gw?.enabled&&!S.files.length) $("status").textContent=`Распознавание: модель ${gw.model}, осталось запросов на сегодня: ${gw.remaining}.`; }
 function addFiles(fl){ const pdfs=[...fl].filter(f=>/\.pdf$/i.test(f.name)); if(!pdfs.length) return;
   S.files.push(...pdfs); S.docs=[]; S.cons=null; renderAll(); updRun(); $("status").textContent=`Выбрано файлов: ${S.files.length}.`; }

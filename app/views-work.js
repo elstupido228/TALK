@@ -8,7 +8,7 @@ const VL = require("./views-list");
 const DF = require("./deal-filter");
 const { today } = require("./tasks");
 
-const STATUS = { working: "рабочий модуль", target: "целевая схема", backlog: "бэклог" };
+const STATUS = { working: "работает", target: "в разработке", backlog: "в разработке" };
 const ASSETS = ["Грузовой транспорт", "Легковой транспорт", "Спецтехника", "Оборудование", "Другое"];
 const PIPE = ["application", "assessment", "decision", "contract"]; // до выдачи
 const OVERDUE = ["overdue_30", "overdue_30plus"];

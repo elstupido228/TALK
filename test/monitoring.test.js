@@ -95,5 +95,5 @@ test("маршруты: /monitoring, xlsx, /api/connectors, журнал на «
   assert.deepStrictEqual([kr.source, kr.data.rate], ["sandbox", 14]);
   assert.strictEqual((await fetch(base + "/api/connectors/cbr/nope", { headers: { cookie } })).status, 404);
   const sources = await (await fetch(base + "/sources", { headers: { cookie } })).text();
-  assert.match(sources, /<td>cbr<\/td><td>sandbox<\/td><td>key-rate \{\}<\/td><td>ok<\/td>/);
+  assert.match(sources, /<td>Банк России — DailyInfoWebServ<\/td><td>условный ответ<\/td><td>ключевая ставка<\/td><td>успешно<\/td>/);
 });

@@ -134,7 +134,7 @@ test("страница «Проверка по ИНН» и «Источники 
   [st, html] = await get("/sources");
   for (const t of ["Банк России", "DaData", "ГИР БО", "Контур.Фокус", "СПАРК", "1С", "CRM", "Распознавание PDF"]) assert.ok(html.includes(t), t);
   assert.strictEqual((html.match(/Только интерфейс/g) || []).length, 4);
-  assert.match(html, /dadata\/party/);
+  assert.doesNotMatch(html, /dadata\/party|\/api\/connectors/, "коды методов и адреса API — не для пользователя");
   const lc = (await get("/process"))[1];
   assert.match(lc, /href="\/check">Проверка по ИНН →/);
 });

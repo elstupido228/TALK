@@ -7,9 +7,9 @@ const shell = require("./shell");
 const PROJECT = "Контур контроля лизинговой сделки";
 
 const STATUS = {
-  working: ["Рабочий модуль", "ok"],
-  target: ["Целевая схема", "target"],
-  backlog: ["Бэклог", "muted"],
+  working: ["Работает", "ok"],
+  target: ["В разработке", "target"],
+  backlog: ["В разработке", "muted"],
 };
 
 function layout({ title, user, active = "", body }) {
@@ -78,7 +78,7 @@ function processPage(user) {
     active: "process",
     body: `<h1>Схема процесса: жизненный цикл сделки</h1>
 <p class="lead">Семь стадий от заявки до работы с просрочкой. В прототипе работают три — <b>заявка</b> (сделки и канбан), <b>оценка клиента</b> и <b>мониторинг</b>,
-их карточки ведут в модули. Остальные стадии — целевая схема и бэклог.</p>
+их карточки ведут в модули. Остальные стадии — в разработке: показано, как они будут устроены.</p>
 <ol class="ribbon">
 ${cards}
 </ol>
@@ -88,7 +88,7 @@ ${cards}
 
 // list: [{id, title, what, mode: "live"|"sandbox", sandboxOnly, ops}]
 function sourcesPage(user, list, log) {
-  const MODE = { live: ["Живой", "ok"], sandbox: ["Песочница", "target"] };
+  const MODE = { live: ["Внешний сервис", "ok"], sandbox: ["Условные ответы", "target"] };
   const rows = list.map((c) => {
     const [ml, mc] = MODE[c.mode];
     // состояние — по последнему обращению, теми же словами, что в карточке сделки и на «Проверке по ИНН»
@@ -102,19 +102,28 @@ function sourcesPage(user, list, log) {
       : h.state === "ready" ? `<span class="badge ok">Готов</span><br><span class="muted small">${esc(h.note)}</span>`
       : h.state === "off" ? `<span class="badge target">Не работает</span><br><span class="muted small">${esc(h.note)}</span>`
       : '<span class="badge muted">Обращений ещё не было</span>';
-    const ops = c.ops ? `<br>${c.ops.map((o) => `<code>${esc(c.id)}/${esc(o)}</code>`).join(" ")}` : "";
-    return `<tr><td><b>${esc(c.title)}</b><br><span class="muted">${esc(c.what)}</span>${ops}</td>
+    return `<tr><td><b>${esc(c.title)}</b><br><span class="muted">${esc(c.what)}</span></td>
 <td><span class="badge ${mc}">${ml}</span></td>
 <td>${state}</td></tr>`;
   }).join("\n");
+  // журнал словами: название источника, откуда ответ, что спрашивали (без кодов методов и JSON)
+  const TITLE = Object.fromEntries(list.map((c) => [c.id, c.title]));
+  const FROM = { live: "запрос к источнику", cache: "сохранённый ответ", sandbox: "условный ответ" };
+  const OPS = { "key-rate": "ключевая ставка", curs: "курсы валют", party: "организация", reports: "отчётность", check: "проверка контрагента", risk: "индексы риска", contracts: "договоры", applications: "заявки" };
+  const requestText = (req) => {
+    const [op, json] = String(req || "").split(/ (.*)/);
+    let params = {};
+    try { params = JSON.parse(json || "{}"); } catch {}
+    return [OPS[op] || op, params.inn ? `ИНН ${params.inn}` : "", params.date ? `на ${params.date.split("-").reverse().join(".")}` : ""].filter(Boolean).join(", ");
+  };
   const journal = can(user, "connectors.log")
     ? `<h2>Журнал запросов</h2>
 ${
   log.length
-    ? `<div class="scroll"><table><thead><tr><th>Время</th><th>Коннектор</th><th>Режим</th><th>Запрос</th><th>Статус</th><th>мс</th></tr></thead><tbody>
+    ? `<div class="scroll"><table><thead><tr><th>Время</th><th>Источник</th><th>Откуда ответ</th><th>Запрос</th><th>Результат</th><th>мс</th></tr></thead><tbody>
 ${log
   .map(
-    (r) => `<tr><td>${new Date(r.at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}</td><td>${esc(r.connector)}</td><td>${esc(r.mode)}</td><td>${esc(r.request)}</td><td>${esc(r.status)}</td><td>${r.ms ?? ""}</td></tr>`
+    (r) => `<tr><td>${new Date(r.at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}</td><td>${esc(TITLE[r.connector] || r.connector)}</td><td>${esc(FROM[r.mode] || r.mode)}</td><td>${esc(requestText(r.request))}</td><td>${r.status === "ok" ? "успешно" : esc(r.status)}</td><td>${r.ms ?? ""}</td></tr>`
   )
   .join("\n")}
 </tbody></table></div>`
@@ -126,9 +135,8 @@ ${log
     user,
     active: "sources",
     body: `<h1>Источники данных</h1>
-<p class="lead">Единый слой коннекторов <code>/api/connectors/*</code>: один интерфейс, кэш ответов, журнал, режимы «живой» и «песочница».
-Если внешний источник недоступен, отдаётся последний ответ из кэша, а без кэша — условный ответ песочницы.</p>
-<div class="scroll"><table><thead><tr><th>Коннектор</th><th>Режим</th><th>Состояние</th></tr></thead><tbody>
+<p class="lead">Откуда портал берёт данные и отвечают ли источники сейчас. Если источник не отвечает, показывается последний сохранённый ответ, а без него — условный пример с пометкой.</p>
+<div class="scroll"><table><thead><tr><th>Источник</th><th>Подключение</th><th>Состояние</th></tr></thead><tbody>
 ${rows}
 </tbody></table></div>
 ${journal}`,
@@ -242,7 +250,7 @@ function usersPage(user, users) {
     user,
     active: "users",
     body: `<h1>Пользователи</h1>
-<p class="muted">Учётные записи создаются скриптом <code>scripts/create-users.js</code> на сервере.</p>
+<p class="muted">Учётные записи заводит администратор портала; здесь — кто имеет доступ и с какой ролью.</p>
 <div class="scroll"><table><thead><tr><th>Email</th><th>Имя</th><th>Роль</th><th>Состояние</th></tr></thead><tbody>
 ${users
   .map(

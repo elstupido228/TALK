@@ -57,7 +57,7 @@ const usage = () => db.prepare("SELECT source, model, images, status, input_toke
 
 test("без ключа OpenAI шлюз отключён", async () => {
   const g = createGateway({ db: open(":memory:"), env: {} });
-  assert.deepStrictEqual(g.status(), { enabled: false, reason: "на сервере не задан ключ OpenAI" });
+  assert.deepStrictEqual(g.status(), { enabled: false, reason: "не настроено подключение к сервису распознавания" });
 });
 
 test("распознавание: страницы частями, сведение граф, контракт ответа, учёт расхода", async () => {

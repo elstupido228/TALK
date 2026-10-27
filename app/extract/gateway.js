@@ -173,7 +173,7 @@ function createGateway({ db, env = process.env, render = renderPdf, fetchImpl = 
     status: () =>
       cfg.key
         ? { enabled: remaining() > 0, reason: remaining() > 0 ? undefined : "исчерпан дневной лимит запросов", model: cfg.model, remaining: remaining(), limit: cfg.dailyLimit }
-        : { enabled: false, reason: "на сервере не задан ключ OpenAI" },
+        : { enabled: false, reason: "не настроено подключение к сервису распознавания" },
     async handle(req, res, user) {
       if (!cfg.key) return req.resume(), H.sendJson(res, 503, { error: { code: "disabled", message: "На сервере не задан ключ OpenAI." } });
       if (remaining() <= 0) return req.resume(), H.sendJson(res, 429, { error: { code: "daily_limit", message: "Исчерпан дневной лимит запросов к нейросети." } });
