@@ -63,8 +63,8 @@ function dashboardPage(user, m) {
     title: "Главная",
     user,
     active: "home",
-    body: `<h1>Главная</h1>
-${m.canEdit ? `<section class="panel launch-panel" id="new"><h2>Новая сделка</h2>${newDealForm(m.form)}</section>` : ""}
+    body: `<div class="head-row"><h1>Главная</h1>${m.canEdit ? '<button type="button" class="btn primary" data-open="new">Создать сделку</button>' : ""}</div>
+${m.canEdit ? `<details class="panel launch-panel" id="new"${m.form ? " open" : ""}><summary><h2>Новая сделка</h2></summary>${newDealForm(m.form)}</details>` : ""}
 ${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) : ""}
 <h2 class="tiles-title">Сделки портала</h2>
 <div class="tiles4 tiles6">
@@ -94,7 +94,7 @@ ${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) :
   </section>
   <section class="panel">
     <h2>Последние сделки</h2>
-    ${m.deals.length ? "" : `<p class="muted">Сделок пока нет.${m.canEdit ? " Создайте первую — форма «Новая сделка» вверху страницы." : ""}</p>`}
+    ${m.deals.length ? "" : `<p class="muted">Сделок пока нет.${m.canEdit ? " Создайте первую — кнопка «Создать сделку» вверху страницы." : ""}</p>`}
     <ul class="list">${m.deals.slice(0, 5).map((d) => `<li><a href="/deals/${d.id}"><span>${esc(d.title)}<br><span class="muted small">${d.archived_at ? "Архив" : d.outcome ? "Отказ" : esc(STAGES.find((st) => st.id === d.stage)?.title || d.stage)} · ${ago(d.updated_at)}</span></span>${d.cls ? clsBadge(d.cls) : ""}</a></li>`).join("")}</ul>
     <h3>Ключевая ставка ЦБ</h3>
     ${kr ? `<p class="big">${kr.rate.toFixed(2).replace(".", ",")} %</p><p class="muted small">действует с ${fdate(kr.since)}${kr.sandbox_note ? " · условное значение" : ""}</p>` : `<p class="muted">Нет данных</p>`}

@@ -377,8 +377,8 @@ abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cur
 .comment { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .form-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .eform .form-actions button.cancel { background: var(--card); border-color: var(--line); color: var(--text); font-weight: 500; }
-#new-deal > summary { cursor: pointer; list-style: none; }
-#new-deal > summary h2 { display: inline; }
+#new-deal > summary, #new > summary { cursor: pointer; list-style: none; }
+#new-deal > summary h2, #new > summary h2 { display: inline; }
 
 /* Карточка сделки: слева — работа (стадия, задачи, лента), справа — сведения; уже 1200 px — одна колонка в том же порядке */
 .deal-grid { display: grid; gap: 12px; }
@@ -399,3 +399,6 @@ details.client-info > summary { display: flex; align-items: baseline; flex-wrap:
 details.client-info > summary::-webkit-details-marker { display: none; }
 details.client-info > summary h2 { margin: 0; }
 details.client-info[open] > summary { margin-bottom: 10px; }
+#new > summary::-webkit-details-marker { display: none; }
+#new > summary::before { content: "▸"; display: inline-block; width: 1em; color: var(--muted); }
+#new[open] > summary::before { content: "▾"; }

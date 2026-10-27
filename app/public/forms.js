@@ -126,6 +126,10 @@
     }
   });
 
+  // Ссылка с якорем на свёрнутую форму (/#new из карточки клиента, проверки по ИНН, списка) — раскрыть её
+  const target = location.hash && document.getElementById(location.hash.slice(1));
+  if (target?.tagName === "DETAILS") { target.open = true; target.querySelector("input:not([type=hidden]), select, textarea")?.focus(); }
+
   addEventListener("beforeunload", (e) => { if (dirty.size && !leaving) { e.preventDefault(); e.returnValue = ""; } });
   init(document);
 })();
