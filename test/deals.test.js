@@ -408,6 +408,12 @@ test("поиск, список сделок с фильтрами и сорти�
   assert.match((await get("/search?q=zzzz", team))[1], /ничего не найдено/);
   // меню: строка поиска
   assert.match(html, /<form class="sh-search" method="get" action="\/search"/);
+  // «Сбросить» — только при включённом отборе (канбан всегда берёт все состояния, это не фильтр)
+  const reset = />Сбросить<\/a>/;
+  assert.doesNotMatch((await get("/deals", team))[1], reset);
+  assert.match((await get("/deals?q=x", team))[1], reset);
+  assert.doesNotMatch((await get("/deals/list", team))[1], reset);
+  assert.match((await get("/deals/list?status=all", team))[1], reset);
   // список: по сумме по убыванию, «Поисковая» первой
   html = (await get("/deals/list?sort=amount&dir=desc&status=all", team))[1];
   assert.match(html, /<tbody><tr[^>]*><td><a href="\/deals\/\d+">[^<]+<\/a>/);

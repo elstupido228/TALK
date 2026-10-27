@@ -23,7 +23,7 @@ function filterBar(view, f, users, total, shown) {
   ${view === "list" ? sel("status", "Состояние", Object.entries(STATUSES), f.status) + sel("stage", "Стадия", [["", "Все стадии"], ...STAGES.map((s) => [s.id, s.title])], f.stage) : ""}
   ${view === "list" ? `<input type="hidden" name="sort" value="${esc(f.sort)}"><input type="hidden" name="dir" value="${esc(f.dir)}">${f.set ? `<input type="hidden" name="set" value="${esc(f.set)}">` : ""}` : ""}
   <button type="submit">Показать</button>
-  ${f.q || f.owner || f.stage || f.status !== "active" ? `<a class="btn" href="${view === "list" ? "/deals/list" : "/deals"}">Сбросить</a>` : ""}
+  ${f.q || f.owner || f.stage || (view === "list" && f.status !== "active") ? `<a class="btn" href="${view === "list" ? "/deals/list" : "/deals"}">Сбросить</a>` : ""}
 </form>
 ${f.set && SETS[f.set] ? `<p class="set-caption" role="status">Показаны сделки: <b>${esc(SETS[f.set].title)}</b> — ${shown}. <a href="/deals/list${qs({ ...f, set: "" })}">Показать все</a></p>` : shown !== total ? `<p class="muted small">Показано ${shown} из ${total}.</p>` : ""}</div>`;
 }
