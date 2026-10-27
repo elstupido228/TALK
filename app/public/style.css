@@ -372,3 +372,10 @@ abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cur
 .stepper li span { font-size: 0.8rem; width: 20px; height: 20px; }
 @media (max-width: 760px) { .client-line a, .docs li > a, ul.plain li > a { display: inline-block; padding: 10px 0; } }
 .stepper li::before { display: inline-block; text-decoration: none; }
+
+/* Карточка сделки: примечание под рядом стадий — не больше трёх строк (полностью — в подсказке и в форме правки) */
+.comment { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.form-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.eform .form-actions button.cancel { background: var(--card); border-color: var(--line); color: var(--text); font-weight: 500; }
+#new-deal > summary { cursor: pointer; list-style: none; }
+#new-deal > summary h2 { display: inline; }

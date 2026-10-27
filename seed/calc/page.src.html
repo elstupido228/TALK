@@ -588,7 +588,7 @@ let gw=null; // состояние шлюза: {enabled, reason, model, remainin
 fetch("/api/extract/status").then(r=>r.json()).then(j=>{gw=j; updRun();}).catch(()=>{gw={enabled:false,reason:"сервер распознавания недоступен"}; updRun();});
 function updRun(){ $("runBtn").disabled=!(S.files.length&&gw?.enabled);
   if(S.note){ $("status").textContent=S.note; return; }
-  if(S.mode==="live"&&gw&&!gw.enabled) $("status").textContent="Распознавание PDF сейчас недоступно ("+(gw.reason||"отключено")+"). Значения можно ввести вручную в таблицу показателей.";
+  if(S.mode==="live"&&gw&&!gw.enabled) $("status").textContent="Распознавание PDF сейчас недоступно ("+(gw.reason||"отключено")+"). Повторите позже; как устроен расчёт, можно посмотреть в «Примере расчёта».";
   else if(S.mode==="live"&&gw?.enabled&&!S.files.length) $("status").textContent=`Распознавание: модель ${gw.model}, осталось запросов на сегодня: ${gw.remaining}.`; }
 function addFiles(fl){ const pdfs=[...fl].filter(f=>/\.pdf$/i.test(f.name)); if(!pdfs.length) return;
   S.files.push(...pdfs); S.docs=[]; S.cons=null; renderAll(); updRun(); $("status").textContent=`Выбрано файлов: ${S.files.length}.`; }

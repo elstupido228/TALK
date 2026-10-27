@@ -109,6 +109,23 @@
     } finally { clearTimeout(timer); }
   });
 
+  // «Отмена» (data-cancel): вернуть значения формы, забыть черновик, свернуть блок.
+  // Кнопка data-open="<id>": раскрыть форму на этой же странице и поставить курсор в первое поле.
+  document.addEventListener("click", (e) => {
+    const c = e.target.closest("[data-cancel]");
+    if (c?.form) {
+      const f = c.form;
+      f.reset(); forget(f);
+      f.querySelectorAll(".draft-note, .net-error").forEach((x) => x.remove());
+      const d = f.closest("details"); if (d) d.open = false;
+    }
+    const o = e.target.closest("[data-open]");
+    if (o) {
+      const d = document.getElementById(o.dataset.open);
+      if (d) { d.open = true; d.scrollIntoView({ block: "nearest" }); d.querySelector("input:not([type=hidden]), select, textarea")?.focus(); }
+    }
+  });
+
   addEventListener("beforeunload", (e) => { if (dirty.size && !leaving) { e.preventDefault(); e.returnValue = ""; } });
   init(document);
 })();

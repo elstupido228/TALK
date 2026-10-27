@@ -118,7 +118,7 @@ test("правка сделки: поля и история; ИНН указан
   let html = (await get(loc, team))[1];
   assert.match(html, /Изменено: предмет Оборудование → Спецтехника; сумма, млн 25,5 → 30; срок, мес\. — → 36; примечание — → «Звонок клиенту в пятницу»/);
   assert.match(html, /36 мес\./);
-  assert.match(html, /<p class="comment">Звонок клиенту в пятницу<\/p>/);
+  assert.match(html, /<\/ol>\n<p class="comment" title="Звонок клиенту в пятницу"><span class="muted small">Примечание:<\/span> Звонок клиенту в пятницу<\/p>/, "примечание — под рядом стадий");
   r = await post(`${loc}/edit`, team, { inn: "0000000001", asset: "Спецтехника", amount: "30", term: "36", comment: "Звонок клиенту в пятницу" });
   html = (await get(loc, team))[1];
   assert.match(html, /<h1>ООО «Альфа-Пример»<\/h1>/);
@@ -550,4 +550,16 @@ test("оформление: значок вкладки, заголовки мо
   assert.match((await get("/calc", team))[1], /<title>Расчёт класса — Контур контроля лизинговой сделки<\/title>/);
   assert.match((await get("/monitoring", team))[1], /<title>Мониторинг — Контур контроля лизинговой сделки<\/title>/);
   assert.match((await get("/", team))[1], /<link rel="icon" href="\/favicon\.svg"/);
+});
+
+test("мелочи: «Отмена» в форме правки, форма сделки на канбане, адрес с «/» на конце, пустая главная, автофокус входа", async () => {
+  const loc = (await post("/deals", team, { client_name: "ООО «Мелочи»", asset: "Оборудование" })).headers.get("location");
+  assert.match((await get(loc, team))[1], /<button type="button" class="cancel" data-cancel>Отмена<\/button>/);
+  const board = (await get("/deals", team))[1];
+  assert.match(board, /<button type="button" class="btn primary" data-open="new-deal">Создать сделку<\/button>/);
+  assert.match(board, /<details class="panel launch-panel" id="new-deal">[^]*<form class="launch" method="post" action="\/deals" data-draft>/);
+  const r = await fetch(base + `${loc}/`, { headers: { cookie: team }, redirect: "manual" });
+  assert.strictEqual(r.status, 303);
+  assert.strictEqual(r.headers.get("location"), loc);
+  assert.match(await (await fetch(base + "/login")).text(), /name="email" type="email" autocomplete="username" required autofocus/);
 });

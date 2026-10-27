@@ -53,7 +53,7 @@ function loginPage({ error = "", email = "", next = "/" } = {}) {
   ${error ? `<p class="error" role="alert">${esc(error)}</p>` : ""}
   <form method="post" action="/login">
     <input type="hidden" name="next" value="${esc(next)}">
-    <label>Email<input name="email" type="email" autocomplete="username" required value="${esc(email)}"></label>
+    <label>Email<input name="email" type="email" autocomplete="username" required autofocus value="${esc(email)}"></label>
     <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
     <button type="submit">Войти</button>
   </form>

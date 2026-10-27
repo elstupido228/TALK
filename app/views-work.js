@@ -94,6 +94,7 @@ ${m.canEdit || m.myTasks?.length ? VT.myTasksPanel(m.myTasks || [], m.canEdit) :
   </section>
   <section class="panel">
     <h2>Последние сделки</h2>
+    ${m.deals.length ? "" : `<p class="muted">Сделок пока нет.${m.canEdit ? " Создайте первую — форма «Новая сделка» вверху страницы." : ""}</p>`}
     <ul class="list">${m.deals.slice(0, 5).map((d) => `<li><a href="/deals/${d.id}"><span>${esc(d.title)}<br><span class="muted small">${d.archived_at ? "Архив" : d.outcome ? "Отказ" : esc(STAGES.find((st) => st.id === d.stage)?.title || d.stage)} · ${ago(d.updated_at)}</span></span>${d.cls ? clsBadge(d.cls) : ""}</a></li>`).join("")}</ul>
     <h3>Ключевая ставка ЦБ</h3>
     ${kr ? `<p class="big">${kr.rate.toFixed(2).replace(".", ",")} %</p><p class="muted small">действует с ${fdate(kr.since)}${kr.sandbox_note ? " · условное значение" : ""}</p>` : `<p class="muted">Нет данных</p>`}
@@ -126,7 +127,8 @@ function dealsBoard(user, m) {
     title: "Сделки",
     user,
     active: "deals",
-    body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<a class="btn primary" href="/#new">Создать сделку</a>' : ""}</div>
+    body: `<div class="head-row"><h1>Сделки</h1>${m.canEdit ? '<button type="button" class="btn primary" data-open="new-deal">Создать сделку</button>' : ""}</div>
+${m.canEdit ? `<details class="panel launch-panel" id="new-deal"><summary><h2>Новая сделка</h2></summary>${newDealForm()}</details>` : ""}
 ${m.f ? VL.filterBar("board", m.f, m.users || [], m.total, m.deals.length) : ""}
 <p class="muted small">${m.canEdit ? "Перетащите карточку в другую колонку, чтобы сменить стадию, или откройте сделку." : "Просмотр: менять стадии могут администратор, команда проекта и ТАЛК."} Условные сделки связаны с демо-данными калькулятора и мониторинга.</p>
 <p class="status" id="kstatus" role="status"></p>
@@ -281,7 +283,7 @@ ${c ? `<div class="notice" role="alert"><p>Пока вы редактирова�
   <label for="ed-term">Срок, мес.<input id="ed-term" name="term" inputmode="numeric" value="${esc(v.term ?? "")}"${E.bad("term", "ed-term")}>${E.msg("term", "ed-term")}</label>
   <label class="wide">Примечание к сделке (видно под заголовком; звонки и договорённости — в ленте)<textarea name="comment" rows="2" maxlength="500">${esc(v.comment ?? "")}</textarea></label>
   <p class="muted small wide">При смене ИНН клиент будет проверен заново. Все изменения попадают в историю.</p>
-  <button type="submit" data-busy-text="Сохраняю…">Сохранить</button>
+  <div class="form-actions"><button type="submit" data-busy-text="Сохраняю…">Сохранить</button><button type="button" class="cancel" data-cancel>Отмена</button></div>
 </form></details>`;
 }
 
@@ -350,10 +352,10 @@ function dealPage(user, m) {
 ${clientLine(m.clientRec, m.canEdit)}
 ${ownerLine(d, m)}
 <p class="muted">${d.inn ? `ИНН ${esc(d.inn)} · ` : ""}${esc(d.asset || "предмет не указан")}${d.amount_mln ? ` · ${mln(d.amount_mln)} руб.` : ""}${d.term_months ? ` · ${d.term_months} мес.` : ""}${d.demo ? ' · <span class="badge muted">условная сделка</span>' : ""}</p>
-${d.comment ? `<p class="comment">${esc(d.comment)}</p>` : ""}
 ${d.archived_at ? `<p class="archived-note" role="status"><b>В архиве</b> с ${new Date(d.archived_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}: сделка не видна на канбане, в списке «В работе» и в счётчиках.</p>` : ""}
 ${d.outcome ? `<p class="refused-note" role="status"><b>Отказ</b> · ${esc(d.outcome_reason)} · ${new Date(d.outcome_at).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : ""}
 <ol class="stepper">${STAGES.map((s, k) => `<li class="${k < i ? "done" : k === i ? "now" : ""}"><span>${k + 1}</span>${esc(s.title)}</li>`).join("")}</ol>
+${d.comment ? `<p class="comment" title="${esc(d.comment)}"><span class="muted small">Примечание:</span> ${esc(d.comment)}</p>` : ""}
 <div class="dash">
   <section class="panel wide">
     <h2>Стадия: ${esc(st.title)}${st.status === "working" ? "" : ` <span class="badge muted">${STATUS[st.status]}</span>`}</h2>

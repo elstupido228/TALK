@@ -78,6 +78,7 @@ tr.sel td{background:var(--accent-soft)}
 .bar-inline .fill.neg{background:var(--z-red)}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 abbr[title]{text-decoration:underline dotted;cursor:help}
+.th-sort{all:unset;cursor:pointer;font:inherit;color:inherit}.th-sort:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .back-deal{display:inline-block;margin-bottom:6px;color:var(--accent);text-decoration:none;font-size:14px}
 select,input.t{font:14px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink)}
 label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
@@ -506,11 +507,19 @@ function renderPortfolio() {
   fs.innerHTML = `<option value="">Все</option>` + secs.map((s) => `<option>${esc(s)}</option>`).join(""); fs.value = secs.includes(cur) ? cur : "";
   renderList();
 }
+// Сортировка таблицы клиентов по щелчку на заголовок; по умолчанию — зона, затем балл (самые рискованные сверху)
+const LIST_SORT = { key: null, dir: 1 };
+const SORT_KEY = {
+  client: (c) => c.cl.client, sector: (c) => c.cl.sector, zone: (c) => ZORD[c.now.zone], score: (c) => c.now.score,
+  move: (c) => (c.prev ? c.now.score - c.prev.score : 0), exposure: (c) => c.now.f.exposure, dpd: (c) => c.now.f.dpd_now, ltv: (c) => c.now.f.ltv ?? -1,
+};
 function renderList() {
-  const z = $("fZone").value, s = $("fSector").value, mv = $("fMove").value, q = $("fSearch").value.trim().toLowerCase();
-  let L = STATE.clients.filter((c) => (!z || c.now.zone === z) && (!s || c.cl.sector === s) && (!q || c.cl.client.toLowerCase().includes(q)) &&
+  // «KL-01», «kl01» латиницей — то же, что «КЛ-01»
+  const z = $("fZone").value, s = $("fSector").value, mv = $("fMove").value, q = $("fSearch").value.trim().toLowerCase().replace(/^kl/, "кл");
+  let L = STATE.clients.filter((c) => (!z || c.now.zone === z) && (!s || c.cl.sector === s) && (!q || c.cl.client.toLowerCase().includes(q) || c.cl.client.toLowerCase().replace("-", "").includes(q.replace("-", ""))) &&
     (!mv || (c.prev && ZORD[c.now.zone] < ZORD[c.prev.zone])));
-  L.sort((a, b) => ZORD[a.now.zone] - ZORD[b.now.zone] || a.now.score - b.now.score);
+  const k = SORT_KEY[LIST_SORT.key];
+  L.sort((a, b) => (k ? ((k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0) * LIST_SORT.dir) : 0) || ZORD[a.now.zone] - ZORD[b.now.zone] || a.now.score - b.now.score);
   $("listMeta").textContent = `${nf(L.length)} из ${nf(STATE.clients.length)}`;
   const rows = L.slice(0, 300).map((c) => {
     const rs = c.now.zone === "grey" ? [] : F.reasons(MODEL, c.now.parts, 2);
@@ -522,7 +531,8 @@ function renderList() {
       <td class="r num">${mln(c.now.f.exposure)}</td><td class="r num">${nf(c.now.f.dpd_now)}</td><td class="r num">${c.now.f.ltv === null ? "—" : nf(c.now.f.ltv, 2)}</td>
       <td class="small" style="min-width:300px">${rs.map((r) => esc(r.label)).join("; ") || (c.now.zone === "grey" ? 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>' : "—")}</td></tr>`;
   }).join("");
-  $("clientTbl").innerHTML = `<thead><tr><th>Клиент</th><th>Отрасль</th><th>Зона</th><th class="r">Балл</th><th class="r">За месяц</th><th class="r">Остаток, млн</th><th class="r">Просрочка, дн.</th><th class="r">Остаток / предмет</th><th>Основные причины</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="muted">Нет клиентов по выбранным условиям</td></tr>`}</tbody>`;
+  const th = (key, label, cls = "") => `<th class="${cls}"${LIST_SORT.key === key ? ` aria-sort="${LIST_SORT.dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" class="th-sort" data-sort="${key}">${label}${LIST_SORT.key === key ? (LIST_SORT.dir > 0 ? " ↑" : " ↓") : ""}</button></th>`;
+  $("clientTbl").innerHTML = `<thead><tr>${th("client", "Клиент")}${th("sector", "Отрасль")}${th("zone", "Зона")}${th("score", "Балл", "r")}${th("move", "За месяц", "r")}${th("exposure", "Остаток, млн", "r")}${th("dpd", "Просрочка, дн.", "r")}${th("ltv", "Остаток / предмет", "r")}<th>Основные причины</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="muted">Нет клиентов по выбранным условиям. Измените зону, отрасль или поиск.</td></tr>`}</tbody>`;
 }
 // фильтры таблицы клиентов помнятся до конца сеанса вкладки: уход в «Сделки» и возврат их не сбрасывают
 const FILTERS = ["fZone", "fSector", "fMove", "fSearch"];
@@ -535,7 +545,11 @@ function restoreFilters() {
 }
 ["fZone", "fSector", "fMove"].forEach((id) => $(id).addEventListener("change", () => { saveFilters(); renderList(); }));
 $("fSearch").addEventListener("input", () => { saveFilters(); renderList(); });
-$("clientTbl").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client); });
+$("clientTbl").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-sort]");
+  if (b) { LIST_SORT.dir = LIST_SORT.key === b.dataset.sort ? -LIST_SORT.dir : 1; LIST_SORT.key = b.dataset.sort; return renderList(); }
+  const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client);
+});
 $("clientTbl").addEventListener("keydown", (e) => { if (e.key === "Enter") { const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client); } });
 
 // ---------- графики ----------

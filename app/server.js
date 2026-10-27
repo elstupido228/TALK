@@ -232,6 +232,8 @@ function createApp(db, opts = {}) {
   async function handle(req, res) {
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
+    // «/deals/15/» и подобные — тот же адрес без косой черты на конце, а не 404
+    if (p.length > 1 && p.endsWith("/") && req.method === "GET") return H.redirect(res, p.replace(/\/+$/, "") + url.search);
     const token = H.parseCookies(req).sid;
     const user = auth.userByToken(token);
     if (user) user.tasksDue = tasks.dueCount(user.id); // счётчик в меню: просрочено и на сегодня
