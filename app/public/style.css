@@ -314,7 +314,7 @@ form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }
 .comment-row input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
 .seg-links { display: flex; gap: 4px; }
 .seg-links a { padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--text); }
-.seg-links a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.seg-links a[aria-current="page"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 @media (max-width: 560px) { .todo-list li.todo { grid-template-columns: 1fr; } }
 
 /* Ответственный */
@@ -330,7 +330,7 @@ form[aria-busy="true"] button[disabled] { opacity: 0.7; cursor: progress; }
 .filters-row .f { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
 .filters-row input, .filters-row select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); min-width: 0; }
 .filters-row input { width: 220px; max-width: 100%; }
-.filters-row button { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; padding: 8px 16px; border-radius: 8px; }
+.filters-row button { padding: 8px 16px; border-radius: 8px; }
 .deals-table th a { color: inherit; text-decoration: none; }
 .deals-table th[aria-sort] a { color: var(--text); font-weight: 600; }
 .deals-table tfoot td { font-weight: 600; border-bottom: 0; }
