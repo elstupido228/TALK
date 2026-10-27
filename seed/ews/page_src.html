@@ -76,6 +76,7 @@ tr.sel td{background:var(--accent-soft)}
 .bar-inline .fill{height:100%;background:var(--accent);border-radius:0 4px 4px 0}
 .bar-inline .fill.neg{background:var(--z-red)}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+abbr[title]{text-decoration:underline dotted;cursor:help}
 .back-deal{display:inline-block;margin-bottom:6px;color:var(--accent);text-decoration:none;font-size:14px}
 select,input.t{font:14px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink)}
 label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
@@ -176,7 +177,7 @@ details.explain .body p{color:var(--ink)}
     <div class="tiles" id="tiles"></div>
     <div class="panel">
       <div class="panel-head"><h2>Клиенты по зонам риска за 24 месяца</h2><span class="muted small">число клиентов на конец месяца</span></div>
-      <div class="legend"><span><i style="background:var(--z-red)"></i>Красная зона</span><span><i style="background:var(--z-yellow)"></i>Жёлтая зона</span><span><i style="background:var(--z-green)"></i>Зелёная зона</span><span><i style="background:var(--z-grey)"></i>Просрочка 30+ и дефолт (в работе СПА)</span></div>
+      <div class="legend"><span><i style="background:var(--z-red)"></i>Красная зона</span><span><i style="background:var(--z-yellow)"></i>Жёлтая зона</span><span><i style="background:var(--z-green)"></i>Зелёная зона</span><span><i style="background:var(--z-grey)"></i>Просрочка 30+ и дефолт (в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>)</span></div>
       <div class="chartbox" id="zoneChart"></div>
       <details class="explain"><summary>Как читать</summary><div class="body">
         <p>Каждый столбец — состояние портфеля на конец месяца. Балл пересчитывается ежемесячно по данным, которые были известны на эту дату.</p>
@@ -478,7 +479,7 @@ function renderPortfolio() {
   $("tiles").innerHTML =
     `<div class="tile"><span class="eyebrow">Клиентов на ${fdate(STATE.today)}</span><span class="v">${nf(C.length)}</span><span class="muted small">${mln(total)} млн руб. остатка платежей</span></div>` +
     tile("red", "Красная зона", g("red"), worse ? `${nf(worse)} ухудшили зону за месяц` : "") + tile("yellow", "Жёлтая зона", g("yellow")) + tile("green", "Зелёная зона", g("green")) +
-    tile("", "Просрочка 30+ и дефолт", g("grey"), "в работе СПА, модель не оценивает");
+    tile("", "Просрочка 30+ и дефолт", g("grey"), 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>, модель не оценивает');
   // график зон
   const months = STATE.ends.slice(1);
   const cnt = months.map((m) => STATE.monthCounts[m] || { red: 0, yellow: 0, green: 0, grey: 0 });
@@ -518,7 +519,7 @@ function renderList() {
       <td>${zoneChip(c.now.zone)}${stop}</td><td class="r num">${c.now.zone === "grey" ? "—" : nf(c.now.score)}</td>
       <td class="r num" style="${d !== null && d < 0 ? "color:var(--bad)" : ""}">${d === null || c.now.zone === "grey" ? "—" : (d > 0 ? "+" : "") + nf(d)}</td>
       <td class="r num">${mln(c.now.f.exposure)}</td><td class="r num">${nf(c.now.f.dpd_now)}</td><td class="r num">${c.now.f.ltv === null ? "—" : nf(c.now.f.ltv, 2)}</td>
-      <td class="small" style="min-width:300px">${rs.map((r) => esc(r.label)).join("; ") || (c.now.zone === "grey" ? "в работе СПА" : "—")}</td></tr>`;
+      <td class="small" style="min-width:300px">${rs.map((r) => esc(r.label)).join("; ") || (c.now.zone === "grey" ? 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>' : "—")}</td></tr>`;
   }).join("");
   $("clientTbl").innerHTML = `<thead><tr><th>Клиент</th><th>Отрасль</th><th>Зона</th><th class="r">Балл</th><th class="r">За месяц</th><th class="r">Остаток, млн</th><th class="r">Просрочка, дн.</th><th class="r">Остаток / предмет</th><th>Основные причины</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="muted">Нет клиентов по выбранным условиям</td></tr>`}</tbody>`;
 }
@@ -598,10 +599,10 @@ function barChart(points, opts) {
 
 // ---------- карточка ----------
 const ACTIONS = {
-  red: ["Включить клиента в повестку ближайшего заседания КПА с готовым досье.", "Назначить осмотр предмета лизинга и проверить его доступность.", "Запросить у клиента свежую отчётность и пояснения по причинам ухудшения.", "Проверить внешние источники по ИНН: суды, исполнительные производства, налоговая задолженность."],
+  red: ["Включить клиента в повестку ближайшего заседания КПА (коллегиального органа по проблемным активам) с готовым досье.", "Назначить осмотр предмета лизинга и проверить его доступность.", "Запросить у клиента свежую отчётность и пояснения по причинам ухудшения.", "Проверить внешние источники по ИНН: суды, исполнительные производства, налоговая задолженность."],
   yellow: ["Звонок клиентского менеджера с фиксацией результата и обещаний в 1С.", "Контроль ближайшего платежа по графику; при опоздании — перевод в красную зону.", "Пересмотр балла в следующем месяце."],
   green: ["Стандартный ежемесячный мониторинг."],
-  grey: ["Клиент в работе отдела по работе с проблемными активами; порядок действий — по стратегии, утверждённой КПА."],
+  grey: ["Клиент в работе отдела по работе с проблемными активами; порядок действий — по стратегии, утверждённой коллегиальным органом по проблемным активам (КПА)."],
 };
 let CARD_CLIENT = null;
 function cardOptions() {
@@ -639,7 +640,7 @@ function renderCard(cid) {
     const st = defIdx !== null && i > defIdx ? "дефолт" : f.dpd_now >= 30 ? "просрочка 30+" : "оценивается";
     const sc = F.score(MODEL, f); const zone = st === "оценивается" ? sc.zone : "grey";
     pts.push({ date, v: sc.score, dpd: f.dpd_now, zone, f, parts: sc.parts,
-      tip: `<b>${fdate(date)}</b><br>Балл: ${nf(sc.score)}<br>${st === "оценивается" ? ZN[zone] : st === "дефолт" ? "после дефолта" : "просрочка 30+ — в работе СПА"}<br>Просрочка: ${nf(f.dpd_now)} дн.` });
+      tip: `<b>${fdate(date)}</b><br>Балл: ${nf(sc.score)}<br>${st === "оценивается" ? ZN[zone] : st === "дефолт" ? "после дефолта" : "просрочка 30+ — в работе подразделения по проблемным активам (СПА)"}<br>Просрочка: ${nf(f.dpd_now)} дн.` });
   }
   const cur = STATE.clients.find((c) => c.cl.client === cid);
   const last = cur ? cur.now : [...pts].reverse().find((p) => p.f) || null;
@@ -770,7 +771,7 @@ const SHEETS = [
   { name: "Договоры", key: "contracts", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", "Код договора"], ["Код клиента", "client", "s", ""], ["Дата договора", "date", "d", ""], ["Тип предмета лизинга", "asset", "s", "Грузовой транспорт, Спецтехника, Легковой транспорт, Оборудование"], ["Стоимость предмета, руб.", "asset_value", "n", "Стоимость при передаче"], ["Аванс, руб.", "advance", "n", ""], ["Срок, мес.", "term", "n", ""], ["Поручительство (да/нет)", "guarantee", "b", ""]] },
   { name: "График", key: "schedule", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата платежа", "due", "d", "Действующая версия графика"], ["Сумма платежа, руб.", "amount", "n", ""]] },
   { name: "Платежи", key: "payments", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата оплаты", "date", "d", "Дата поступления"], ["Сумма оплаты, руб.", "amount", "n", "Без пеней"]] },
-  { name: "События", key: "events", src: "1С:Лизинг, протоколы КПА, внешние источники по ИНН", cols: [["Код клиента", "client", "s", ""], ["Дата", "date", "d", "Дата события, не дата его обнаружения"], ["Тип события", "type", "s", Object.values(F.EV).join("; ")], ["Сумма, руб.", "amount", "n", "Для исков, недоимки, исполнительных производств"]] },
+  { name: "События", key: "events", src: "1С:Лизинг, протоколы КПА (коллегиального органа по проблемным активам), внешние источники по ИНН", cols: [["Код клиента", "client", "s", ""], ["Дата", "date", "d", "Дата события, не дата его обнаружения"], ["Тип события", "type", "s", Object.values(F.EV).join("; ")], ["Сумма, руб.", "amount", "n", "Для исков, недоимки, исполнительных производств"]] },
   { name: "Отчётность", key: "reports", src: "ГИР БО, СПАРК или Контур по ИНН", cols: [["Код клиента", "client", "s", ""], ["Год", "year", "n", "Отчётный год"], ["Дата представления", "filed", "d", "Дата сдачи в ФНС"], ["Выручка, тыс. руб.", "revenue", "n", "стр. 2110"], ["Чистая прибыль, тыс. руб.", "net_profit", "n", "стр. 2400"], ["Капитал, тыс. руб.", "equity", "n", "стр. 1300"], ["Активы, тыс. руб.", "assets", "n", "стр. 1600"], ["Долг, тыс. руб.", "debt", "n", "стр. 1410 + 1510"]] },
 ];
 $("tplTbl").innerHTML = `<thead><tr><th>Лист</th><th>Столбец</th><th>Пояснение</th><th>Источник</th></tr></thead><tbody>` +

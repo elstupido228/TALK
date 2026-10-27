@@ -38,6 +38,8 @@ header.top .meta{display:flex;flex-direction:column;gap:4px;min-width:0}
 .panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:baseline}
 .btn{font:500 14px var(--f-body);border-radius:var(--r);padding:9px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:transparent;color:var(--accent)}
+abbr[title]{text-decoration:underline dotted;cursor:help}
+.methodology summary{cursor:pointer;list-style:none}.methodology summary h2{display:inline}
 .back-deal{display:inline-block;margin-bottom:6px;color:var(--accent);text-decoration:none;font-size:14px}
 .to-deal{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -116,7 +118,7 @@ input.t.num{font-family:var(--f-num)}
     <div class="meta">
       <span class="eyebrow">Проект ТАЛК · TALK-5, TALK-6 · прототип</span>
       <h1>Расчёт класса кредитоспособности лизингополучателя</h1>
-      <p class="muted small">Пакет «стандарт» (РСБУ, формы 0710001 и 0710002). Методика — Приложение 5 к Регламенту 285, расчёт по формулам файла «Пробивка».</p>
+      <p class="muted small">Пакет «стандарт» (РСБУ, формы 0710001 и 0710002). Методика — Приложение 5 к Регламенту 285, расчёт по формулам файла <abbr title="«Пробивка» — Excel-файл расчёта класса, который сейчас заполняют вручную">«Пробивка»</abbr>.</p>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
       <div class="seg" role="group" aria-label="Режим">
@@ -186,9 +188,9 @@ input.t.num{font-family:var(--f-num)}
   <section class="panel">
     <div class="panel-head"><h2>Дополнительные расшифровки и параметры</h2><span class="muted small">В отчётности отсутствуют. Отрасль и сезонность в целевой схеме указывает сотрудник клиента при загрузке</span></div>
     <div class="form-grid">
-      <label class="f" for="nameIn">Наименование участника сделки (D4)<input class="t" id="nameIn"></label>
+      <label class="f" for="nameIn">Наименование лизингополучателя<input class="t" id="nameIn"></label>
       <label class="f" for="innIn">ИНН лизингополучателя из заявки<input class="t num" id="innIn" inputmode="numeric"></label>
-      <label class="f" for="indSel">Категория отрасли (D5, влияет на пороги К4)
+      <label class="f" for="indSel">Категория отрасли (влияет на пороги показателя К4)
         <select id="indSel">
           <option value="blank">Не указана (как в текущем файле: пороги торговли и лизинга)</option>
           <option value="lease">Торговля или лизинг</option>
@@ -196,14 +198,14 @@ input.t.num{font-family:var(--f-num)}
         </select></label>
       <label class="f" for="seasSel">Сезонность деятельности (п. 14.1.11)
         <select id="seasSel"><option value="">Не указана</option><option value="0">Не подвержена сезонным колебаниям</option><option value="1">Сезонная или цикличная</option></select></label>
-      <label class="f" for="t12In">Нераспределённая прибыль, стр. 1370, предпоследняя дата (T12)<input class="t num" id="t12In" inputmode="numeric"></label>
-      <label class="f" for="u12In">Нераспределённая прибыль, стр. 1370, последняя дата (U12)<input class="t num" id="u12In" inputmode="numeric"></label>
+      <label class="f" for="t12In">Нераспределённая прибыль, стр. 1370, предпоследняя дата<input class="t num" id="t12In" inputmode="numeric"></label>
+      <label class="f" for="u12In">Нераспределённая прибыль, стр. 1370, последняя дата<input class="t num" id="u12In" inputmode="numeric"></label>
     </div>
     <div class="tscroll"><table id="manTbl"></table></div>
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>Расчёт класса кредитоспособности</h2><span class="muted small">Строки 45–53 листа «Класс кредитоспособности»</span></div>
+    <div class="panel-head"><h2>Расчёт класса кредитоспособности</h2><span class="muted small">по показателям К1–К4 на четыре отчётные даты</span></div>
     <div class="tscroll"><table id="calcTbl"></table></div>
   </section>
 
@@ -214,8 +216,8 @@ input.t.num{font-family:var(--f-num)}
     <p class="status" id="dlStatus"></p>
   </section>
 
-  <section class="panel">
-    <h2>Замечания к шаблону расчёта</h2>
+  <details class="panel methodology">
+    <summary><h2>Для методолога: замечания к шаблону расчёта</h2></summary>
     <ol class="notes small">
       <li>Строка 28 «Резервы предстоящих расходов» имеет код 1550 (прочие краткосрочные обязательства). По методике в знаменателе К1–К3 вычитаются стр. 1530 и 1540 (оценочные обязательства). Инструмент заполняет 1550, как ассистент, и показывает значение 1540 для сравнения.</li>
       <li>Формула К4 в файле: (1300 + 1530 + «1550») / 1600. В методике: (1300 − задолженность учредителей − 1320 + 1530) / 1700.</li>
@@ -224,7 +226,7 @@ input.t.num{font-family:var(--f-num)}
       <li>Источник значений T12 и U12 (п. 14.1.8, нераспределённая прибыль) в файле не указан. В пакете «упрощёнка» в них внесена стр. 1300 «Капитал», в пакете «стандарт» — числа, которых нет в документах пакета. Инструмент подставляет стр. 1370 на две последние даты; правило требует согласования с владельцем шаблона.</li>
       <li>При нулевом знаменателе К1–К4 получают категорию 1 (лучшую): в формулах шаблона ошибка деления заменяется пустой строкой, а пустая строка в сравнении больше любого числа.</li>
     </ol>
-  </section>
+  </details>
 </div>
 
 <script src="/vendor/jszip.min.js"></script>
