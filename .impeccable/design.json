@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27T04:39:55.953Z",
+  "title": "Design System: Контур контроля лизинговой сделки",
+  "extensions": {
+    "colorMeta": {
+      "spruce-green": {
+        "role": "primary",
+        "displayName": "Еловый зелёный",
+        "canonical": "#1b6446",
+        "tonalRamp": [
+          "#071912",
+          "#0c2d20",
+          "#12412e",
+          "#17553c",
+          "#548b74",
+          "#8db2a3",
+          "#c6d8d1",
+          "#edf3f0"
+        ]
+      },
+      "spruce-wash": {
+        "role": "primary",
+        "displayName": "Еловая дымка",
+        "canonical": "#e2efe8",
+        "tonalRamp": [
+          "#393c3a",
+          "#666c68",
+          "#939b97",
+          "#c0cbc5",
+          "#e9f3ee",
+          "#f1f7f4",
+          "#f8fbf9",
+          "#fdfefd"
+        ]
+      },
+      "ochre-dark": {
+        "role": "secondary",
+        "displayName": "Тёмная охра",
+        "canonical": "#7a5a00",
+        "tonalRamp": [
+          "#1f1700",
+          "#372800",
+          "#4f3b00",
+          "#684d00",
+          "#9b8340",
+          "#bdad80",
+          "#ded6bf",
+          "#f4f2eb"
+        ]
+      },
+      "brick-red": {
+        "role": "secondary",
+        "displayName": "Кирпичный красный",
+        "canonical": "#b42318",
+        "tonalRamp": [
+          "#2d0906",
+          "#51100b",
+          "#751710",
+          "#991e14",
+          "#c75a52",
+          "#da918c",
+          "#ecc8c5",
+          "#f9eded"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Чернильный",
+        "canonical": "#1c2321",
+        "tonalRamp": [
+          "#070908",
+          "#0d100f",
+          "#121715",
+          "#181e1c",
+          "#555a59",
+          "#8e9190",
+          "#c6c8c8",
+          "#ededed"
+        ]
+      },
+      "slate-muted": {
+        "role": "neutral",
+        "displayName": "Сланцевый серый",
+        "canonical": "#5f6b67",
+        "tonalRamp": [
+          "#181b1a",
+          "#2b302e",
+          "#3e4643",
+          "#515b58",
+          "#87908d",
+          "#afb5b3",
+          "#d7dad9",
+          "#f2f3f3"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Бумага",
+        "canonical": "#f6f7f5",
+        "tonalRamp": [
+          "#3e3e3d",
+          "#6f6f6e",
+          "#a0a19f",
+          "#d1d2d0",
+          "#f8f9f8",
+          "#fbfbfa",
+          "#fdfdfd",
+          "#fefefe"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Волосяная линия",
+        "canonical": "#dfe4e1",
+        "tonalRamp": [
+          "#383938",
+          "#646765",
+          "#919492",
+          "#bec2bf",
+          "#e7ebe9",
+          "#eff2f0",
+          "#f7f8f8",
+          "#fcfdfd"
+        ]
+      },
+      "stone-wash": {
+        "role": "neutral",
+        "displayName": "Каменная дымка",
+        "canonical": "#eceeed",
+        "tonalRamp": [
+          "#3b3c3b",
+          "#6a6b6b",
+          "#999b9a",
+          "#c9cac9",
+          "#f1f2f2",
+          "#f6f7f6",
+          "#fafbfb",
+          "#fdfefe"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Заголовок страницы",
+        "purpose": "Название страницы, сделки, клиента."
+      },
+      "title": {
+        "displayName": "Заголовок панели",
+        "purpose": "«Задачи», «Лента», «Клиент» и т. п."
+      },
+      "metric": {
+        "displayName": "Число показателя",
+        "purpose": "Число на плитке главной."
+      },
+      "body": {
+        "displayName": "Основной текст",
+        "purpose": "Значения, строки списков, текст панелей."
+      },
+      "label": {
+        "displayName": "Подпись",
+        "purpose": "Подписи полей, мета-строки, заголовки таблиц; не мельче 14 px."
+      },
+      "badge": {
+        "displayName": "Бейдж",
+        "purpose": "Подписи-таблетки «в разработке», «условно»."
+      }
+    },
+    "shadows": [
+      {
+        "name": "toast",
+        "value": "0 6px 24px rgba(0, 0, 0, 0.12)",
+        "purpose": "Только всплывающее сообщение об успехе; панели и кнопки без теней."
+      }
+    ],
+    "motion": [],
+    "breakpoints": [
+      {
+        "name": "launch-2col",
+        "value": "1100px"
+      },
+      {
+        "name": "menu-collapse",
+        "value": "900px"
+      },
+      {
+        "name": "touch-44",
+        "value": "760px"
+      },
+      {
+        "name": "narrow",
+        "value": "640px"
+      },
+      {
+        "name": "single",
+        "value": "560px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Главное действие экрана; одна еловая заливка на экран.",
+      "html": "<button class=\"ds-btn-primary\">Перевести на стадию «Решение» →</button>",
+      "css": ".ds-btn-primary{font:600 16px/1.2 'IBM Plex Sans',system-ui,sans-serif;background:#1b6446;color:#fff;border:1px solid #1b6446;border-radius:8px;padding:10px 16px;cursor:pointer}.ds-btn-primary:focus-visible{outline:2px solid #1b6446;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Инструменты стадии и прочие действия.",
+      "html": "<button class=\"ds-btn\">Проверить клиента по ИНН</button>",
+      "css": ".ds-btn{font:500 16px/1.2 'IBM Plex Sans',system-ui,sans-serif;background:#fff;color:#1c2321;border:1px solid #dfe4e1;border-radius:8px;padding:10px 16px;cursor:pointer}.ds-btn:hover{border-color:#5f6b67}.ds-btn:focus-visible{outline:2px solid #1b6446;outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Действие с последствиями: архив, отказ; всегда с подтверждением.",
+      "html": "<button class=\"ds-btn-danger\">В архив</button>",
+      "css": ".ds-btn-danger{font:500 16px/1.2 'IBM Plex Sans',system-ui,sans-serif;background:#fff;color:#b42318;border:1px solid #b42318;border-radius:8px;padding:9px 16px;cursor:pointer}.ds-btn-danger:focus-visible{outline:2px solid #1b6446;outline-offset:2px}"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Контейнер раздела страницы; плоский, с рамкой 1 px.",
+      "html": "<section class=\"ds-panel\"><h2>Задачи</h2><p>Открытых задач нет.</p></section>",
+      "css": ".ds-panel{font:400 16px/1.5 'IBM Plex Sans',system-ui,sans-serif;background:#fff;color:#1c2321;border:1px solid #dfe4e1;border-radius:12px;padding:14px 16px}.ds-panel h2{font-size:1.15rem;margin:0 0 8px}.ds-panel p{margin:0;color:#5f6b67}"
+    },
+    {
+      "name": "Kanban Card",
+      "kind": "custom",
+      "refersTo": "kanban-card",
+      "description": "Сделка на канбане: название, предмет и сумма, ответственный, задача.",
+      "html": "<a class=\"ds-kcard\" href=\"#\"><b>ООО «Бета-Пример»</b><span>Грузовой транспорт · 25 млн</span><span>Менеджер</span><span class=\"ds-kmeta\">4 дня на стадии</span></a>",
+      "css": ".ds-kcard{display:flex;flex-direction:column;gap:4px;font:400 14px/1.4 'IBM Plex Sans',system-ui,sans-serif;background:#fff;color:#1c2321;border:1px solid #dfe4e1;border-radius:10px;padding:10px 12px;text-decoration:none;width:220px}.ds-kcard b{font-size:15px}.ds-kcard span{color:#5f6b67}.ds-kcard:hover{border-color:#1b6446}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Поле формы с подписью над ним.",
+      "html": "<label class=\"ds-field\">Сумма, млн руб.<input placeholder=\"например, 25\"></label>",
+      "css": ".ds-field{display:grid;gap:4px;font:400 14px/1.4 'IBM Plex Sans',system-ui,sans-serif;color:#5f6b67;width:220px}.ds-field input{font:400 16px 'IBM Plex Sans',system-ui,sans-serif;background:#fff;color:#1c2321;border:1px solid #dfe4e1;border-radius:8px;padding:9px 10px}.ds-field input:focus-visible{outline:2px solid #1b6446;outline-offset:2px}"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge-muted",
+      "description": "Подпись-таблетка: «в разработке», «условно».",
+      "html": "<span class=\"ds-badge\">в разработке</span>",
+      "css": ".ds-badge{display:inline-block;font:600 12.8px 'IBM Plex Sans',system-ui,sans-serif;background:#eceeed;color:#5f6b67;border-radius:999px;padding:2px 8px}"
+    },
+    {
+      "name": "Nav Item (active)",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Активный пункт левого меню.",
+      "html": "<a class=\"ds-nav\" href=\"#\">Сделки</a>",
+      "css": ".ds-nav{display:block;font:600 14px 'IBM Plex Sans',system-ui,sans-serif;background:#e2efe8;color:#1b6446;border-radius:8px;padding:8px 10px;text-decoration:none;width:200px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Одна система, три взгляда по ролям: «Диспетчерская сделок» (руководитель), «Папка сделки» (клиентский менеджер), «Рабочий стол кредитного инспектора» (кредитный инспектор).",
+    "overview": "Владелец видит у портала не один образ, а три — по ролям в организации. Визуальная система одна; роли различаются тем, что на экране главное. Сейчас интерфейс плоский и светлый: белые панели с тонкой рамкой на тёплом светло-сером фоне, один еловый зелёный для главного действия. Характер компонентов владелец не выбрал; описано текущее состояние.",
+    "keyCharacteristics": [
+      "Плоские поверхности без теней; глубину создают рамка 1 px и разница фона и панели.",
+      "Один акцент — еловый зелёный — для главного действия, активного пункта меню и пройденных шагов.",
+      "Охра — для предупреждений и «в разработке», кирпичный — для ошибок, просрочки и отказа.",
+      "Один шрифт — IBM Plex Sans во всём портале и меню; IBM Plex Mono — для чисел в калькуляторе и мониторинге.",
+      "Светлая и тёмная тема через prefers-color-scheme."
+    ],
+    "rules": [
+      {
+        "name": "The One Voice Rule",
+        "body": "Еловый зелёный с заливкой — только у главного действия экрана, у активного пункта меню и у активной вкладки переключателя.",
+        "section": "colors"
+      },
+      {
+        "name": "The Meaning Before Color Rule",
+        "body": "Цвет никогда не единственный носитель смысла: у класса — цифра, у зоны — слово, у задачи — «просрочена на N дней».",
+        "section": "colors"
+      },
+      {
+        "name": "The 14 px Floor Rule",
+        "body": "Основной и числовой текст не мельче 14 px.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat By Default Rule",
+        "body": "Поверхности в покое плоские. Тень — только у того, что временно перекрывает страницу.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do держать одну еловую заливку на экран — у главного действия (The One Voice Rule).",
+      "Do использовать подложки (spruce-wash, ochre-wash, brick-wash) с текстом своего цвета — все пары проходят 4,5:1.",
+      "Do держать текст не мельче 14 px, зоны нажатия на телефоне не меньше 44 px, рамку фокуса видимой.",
+      "Do проверять каждую новую пару цветов в светлой и тёмной теме.",
+      "Do сохранять IBM Plex Sans во всём портале и Plex Mono для чисел в модулях."
+    ],
+    "donts": [
+      "Don't ставить рядом несколько кнопок одного веса (подтверждённый антипример).",
+      "Don't уводить частые действия — комментарий, задачи, правку данных — ниже первого экрана (подтверждённый антипример «длинная прокрутка»).",
+      "Don't добавлять тени панелям и кнопкам (The Flat By Default Rule).",
+      "Don't вкладывать карточку в карточку: таблице внутри панели не нужна своя рамка-контейнер.",
+      "Don't подключать фреймворки, тяжёлые библиотеки и внешние скрипты (PRODUCT.md, ограничения)."
+    ]
+  }
+}
