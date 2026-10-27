@@ -403,3 +403,8 @@ details.client-info[open] > summary { margin-bottom: 10px; }
 #new > summary::before, #new-deal > summary::before { content: "▸"; display: inline-block; width: 1em; color: var(--muted); }
 #new[open] > summary::before, #new-deal[open] > summary::before { content: "▾"; }
 .ktask.stuck { color: var(--target); }
+
+/* Карточка клиента: правка — раскрытие внутри панели «Клиент», сведения видны всегда */
+.client-edit { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.client-edit > summary h3 { display: inline; margin: 0; color: var(--accent); font-size: 0.95rem; }
+.client-edit[open] > summary { margin-bottom: 10px; }

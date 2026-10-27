@@ -455,7 +455,9 @@ function createApp(db, opts = {}) {
       if (!can(user, "pages.view")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав для этой страницы."));
       const client = clients.get(+cp[1]);
       if (!client) return H.send(res, 404, V.errorPage(user, 404, "Клиент не найден."));
-      if (!cp[2] && req.method === "GET") return H.send(res, 200, VC.clientPage(user, { client, deals: deals.byClient(client.id), canEdit: can(user, "deals.edit") }));
+      // сведения об организации (DaData, из кэша коннектора) — на карточке клиента всегда, не только в проверке по ИНН
+      const party = async () => (client.inn ? (await checkClient(user, client.inn)).party : null);
+      if (!cp[2] && req.method === "GET") return H.send(res, 200, VC.clientPage(user, { client, party: await party(), deals: deals.byClient(client.id), canEdit: can(user, "deals.edit") }));
       if (cp[2] && req.method === "GET") return H.redirect(res, `/clients/${client.id}`);
       if (cp[2] && req.method === "POST") {
         if (!can(user, "deals.edit")) return H.send(res, 403, V.errorPage(user, 403, "Недостаточно прав."));
@@ -467,7 +469,7 @@ function createApp(db, opts = {}) {
           return done(res, `/clients/${client.id}`, changed.length ? `Сохранено: ${changed.map((k) => L[k]).join(", ")}` : "Изменений нет — данные клиента те же.");
         } catch (e) {
           if (!e.status) throw e;
-          return H.send(res, 400, VC.clientPage(user, { client, deals: deals.byClient(client.id), canEdit: true, form: { values: f, errors: e.errors } }));
+          return H.send(res, 400, VC.clientPage(user, { client, party: await party(), deals: deals.byClient(client.id), canEdit: true, form: { values: f, errors: e.errors } }));
         }
       }
     }

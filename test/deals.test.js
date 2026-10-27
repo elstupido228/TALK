@@ -319,7 +319,11 @@ test("клиенты: наименование и контакты при соз
   assert.strictEqual((await post(`/clients/${cid}/edit`, curator, { name: "X" })).status, 403);
   // по ИНН — наименование из DaData
   r = await post("/deals", team, { inn: "0000000001", asset: "Спецтехника", dup_ok: "1" });
-  assert.match((await get(r.headers.get("location"), team))[1], /Клиент: <a href="\/clients\/\d+">ООО «Альфа-Пример»<\/a>/);
+  const alfa = (await get(r.headers.get("location"), team))[1].match(/Клиент: <a href="(\/clients\/\d+)">ООО «Альфа-Пример»<\/a>/)[1];
+  // карточка клиента: сведения DaData видны сразу, не только в форме правки
+  const ap = (await get(alfa, team))[1];
+  assert.match(ap, /<dt>Адрес<\/dt><dd>[^<]+<\/dd>/);
+  assert.match(ap, /<details class="edit client-edit">/);
   // демо-сделки привязаны к клиентам
   assert.match((await get("/clients", team))[1], /ООО «Гамма-Пример»/);
 });

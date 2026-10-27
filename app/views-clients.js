@@ -2,7 +2,7 @@
 const { esc } = require("./http");
 const { mln } = require("./format");
 const STAGES = require("./stages");
-const { layout } = require("./views");
+const { layout, fdate } = require("./views");
 
 const sum = (ds) => ds.reduce((s, d) => s + (d.amount_mln || 0), 0);
 const live = (ds) => ds.filter((d) => !d.outcome && !d.archived_at);
@@ -29,7 +29,17 @@ ${rows ? `<div class="scroll"><table class="list-table"><thead><tr><th>Клие�
   });
 }
 
-// m: {client, deals, canEdit, form: {values, errors}}
+// Сведения DaData об организации клиента: статус, адрес, ОКВЭД, руководитель
+function partyInfo(c, party) {
+  if (!c.inn) return "";
+  const p = party?.data;
+  if (!p) return `<p class="muted small">Сведения DaData сейчас недоступны (<a href="/sources">состояние источников</a>).</p>`;
+  if (p.found === false) return `<p class="error">DaData: организация с ИНН ${esc(c.inn)} не найдена.</p>`;
+  return `<h3>Организация <span class="badge ${p.status === "ACTIVE" ? "ok" : "target"}">${esc(p.status_label || p.status || "статус неизвестен")}</span>${p.sandbox_note ? ' <span class="badge muted">условно</span>' : ""}</h3>
+<dl class="kv"><dt>ИНН</dt><dd>${esc(p.inn)}${p.ogrn ? ` · ОГРН ${esc(p.ogrn)}` : ""}</dd><dt>Адрес</dt><dd>${esc(p.address || "—")}</dd><dt>ОКВЭД</dt><dd>${esc(p.okved || "—")}</dd>${p.management ? `<dt>Руководитель</dt><dd>${esc(p.management.name)}${p.management.post ? `, ${esc(p.management.post.toLowerCase())}` : ""}</dd>` : ""}${p.registered ? `<dt>Регистрация</dt><dd>${fdate(p.registered)}</dd>` : ""}</dl>`;
+}
+
+// m: {client, party, deals, canEdit, form: {values, errors}}
 function clientPage(user, m) {
   const c = m.client, a = live(m.deals), closed = m.deals.length - a.length;
   const v = m.form?.values || c, err = m.form?.errors || {};
@@ -42,12 +52,12 @@ function clientPage(user, m) {
 <h1>${esc(c.name)}</h1>
 <p class="muted">${c.inn ? `ИНН ${esc(c.inn)} · ` : "ИНН не указан · "}${SOURCE[c.name_source] || ""}</p>
 <div class="dash">
-  <section class="panel">
-    <h2>Контакты</h2>
+  <section class="panel wide">
+    <h2>Клиент</h2>
     <dl class="kv"><dt>Контактное лицо</dt><dd>${esc(c.contact_name || "—")}</dd><dt>Телефон</dt><dd>${c.phone ? `<a href="tel:${esc(c.phone.replace(/[^\d+]/g, ""))}">${esc(c.phone)}</a>` : "—"}</dd><dt>Email</dt><dd>${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : "—"}</dd>${c.note ? `<dt>Примечание</dt><dd>${esc(c.note)}</dd>` : ""}</dl>
-    <p class="actions">${m.canEdit ? `<a class="btn primary" href="${esc(newDealHref(c))}">Создать сделку для клиента</a>` : ""}${c.inn ? `<a class="btn" href="/check?inn=${esc(c.inn)}">Проверка по ИНН</a>` : ""}</p>
-  </section>
-  ${m.canEdit ? `<details class="panel edit"${m.form ? " open" : ""}><summary><h2>Данные клиента</h2><span class="muted small">изменить</span></summary>
+    ${partyInfo(c, m.party)}
+    <p class="actions">${m.canEdit ? `<a class="btn primary" href="${esc(newDealHref(c))}">Создать сделку для клиента</a>` : ""}${c.inn ? `<a class="btn" href="/check?inn=${esc(c.inn)}">Отчётность и класс по ИНН</a>` : ""}</p>
+  ${m.canEdit ? `<details class="edit client-edit"${m.form ? " open" : ""}><summary><h3>Изменить контакты и примечание</h3></summary>
 <form method="post" action="/clients/${c.id}/edit" class="eform" data-draft>
   ${field("name", "Наименование")}
   ${field("inn", "ИНН", ` inputmode="numeric" autocomplete="off"${c.inn ? " readonly" : ""}`)}
@@ -56,8 +66,9 @@ function clientPage(user, m) {
   ${field("email", "Email", ' type="email" inputmode="email"')}
   <label class="wide" for="cl-note">Примечание<textarea id="cl-note" name="note" rows="2" maxlength="1000">${esc(v.note ?? "")}</textarea></label>
   <p class="muted small wide">Новое наименование появится во всех сделках клиента. ИНН клиента со сделками не меняется.</p>
-  <button type="submit" data-busy-text="Сохраняю…">Сохранить</button>
+  <div class="form-actions"><button type="submit" data-busy-text="Сохраняю…">Сохранить</button><button type="button" class="cancel" data-cancel>Отмена</button></div>
 </form></details>` : ""}
+  </section>
   <section class="panel wide">
     <h2>Сделки клиента</h2>
     <p>${a.length ? `В работе: <b>${a.length}</b> на <b>${mln(sum(a))}</b>` : "В работе сделок нет"}${closed ? ` · закрыто или в архиве: ${closed}` : ""}</p>
