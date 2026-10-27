@@ -38,9 +38,9 @@ const CSS = `
 .sh-nav a:hover{background:var(--sh-bg)}
 .sh-badge{margin-left:auto;min-width:20px;padding:0 6px;border-radius:10px;background:#B3261E;color:#fff;font-size:12px;line-height:20px;text-align:center;font-weight:600}
 .sh-nav a[aria-current="page"]{background:var(--sh-accent-soft);color:var(--sh-accent);font-weight:600}
-.sh-nav.help a{color:var(--sh-muted);font-size:13px;padding:6px 10px}
+.sh-nav.help a{color:var(--sh-muted);font-size:14px;padding:6px 10px}
 .sh-cap{margin:14px 10px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--sh-muted)}
-.sh-user{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--sh-line);font-size:13px;color:var(--sh-muted)}
+.sh-user{margin-top:auto;padding:12px 10px 0;border-top:1px solid var(--sh-line);font-size:14px;color:var(--sh-muted)}
 .sh-user b{display:block;color:var(--sh-ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sh-user button{margin-top:8px;font:inherit;font-size:13px;padding:5px 12px;border-radius:6px;border:1px solid var(--sh-line);background:transparent;color:var(--sh-ink);cursor:pointer}
 .sh-main{min-width:0}
@@ -56,6 +56,7 @@ const CSS = `
   .sh-drawer{display:none;flex-basis:100%;padding:6px 0 4px}
   .sh-toggle:checked ~ .sh-drawer{display:block}
   .sh-user{margin-top:8px}
+  .sh-nav a,.sh-burger,.sh-user button,.sh-search input{min-height:44px;box-sizing:border-box}
 }
 `;
 

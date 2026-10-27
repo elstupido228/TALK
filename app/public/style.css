@@ -357,3 +357,18 @@ abbr[title] { text-decoration: underline dotted; text-underline-offset: 3px; cur
 
 /* Одна рамка фокуса во всём портале и в модулях (та же — в оболочке app/shell.js) */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Читаемость: основной и числовой текст — не мельче 14 px (подписи-бейджи — 12,8 px) */
+.small, .tile span, .tile small, .launch .f, .funnel .fs, .stepper li, .eform label, .ferr, th, .list-table th, .due,
+.comment-row label, .filters-row .f, .link-danger, .zleg, .stage .src, footer { font-size: 0.875rem; }
+.badge, .funnel em { font-size: 0.8rem; }
+
+/* Телефон: зоны нажатия не меньше 44 px */
+@media (max-width: 760px) {
+  button, .btn, select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), summary, .crumbs a, .seg-links a, .link-danger { min-height: 44px; }
+  .crumbs a, .link-danger, .owner-pass summary, details.edit summary, .task-add summary, .refuse summary { display: inline-flex; align-items: center; }
+  .link-danger { padding: 0 6px; }
+}
+.stepper li span { font-size: 0.8rem; width: 20px; height: 20px; }
+@media (max-width: 760px) { .client-line a, .docs li > a, ul.plain li > a { display: inline-block; padding: 10px 0; } }
+.stepper li::before { display: inline-block; text-decoration: none; }
