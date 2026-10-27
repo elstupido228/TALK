@@ -44,6 +44,7 @@ const CSS = `
 .sh-user b{display:block;color:var(--sh-ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sh-user button{margin-top:8px;font:inherit;font-size:13px;padding:5px 12px;border-radius:6px;border:1px solid var(--sh-line);background:transparent;color:var(--sh-ink);cursor:pointer}
 .sh-main{min-width:0}
+.sh :focus-visible{outline:2px solid var(--sh-accent);outline-offset:2px}
 .sh-search{margin:0 0 8px}.sh-search input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--sh-line);border-radius:8px;background:var(--sh-bg);color:var(--sh-ink)}
 .sh-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .sh-toggle,.sh-burger{display:none}

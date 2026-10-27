@@ -542,3 +542,12 @@ test("главная: число на плитке = строки списка, 
   assert.match(list, /Показаны сделки: <b>заключены в этом месяце \(переход на «Договор»\)<\/b>/);
   assert.match(list, /ООО «Заключённая»/);
 });
+
+test("оформление: значок вкладки, заголовки модулей по шаблону «Раздел — портал»", async () => {
+  const r = await fetch(base + "/favicon.ico");
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get("content-type"), /image\/svg\+xml/);
+  assert.match((await get("/calc", team))[1], /<title>Расчёт класса — Контур контроля лизинговой сделки<\/title>/);
+  assert.match((await get("/monitoring", team))[1], /<title>Мониторинг — Контур контроля лизинговой сделки<\/title>/);
+  assert.match((await get("/", team))[1], /<link rel="icon" href="\/favicon\.svg"/);
+});

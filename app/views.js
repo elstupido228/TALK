@@ -8,7 +8,7 @@ const PROJECT = "Контур контроля лизинговой сделки
 
 const STATUS = {
   working: ["Работает", "ok"],
-  target: ["В разработке", "target"],
+  target: ["В разработке", "muted"],
   backlog: ["В разработке", "muted"],
 };
 
@@ -20,6 +20,7 @@ function layout({ title, user, active = "", body }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>${esc(title)} — ${PROJECT}</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 ${shell.FONTS}
 <link rel="stylesheet" href="/static/style.css">
 </head>

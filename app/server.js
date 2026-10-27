@@ -30,6 +30,9 @@ const JS = "text/javascript; charset=utf-8";
 const STATIC = {
   "/static/style.css": [path.join(PUB, "style.css"), "text/css; charset=utf-8", "no-cache"],
   "/static/forms.js": [path.join(PUB, "forms.js"), JS, "no-cache"],
+  // значок вкладки; /favicon.ico браузеры запрашивают сами — отдаётся тот же SVG
+  "/favicon.svg": [path.join(PUB, "favicon.svg"), "image/svg+xml", "public, max-age=86400"],
+  "/favicon.ico": [path.join(PUB, "favicon.svg"), "image/svg+xml", "public, max-age=86400"],
   "/vendor/jszip.min.js": [path.join(PUB, "vendor", "jszip.min.js"), JS, "public, max-age=86400"],
   "/vendor/pdf.min.js": [path.join(PUB, "vendor", "pdf.min.js"), JS, "public, max-age=86400"],
   "/vendor/pdf.worker.min.js": [path.join(PUB, "vendor", "pdf.worker.min.js"), JS, "public, max-age=86400"],
