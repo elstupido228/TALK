@@ -36,12 +36,12 @@ def year_files_local(year, src):
 def process_year(year, files, out, unit_check):
     writer, kept, seen, revs = None, 0, 0, []
     for path, remove in files:
-        pf = pq.ParquetFile(path)
+        pf = pq.ParquetFile(path, pre_buffer=False)  # без предзагрузки и пакетами по 50 тыс.: в 900 МБ контейнера (200 тыс. — убит по памяти)
         names = set(pf.schema_arrow.names)
         cols = [c for c in ID_COLS + LINE_COLS if c in names]
         missing = [c for c in LINE_COLS if c not in names]
         if missing: print(f"  нет столбцов: {', '.join(missing)}")
-        for b in pf.iter_batches(columns=cols, batch_size=200_000):
+        for b in pf.iter_batches(columns=cols, batch_size=50_000):
             t = pa.Table.from_batches([b]); seen += t.num_rows
             ok = pc.is_valid(t["okved"]) if "okved" in t.column_names else None
             sect = [sector_of(x) for x in t["okved"].to_pylist()]
