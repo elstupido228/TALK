@@ -22,7 +22,7 @@ function build() {
   const demo = JSON.parse(fs.readFileSync(path.join(SEED, "data", "demo.json"), "utf8"));
   const model = JSON.parse(fs.readFileSync(path.join(SEED, "data", "model.json"), "utf8"));
   return wrap(
-    fill(fs.readFileSync(path.join(SEED, "page_src.html"), "utf8"), {
+    fill(fs.readFileSync(path.join(__dirname, "page.html"), "utf8"), {
       "/*FEATURES_JS*/": fs.readFileSync(path.join(SEED, "features.js"), "utf8"),
       __MODEL_JSON__: js(model),
       __DATA_GZ__: demoPayload(demo),

@@ -98,26 +98,12 @@ docker compose exec app node scripts/bench-extract.js --models gpt-5.4-mini,gpt-
 Страница собирается сервером (`app/monitoring/build.js`, как `build_page.py`) из `seed/ews`: шаблон `page_src.html`,
 расчёт признаков и баллов `features.js` (тот же код, что при обучении), балльная карта `data/model.json`, условный
 портфель `data/demo.json` (420 клиентов, 607 договоров). В шапке — ключевая ставка Банка России (коннектор `cbr`).
-Метрики модели (Gini 0,69 на проверочном периоде) получены на условных данных и подаются только с этой оговоркой.
+Карта — 13 признаков, обучена на условном пуле из 2 500 клиентов; метрики (Gini 0,64 на проверочном периоде)
+получены на условных данных и подаются только с этой оговоркой. Портфель `data/demo.json` в git не хранится —
+создаётся генератором при сборке образа (стадия `ews-demo` в `Dockerfile`).
 
-Сверка баллов страницы с Python (требование — без расхождений):
-
-```bash
-docker compose exec -w /app/seed/ews app node check_parity.js
-```
-
-Переобучение (вне контейнера, Python 3.10+). На Windows обязателен режим UTF-8 (`-X utf8`): иначе `gen_data.py`
-пишет `demo.json` в cp1251, названия событий не распознаются и модель получается другой.
-
-```bash
-cd seed/ews
-pip install optbinning lightgbm "pandas<3" "scikit-learn<1.8"
-python -X utf8 gen_data.py && node build_features.js data/demo.json data/snapshots.json
-python -X utf8 train.py 2024-03-31 && node check_parity.js
-```
-
-Проверено 2026-10-22 (Python 3.14, optbinning 1.0.0, scikit-learn 1.7.2, pandas 2.3.3, numpy 2.5.4): данные и модель
-воспроизводятся точно (отличается только поле `version`). С pandas 3 и scikit-learn 1.8+ `train.py` не работает.
+Обучение и сверка с эталоном — разовой командой вне контейнера портала, порядок и версии пакетов — в
+[seed/ews/README.md](seed/ews/README.md). На Windows обязателен режим UTF-8 (`PYTHONUTF8=1`).
 
 ## Коннекторы (`/api/connectors/*`)
 

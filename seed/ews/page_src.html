@@ -1,5 +1,4 @@
-<title>Мониторинг — Контур контроля лизинговой сделки</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Раннее предупреждение ТАЛК</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -77,9 +76,6 @@ tr.sel td{background:var(--accent-soft)}
 .bar-inline .fill{height:100%;background:var(--accent);border-radius:0 4px 4px 0}
 .bar-inline .fill.neg{background:var(--z-red)}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-abbr[title]{text-decoration:underline dotted;cursor:help}
-.th-sort{all:unset;cursor:pointer;font:inherit;color:inherit}.th-sort:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.back-deal{display:inline-block;margin-bottom:6px;color:var(--accent);text-decoration:none;font-size:14px}
 select,input.t{font:14px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--ink)}
 label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
@@ -158,10 +154,10 @@ details.explain .body p{color:var(--ink)}
 <div class="wrap">
   <header class="top">
     <div class="meta">
-      <span class="eyebrow">Мониторинг действующих договоров · прототип</span>
+      <span class="eyebrow">Проект ТАЛК · мониторинг действующих договоров · прототип</span>
       <h1>Раннее предупреждение о просрочке</h1>
       <p class="muted small">Балльная карта оценивает, насколько вероятен выход клиента в просрочку 60+ дней или расторжение договора в ближайшие 12 месяцев, и показывает, какие факторы снижают балл.</p>
-      <div class="srcline"><span class="chip warn" id="srcChip">Демонстрационные данные</span><span class="muted small" id="srcMeta"></span><span class="chip" id="keyRate" hidden></span></div>
+      <div class="srcline"><span class="chip warn" id="srcChip">Демонстрационные данные</span><span class="muted small" id="srcMeta"></span></div>
     </div>
     <div class="seg" role="tablist" aria-label="Разделы">
       <button role="tab" data-tab="portfolio" aria-pressed="true">Портфель и зоны</button>
@@ -179,7 +175,7 @@ details.explain .body p{color:var(--ink)}
     <div class="tiles" id="tiles"></div>
     <div class="panel">
       <div class="panel-head"><h2>Клиенты по зонам риска за 24 месяца</h2><span class="muted small">число клиентов на конец месяца</span></div>
-      <div class="legend"><span><i style="background:var(--z-red)"></i>Красная зона</span><span><i style="background:var(--z-yellow)"></i>Жёлтая зона</span><span><i style="background:var(--z-green)"></i>Зелёная зона</span><span><i style="background:var(--z-grey)"></i>Просрочка 30+ и дефолт (в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>)</span></div>
+      <div class="legend"><span><i style="background:var(--z-red)"></i>Красная зона</span><span><i style="background:var(--z-yellow)"></i>Жёлтая зона</span><span><i style="background:var(--z-green)"></i>Зелёная зона</span><span><i style="background:var(--z-grey)"></i>Просрочка 30+ и дефолт (в работе СПА)</span></div>
       <div class="chartbox" id="zoneChart"></div>
       <details class="explain"><summary>Как читать</summary><div class="body">
         <p>Каждый столбец — состояние портфеля на конец месяца. Балл пересчитывается ежемесячно по данным, которые были известны на эту дату.</p>
@@ -219,8 +215,6 @@ details.explain .body p{color:var(--ink)}
   <!-- ===================== КАРТОЧКА ===================== -->
   <section class="tabpane" id="tab-card" hidden>
     <div class="filters">
-      <label class="f" for="cardFind">Найти по коду<input id="cardFind" list="cardList" placeholder="например, КЛ-0130" autocomplete="off"></label>
-      <datalist id="cardList"></datalist>
       <label class="f" for="cardSel" style="min-width:min(100%,420px)">Клиент<select id="cardSel"></select></label>
     </div>
     <div class="card-head" id="cardHead"></div>
@@ -308,7 +302,8 @@ details.explain .body p{color:var(--ink)}
       <div class="panel-head"><h2>Заблаговременность сигнала</h2><span class="muted small" id="leadMeta"></span></div>
       <div class="legend"><span><i style="background:var(--accent)"></i>Первое попадание в красную зону</span><span><i style="background:var(--z-grey)"></i>Первая просрочка 30+</span></div>
       <div class="chartbox" id="leadChart"></div>
-      <div class="tscroll"><table id="leadTbl"></table></div>
+      <div class="tscroll tall" style="max-height:360px"><table id="leadTbl"></table></div>
+      <p class="note" id="leadNote"></p>
       <details class="explain"><summary>Как читать</summary><div class="body">
         <p>По клиентам, ушедшим в дефолт в периоде проверки: за сколько месяцев до выхода в 60+ они впервые попали в красную зону и за сколько месяцев появилась просрочка 30+, после которой клиента сейчас передают в работу с проблемными активами.</p>
         <p>Разница между ними — время, которое модель даёт на работу с клиентом до того, как просрочка станет заметной. Нажмите на строку, чтобы открыть историю клиента.</p>
@@ -317,8 +312,8 @@ details.explain .body p{color:var(--ink)}
     <div class="panel">
       <h2>Ограничения прототипа</h2>
       <ul class="actions small">
-        <li>Данные условные: портфель сгенерирован в структуре запроса к ТАЛК, с волной дефолтов в грузоперевозках и строительстве в 2024–2025 годах. Точность на таких данных выше, чем можно ожидать на реальных.</li>
-        <li>В обучении 33 клиента с дефолтом, поэтому в карте 5 факторов. Внешние события (налоговая недоимка, иски, исполнительные производства) сильные, но не вошли из-за лимита; на данных ТАЛК состав может быть другим.</li>
+        <li>Данные условные: портфель сгенерирован в структуре запроса к ТАЛК, с волной дефолтов в грузоперевозках и строительстве в 2024–2025 годах. Связи факторов с дефолтом заданы генератором, поэтому веса и точность показывают работу метода, а не реальные зависимости.</li>
+        <li id="limitNote"></li>
         <li>Правила расчёта просрочки требуют подтверждения ТАЛК: оплата разносится на самый ранний неоплаченный платёж, просрочка клиента — максимальная по договорам на конец месяца.</li>
         <li>Модель оценивает вероятность дефолта. Потери при дефолте зависят от предмета лизинга и показаны отдельно как покрытие.</li>
       </ul>
@@ -356,7 +351,7 @@ details.explain .body p{color:var(--ink)}
 </div>
 <div id="tip" hidden></div>
 
-<script src="/vendor/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 /*FEATURES_JS*/
 </script>
@@ -418,8 +413,6 @@ function showTab(name) {
   document.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tab === name)));
   ["portfolio", "card", "model", "upload"].forEach((n) => ($("tab-" + n).hidden = n !== name));
   try { localStorage.setItem("talk-ews-tab", name); } catch (e) {}
-  // вкладка — в адресе: ссылку можно переслать; у карточки — ещё и код клиента
-  history.replaceState(null, "", "#" + (name === "card" && CARD_CLIENT ? "card=" + encodeURIComponent(CARD_CLIENT) : name));
 }
 document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
@@ -481,7 +474,7 @@ function renderPortfolio() {
   $("tiles").innerHTML =
     `<div class="tile"><span class="eyebrow">Клиентов на ${fdate(STATE.today)}</span><span class="v">${nf(C.length)}</span><span class="muted small">${mln(total)} млн руб. остатка платежей</span></div>` +
     tile("red", "Красная зона", g("red"), worse ? `${nf(worse)} ухудшили зону за месяц` : "") + tile("yellow", "Жёлтая зона", g("yellow")) + tile("green", "Зелёная зона", g("green")) +
-    tile("", "Просрочка 30+ и дефолт", g("grey"), 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>, модель не оценивает');
+    tile("", "Просрочка 30+ и дефолт", g("grey"), "в работе СПА, модель не оценивает");
   // график зон
   const months = STATE.ends.slice(1);
   const cnt = months.map((m) => STATE.monthCounts[m] || { red: 0, yellow: 0, green: 0, grey: 0 });
@@ -507,19 +500,11 @@ function renderPortfolio() {
   fs.innerHTML = `<option value="">Все</option>` + secs.map((s) => `<option>${esc(s)}</option>`).join(""); fs.value = secs.includes(cur) ? cur : "";
   renderList();
 }
-// Сортировка таблицы клиентов по щелчку на заголовок; по умолчанию — зона, затем балл (самые рискованные сверху)
-const LIST_SORT = { key: null, dir: 1 };
-const SORT_KEY = {
-  client: (c) => c.cl.client, sector: (c) => c.cl.sector, zone: (c) => ZORD[c.now.zone], score: (c) => c.now.score,
-  move: (c) => (c.prev ? c.now.score - c.prev.score : 0), exposure: (c) => c.now.f.exposure, dpd: (c) => c.now.f.dpd_now, ltv: (c) => c.now.f.ltv ?? -1,
-};
 function renderList() {
-  // «KL-01», «kl01» латиницей — то же, что «КЛ-01»
-  const z = $("fZone").value, s = $("fSector").value, mv = $("fMove").value, q = $("fSearch").value.trim().toLowerCase().replace(/^kl/, "кл");
-  let L = STATE.clients.filter((c) => (!z || c.now.zone === z) && (!s || c.cl.sector === s) && (!q || c.cl.client.toLowerCase().includes(q) || c.cl.client.toLowerCase().replace("-", "").includes(q.replace("-", ""))) &&
+  const z = $("fZone").value, s = $("fSector").value, mv = $("fMove").value, q = $("fSearch").value.trim().toLowerCase();
+  let L = STATE.clients.filter((c) => (!z || c.now.zone === z) && (!s || c.cl.sector === s) && (!q || c.cl.client.toLowerCase().includes(q)) &&
     (!mv || (c.prev && ZORD[c.now.zone] < ZORD[c.prev.zone])));
-  const k = SORT_KEY[LIST_SORT.key];
-  L.sort((a, b) => (k ? ((k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0) * LIST_SORT.dir) : 0) || ZORD[a.now.zone] - ZORD[b.now.zone] || a.now.score - b.now.score);
+  L.sort((a, b) => ZORD[a.now.zone] - ZORD[b.now.zone] || a.now.score - b.now.score);
   $("listMeta").textContent = `${nf(L.length)} из ${nf(STATE.clients.length)}`;
   const rows = L.slice(0, 300).map((c) => {
     const rs = c.now.zone === "grey" ? [] : F.reasons(MODEL, c.now.parts, 2);
@@ -529,27 +514,13 @@ function renderList() {
       <td>${zoneChip(c.now.zone)}${stop}</td><td class="r num">${c.now.zone === "grey" ? "—" : nf(c.now.score)}</td>
       <td class="r num" style="${d !== null && d < 0 ? "color:var(--bad)" : ""}">${d === null || c.now.zone === "grey" ? "—" : (d > 0 ? "+" : "") + nf(d)}</td>
       <td class="r num">${mln(c.now.f.exposure)}</td><td class="r num">${nf(c.now.f.dpd_now)}</td><td class="r num">${c.now.f.ltv === null ? "—" : nf(c.now.f.ltv, 2)}</td>
-      <td class="small" style="min-width:300px">${rs.map((r) => esc(r.label)).join("; ") || (c.now.zone === "grey" ? 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>' : "—")}</td></tr>`;
+      <td class="small" style="min-width:300px">${rs.map((r) => esc(r.label)).join("; ") || (c.now.zone === "grey" ? "в работе СПА" : "—")}</td></tr>`;
   }).join("");
-  const th = (key, label, cls = "") => `<th class="${cls}"${LIST_SORT.key === key ? ` aria-sort="${LIST_SORT.dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" class="th-sort" data-sort="${key}">${label}${LIST_SORT.key === key ? (LIST_SORT.dir > 0 ? " ↑" : " ↓") : ""}</button></th>`;
-  $("clientTbl").innerHTML = `<thead><tr>${th("client", "Клиент")}${th("sector", "Отрасль")}${th("zone", "Зона")}${th("score", "Балл", "r")}${th("move", "За месяц", "r")}${th("exposure", "Остаток, млн", "r")}${th("dpd", "Просрочка, дн.", "r")}${th("ltv", "Остаток / предмет", "r")}<th>Основные причины</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="muted">Нет клиентов по выбранным условиям. Измените зону, отрасль или поиск.</td></tr>`}</tbody>`;
+  $("clientTbl").innerHTML = `<thead><tr><th>Клиент</th><th>Отрасль</th><th>Зона</th><th class="r">Балл</th><th class="r">За месяц</th><th class="r">Остаток, млн</th><th class="r">Просрочка, дн.</th><th class="r">Остаток / предмет</th><th>Основные причины</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="muted">Нет клиентов по выбранным условиям</td></tr>`}</tbody>`;
 }
-// фильтры таблицы клиентов помнятся до конца сеанса вкладки: уход в «Сделки» и возврат их не сбрасывают
-const FILTERS = ["fZone", "fSector", "fMove", "fSearch"];
-const saveFilters = () => { try { sessionStorage.setItem("talk-ews-filters", JSON.stringify(Object.fromEntries(FILTERS.map((id) => [id, $(id).value])))); } catch (e) {} };
-function restoreFilters() {
-  let f = null; try { f = JSON.parse(sessionStorage.getItem("talk-ews-filters") || "null"); } catch (e) {}
-  if (!f) return;
-  FILTERS.forEach((id) => { if (typeof f[id] === "string" && (id === "fSearch" || [...$(id).options].some((o) => o.value === f[id]))) $(id).value = f[id]; });
-  renderList();
-}
-["fZone", "fSector", "fMove"].forEach((id) => $(id).addEventListener("change", () => { saveFilters(); renderList(); }));
-$("fSearch").addEventListener("input", () => { saveFilters(); renderList(); });
-$("clientTbl").addEventListener("click", (e) => {
-  const b = e.target.closest("button[data-sort]");
-  if (b) { LIST_SORT.dir = LIST_SORT.key === b.dataset.sort ? -LIST_SORT.dir : 1; LIST_SORT.key = b.dataset.sort; return renderList(); }
-  const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client);
-});
+["fZone", "fSector", "fMove"].forEach((id) => $(id).addEventListener("change", renderList));
+$("fSearch").addEventListener("input", renderList);
+$("clientTbl").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client); });
 $("clientTbl").addEventListener("keydown", (e) => { if (e.key === "Enter") { const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client); } });
 
 // ---------- графики ----------
@@ -614,32 +585,26 @@ function barChart(points, opts) {
 
 // ---------- карточка ----------
 const ACTIONS = {
-  red: ["Включить клиента в повестку ближайшего заседания КПА (коллегиального органа по проблемным активам) с готовым досье.", "Назначить осмотр предмета лизинга и проверить его доступность.", "Запросить у клиента свежую отчётность и пояснения по причинам ухудшения.", "Проверить внешние источники по ИНН: суды, исполнительные производства, налоговая задолженность."],
+  red: ["Включить клиента в повестку ближайшего заседания КПА с готовым досье.", "Назначить осмотр предмета лизинга и проверить его доступность.", "Запросить у клиента свежую отчётность и пояснения по причинам ухудшения.", "Проверить внешние источники по ИНН: суды, исполнительные производства, налоговая задолженность."],
   yellow: ["Звонок клиентского менеджера с фиксацией результата и обещаний в 1С.", "Контроль ближайшего платежа по графику; при опоздании — перевод в красную зону.", "Пересмотр балла в следующем месяце."],
   green: ["Стандартный ежемесячный мониторинг."],
-  grey: ["Клиент в работе отдела по работе с проблемными активами; порядок действий — по стратегии, утверждённой коллегиальным органом по проблемным активам (КПА)."],
+  grey: ["Клиент в работе отдела по работе с проблемными активами; порядок действий — по стратегии, утверждённой КПА."],
 };
 let CARD_CLIENT = null;
 function cardOptions() {
   const C = STATE.clients.slice().sort((a, b) => ZORD[a.now.zone] - ZORD[b.now.zone] || a.now.score - b.now.score);
   const grp = (z, title) => { const l = C.filter((c) => c.now.zone === z); return l.length ? `<optgroup label="${title} (${l.length})">${l.map((c) => `<option value="${esc(c.cl.client)}">${esc(c.cl.client)} · ${esc(c.cl.sector)} · ${c.now.zone === "grey" ? "просрочка " + nf(c.now.f.dpd_now) + " дн." : "балл " + nf(c.now.score)}</option>`).join("")}</optgroup>` : ""; };
   let html = grp("red", "Красная зона") + grp("yellow", "Жёлтая зона") + grp("green", "Зелёная зона") + grp("grey", "Просрочка 30+ и дефолт");
-  if (STATE.label === "demo" && MODEL.validation.lead.cases.length) {
-    html += `<optgroup label="Дефолт после даты разделения выборки (проверка)">${MODEL.validation.lead.cases.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · дефолт ${fdate(c.default)} · красная зона за ${c.red} мес.</option>`).join("")}</optgroup>`;
+  const leadHere = MODEL.validation.lead.cases.filter((c) => STATE.idx.clients.has(c.client));
+  if (STATE.label === "demo" && leadHere.length) {
+    html += `<optgroup label="Дефолт после даты разделения выборки (проверка)">${leadHere.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · дефолт ${fdate(c.default)} · красная зона за ${c.red} мес.</option>`).join("")}</optgroup>`;
   }
   $("cardSel").innerHTML = html;
-  $("cardList").innerHTML = C.map((c) => `<option value="${esc(c.cl.client)}">${esc(c.cl.sector)}</option>`).join("");
 }
-// поиск клиента по коду: «кл-130», «KL0130», «0130» — к виду «КЛ-0130»; найден — сразу карточка
-$("cardFind").addEventListener("input", () => {
-  const raw = $("cardFind").value.trim().toUpperCase().replace(/^(KL|КЛ)-?/, ""), code = raw ? "КЛ-" + raw.padStart(4, "0") : "";
-  if (STATE.clients.some((c) => c.cl.client === code)) { $("cardSel").value = code; renderCard(code); }
-});
 $("cardSel").addEventListener("change", () => renderCard($("cardSel").value));
 function openCard(cid) { showTab("card"); $("cardSel").value = cid; renderCard(cid); window.scrollTo({ top: 0, behavior: "smooth" }); }
 function renderCard(cid) {
   CARD_CLIENT = cid;
-  if (!$("tab-card").hidden) history.replaceState(null, "", "#card=" + encodeURIComponent(cid));
   const cl = STATE.idx.clients.get(cid); if (!cl) return;
   // история: 24 месяца до даты оценки, а для дефолта — 15 месяцев до и 3 после
   const ends = STATE.idx.ends; let endI = ends.length - 1;
@@ -655,7 +620,7 @@ function renderCard(cid) {
     const st = defIdx !== null && i > defIdx ? "дефолт" : f.dpd_now >= 30 ? "просрочка 30+" : "оценивается";
     const sc = F.score(MODEL, f); const zone = st === "оценивается" ? sc.zone : "grey";
     pts.push({ date, v: sc.score, dpd: f.dpd_now, zone, f, parts: sc.parts,
-      tip: `<b>${fdate(date)}</b><br>Балл: ${nf(sc.score)}<br>${st === "оценивается" ? ZN[zone] : st === "дефолт" ? "после дефолта" : "просрочка 30+ — в работе подразделения по проблемным активам (СПА)"}<br>Просрочка: ${nf(f.dpd_now)} дн.` });
+      tip: `<b>${fdate(date)}</b><br>Балл: ${nf(sc.score)}<br>${st === "оценивается" ? ZN[zone] : st === "дефолт" ? "после дефолта" : "просрочка 30+ — в работе СПА"}<br>Просрочка: ${nf(f.dpd_now)} дн.` });
   }
   const cur = STATE.clients.find((c) => c.cl.client === cid);
   const last = cur ? cur.now : [...pts].reverse().find((p) => p.f) || null;
@@ -725,6 +690,8 @@ function renderModel() {
   ].map(([n, t, v, s]) => `<div class="step"><span class="n">${n}</span><span class="small">${t}</span><span class="v">${v}</span><span class="muted small">${s}</span></div>`).join("");
   const maxIv = Math.max(...MODEL.candidates.map((c) => c.iv));
   $("candMeta").textContent = `${MODEL.vars.length} в модели из ${MODEL.candidates.length}`;
+  const excl = MODEL.candidates.filter((c) => !c.selected);
+  $("limitNote").textContent = `Модель обучена на ${V.train.clients} клиентах, из них ${V.p_max.event_clients} с дефолтом; допустимое число факторов при таком объёме — ${V.p_max.value}, в карте ${MODEL.vars.length}. Не вошли: ${excl.map((c) => c.label.toLowerCase() + " (" + c.reason + ")").join("; ")}. Карта применяется к демонстрационному портфелю из 420 клиентов того же генератора.`;
   $("candTbl").innerHTML = `<thead><tr><th>Фактор</th><th>Группа</th><th>IV</th><th>Решение</th></tr></thead><tbody>` +
     MODEL.candidates.map((c) => `<tr><td>${esc(c.label)}</td><td class="small muted">${esc(c.group)}</td>
       <td><div class="bar-inline"><span class="num" style="width:44px;text-align:right">${nf(c.iv, 2)}</span><span class="track"><span class="fill" style="width:${100 * c.iv / maxIv}%;${c.selected ? "" : "background:var(--base)"}"></span></span></div></td>
@@ -757,10 +724,11 @@ function renderModel() {
     ["red", "yellow", "green"].map((k) => `<tr><td>${zoneChip(k)}</td><td class="r num">${pct(z[k].share)}</td><td class="r num">${pct(z[k].event_rate, 1)}</td><td class="r num">${pct(z[k].events_share)}</td></tr>`).join("") + "</tbody>";
   // заблаговременность
   const Ld = V.lead;
+  $("leadNote").textContent = `Клиенты с пометкой «пул» — из обучающего набора, в демонстрационный портфель (КЛ-0001 — КЛ-0420) не входят.`;
   $("leadMeta").textContent = `${Ld.clients} клиентов; медиана: красная зона за ${nf(Ld.red_median, 1)} мес., просрочка 30+ за ${nf(Ld.dpd30_median, 1)} мес. до дефолта`;
   $("leadChart").innerHTML = leadChart(Ld.hist_red, Ld.hist_dpd30);
   $("leadTbl").innerHTML = `<thead><tr><th>Клиент</th><th>Дефолт</th><th class="r">Красная зона, мес. до дефолта</th><th class="r">Просрочка 30+, мес. до дефолта</th><th class="r">Выигрыш, мес.</th></tr></thead><tbody>` +
-    Ld.cases.slice().sort((a, b) => a.default.localeCompare(b.default)).map((c) => `<tr class="rowlink" tabindex="0" data-client="${esc(c.client)}"><td class="code">${esc(c.client)}</td><td class="num">${fdate(c.default)}</td><td class="r num">${c.red || "не попал"}</td><td class="r num">${c.dpd30 || "—"}</td><td class="r num">${c.red ? nf(c.red - c.dpd30) : "—"}</td></tr>`).join("") + "</tbody>";
+    Ld.cases.slice().sort((a, b) => a.default.localeCompare(b.default)).map((c) => `<tr class="rowlink" tabindex="0" data-client="${esc(c.client)}"><td class="code">${esc(c.client)}${+c.client.slice(3) > 420 ? ' <span class="chip">пул</span>' : ""}</td><td class="num">${fdate(c.default)}</td><td class="r num">${c.red || "не попал"}</td><td class="r num">${c.dpd30 || "—"}</td><td class="r num">${c.red ? nf(c.red - c.dpd30) : "—"}</td></tr>`).join("") + "</tbody>";
 }
 function leadChart(a, b) {
   const W = 1100, H = 200, L = 36, R = 8, T = 10, B = 34, n = a.length;
@@ -778,7 +746,9 @@ function leadChart(a, b) {
   g += `<text x="${(W + L) / 2}" y="${H - 2}" text-anchor="middle">месяцев до дефолта</text><line class="axis" x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}"/>`;
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Распределение заблаговременности сигнала">${g}</svg>`;
 }
-$("leadTbl").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-client]"); if (tr) openCard(tr.dataset.client); });
+$("leadTbl").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-client]"); if (!tr) return;
+  if (STATE && STATE.idx.clients.has(tr.dataset.client)) openCard(tr.dataset.client);
+  else $("leadNote").textContent = `Клиента ${tr.dataset.client} нет в показанном портфеле: он из обучающего пула. Карточку можно открыть для клиентов с кодом до КЛ-0420.`; });
 
 // ---------- шаблон и загрузка ----------
 const SHEETS = [
@@ -786,7 +756,7 @@ const SHEETS = [
   { name: "Договоры", key: "contracts", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", "Код договора"], ["Код клиента", "client", "s", ""], ["Дата договора", "date", "d", ""], ["Тип предмета лизинга", "asset", "s", "Грузовой транспорт, Спецтехника, Легковой транспорт, Оборудование"], ["Стоимость предмета, руб.", "asset_value", "n", "Стоимость при передаче"], ["Аванс, руб.", "advance", "n", ""], ["Срок, мес.", "term", "n", ""], ["Поручительство (да/нет)", "guarantee", "b", ""]] },
   { name: "График", key: "schedule", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата платежа", "due", "d", "Действующая версия графика"], ["Сумма платежа, руб.", "amount", "n", ""]] },
   { name: "Платежи", key: "payments", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата оплаты", "date", "d", "Дата поступления"], ["Сумма оплаты, руб.", "amount", "n", "Без пеней"]] },
-  { name: "События", key: "events", src: "1С:Лизинг, протоколы КПА (коллегиального органа по проблемным активам), внешние источники по ИНН", cols: [["Код клиента", "client", "s", ""], ["Дата", "date", "d", "Дата события, не дата его обнаружения"], ["Тип события", "type", "s", Object.values(F.EV).join("; ")], ["Сумма, руб.", "amount", "n", "Для исков, недоимки, исполнительных производств"]] },
+  { name: "События", key: "events", src: "1С:Лизинг, протоколы КПА, внешние источники по ИНН", cols: [["Код клиента", "client", "s", ""], ["Дата", "date", "d", "Дата события, не дата его обнаружения"], ["Тип события", "type", "s", Object.values(F.EV).join("; ")], ["Сумма, руб.", "amount", "n", "Для исков, недоимки, исполнительных производств"]] },
   { name: "Отчётность", key: "reports", src: "ГИР БО, СПАРК или Контур по ИНН", cols: [["Код клиента", "client", "s", ""], ["Год", "year", "n", "Отчётный год"], ["Дата представления", "filed", "d", "Дата сдачи в ФНС"], ["Выручка, тыс. руб.", "revenue", "n", "стр. 2110"], ["Чистая прибыль, тыс. руб.", "net_profit", "n", "стр. 2400"], ["Капитал, тыс. руб.", "equity", "n", "стр. 1300"], ["Активы, тыс. руб.", "assets", "n", "стр. 1600"], ["Долг, тыс. руб.", "debt", "n", "стр. 1410 + 1510"]] },
 ];
 $("tplTbl").innerHTML = `<thead><tr><th>Лист</th><th>Столбец</th><th>Пояснение</th><th>Источник</th></tr></thead><tbody>` +
@@ -795,12 +765,10 @@ $("tplTbl").innerHTML = `<thead><tr><th>Лист</th><th>Столбец</th><th>
 async function saveFile(name, wb) {
   const st = $("dlStatus");
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  try {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-    a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    st.textContent = "Файл сформирован."; st.className = "status";
-  } catch (e) { st.textContent = "Не удалось сформировать файл: " + (e && e.message || e); st.className = "status err"; }
+  let dl = null; try { dl = window.claude ? await window.claude.use("downloads") : null; } catch (e) {}
+  if (!dl) { st.textContent = "Скачивание недоступно в этом окне."; st.className = "status err"; return; }
+  try { await dl.save({ filename: name, data: new Uint8Array(buf) }); st.textContent = "Файл передан на сохранение."; st.className = "status"; }
+  catch (e) { st.textContent = e && e.code === "declined" ? "Сохранение отменено." : "Не удалось сохранить файл: " + (e && e.message || e); st.className = "status" + (e && e.code === "declined" ? "" : " err"); }
 }
 function buildWorkbook(data) {
   const wb = XLSX.utils.book_new();
@@ -895,37 +863,15 @@ function useData(data, label, fname) {
   const first = STATE.clients.filter((c) => c.now.zone === "red").sort((a, b) => a.now.score - b.now.score)[0] || STATE.clients[0];
   if (first) { $("cardSel").value = first.cl.client; renderCard(first.cl.client); }
 }
-// Адрес: #вкладка или #card=<код клиента> (ссылки «Требуют внимания» с главной, из карточки сделки)
-const TABS = ["portfolio", "card", "model", "upload"];
-function applyHash() {
-  const h = decodeURIComponent((location.hash || "").slice(1));
-  if (h.startsWith("card=") && STATE.clients.some((c) => c.cl.client === h.slice(5))) { $("cardSel").value = h.slice(5); CARD_CLIENT = h.slice(5); showTab("card"); renderCard(h.slice(5)); return true; }
-  if (TABS.includes(h)) { showTab(h); return true; }
-  return false;
-}
 (async function boot() {
   try {
     DEMO = await loadDemo();
     renderModel();
     useData(DEMO, "demo");
-    restoreFilters();
-    // пришли из карточки сделки (/monitoring?deal=…) — ссылка обратно
-    const fromDeal = new URLSearchParams(location.search).get("deal");
-    if (/^\d+$/.test(fromDeal || "")) { const a = document.createElement("a"); a.href = "/deals/" + fromDeal; a.className = "back-deal"; a.textContent = "← К сделке №" + fromDeal; document.querySelector("h1").before(a); }
     $("bootStatus").hidden = true;
     let t = null; try { t = localStorage.getItem("talk-ews-tab"); } catch (e) {}
-    if (!applyHash()) showTab(t && TABS.includes(t) ? t : "portfolio");
-    // ссылка на вкладку или карточку внутри уже открытой страницы
-    addEventListener("hashchange", applyHash);
+    const h = (location.hash || "").slice(1);
+    showTab(["portfolio", "card", "model", "upload"].includes(h) ? h : t && ["portfolio", "card", "model", "upload"].includes(t) ? t : "portfolio");
   } catch (e) { $("bootStatus").textContent = "Не удалось загрузить данные: " + (e && e.message || e); $("bootStatus").className = "status err"; }
 })();
-// Ключевая ставка Банка России — коннектор портала /api/connectors/cbr/key-rate (кэш, при сбое сети — последний ответ)
-fetch("/api/connectors/cbr/key-rate").then((r) => (r.ok ? r.json() : null)).then((j) => {
-  if (!j || !j.data) return;
-  const k = j.data, el = $("keyRate");
-  const src = { live: "получено с cbr.ru", cache: "из кэша", sandbox: "песочница, условные значения" }[j.source] + (j.stale ? ", данные устарели" : "");
-  el.textContent = `Ключевая ставка Банка России ${k.rate.toFixed(2).replace(".", ",")} % с ${fdate(k.since)}`;
-  el.title = `На ${fdate(k.date)} · ${src} · обновлено ${new Date(j.fetched_at).toLocaleString("ru-RU")}`;
-  el.hidden = false;
-}).catch(() => {});
 </script>

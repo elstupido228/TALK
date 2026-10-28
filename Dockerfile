@@ -1,5 +1,13 @@
 # Сервис портала: Node.js + SQLite (файл в томе /data).
 # poppler-utils (pdftoppm) понадобится шлюзу /api/extract на шаге 4 — рендер страниц PDF без тяжёлых браузеров.
+
+# Условный портфель «Мониторинга» (data/demo.json) в git не хранится: генератор детерминированный (seed 20261014),
+# собираем его здесь. Python остаётся в этой стадии и в образ портала не попадает.
+FROM python:3.13-slim AS ews-demo
+RUN pip install --no-cache-dir numpy==2.5.3
+COPY seed/ews/gen_data.py /ews/gen_data.py
+RUN cd /ews && python gen_data.py
+
 FROM node:24-bookworm-slim
 
 ENV NODE_ENV=production \
@@ -17,6 +25,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY app ./app
 COPY seed ./seed
+COPY --from=ews-demo /ews/data/demo.json ./seed/ews/data/demo.json
 COPY scripts ./scripts
 COPY bench/pdf ./bench/pdf
 

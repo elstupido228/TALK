@@ -10,7 +10,12 @@ tmp/
 !bench/pdf/**/*.pdf
 *.sqlite*
 *.db
-seed/ews/data/snapshots.json
+seed/ews/data/*
+!seed/ews/data/model.json
+!seed/ews/data/model_5_признаков_2026-10-14.json
+seed/ews_open/data/*
+!seed/ews_open/data/model_open.json
+seed/ews_open/data_mock/
 seed/ews/*.html
 !seed/ews/page_src.html
 docs/

@@ -1,7 +1,7 @@
 // Сверка: баллы, посчитанные модулем страницы (features.js), против баллов optbinning в Python
 const fs = require("fs");
 const F = require("./features.js");
-const data = JSON.parse(fs.readFileSync("data/demo.json", "utf8"));
+const data = JSON.parse(fs.readFileSync(process.argv[2] || "data/demo.json", "utf8"));  // тот же файл, на котором обучали
 const model = JSON.parse(fs.readFileSync("data/model.json", "utf8"));
 const py = fs.readFileSync("data/py_scores_test.csv", "utf8").trim().split("\n").slice(1).map((l) => l.split(","));
 const idx = F.prepare(data);

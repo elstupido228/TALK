@@ -32,8 +32,14 @@ secrets/
 !bench/pdf/**/*.pdf
 
 # --- Производные артефакты seed (пересоздаются скриптами) ---
-# demo.json и py_scores_test.csv хранятся: страница «Мониторинг» и check_parity.js работают без Python
-seed/ews/data/snapshots.json
+# Данные раннего предупреждения в git не кладём: только карты (обучены на условных и открытых данных).
+# demo.json пересоздаётся gen_data.py (детерминированно) при сборке образа, пул и срезы — командами из seed/ews/README.md.
+seed/ews/data/*
+!seed/ews/data/model.json
+!seed/ews/data/model_5_признаков_2026-10-14.json
+seed/ews_open/data/*
+!seed/ews_open/data/model_open.json
+seed/ews_open/data_mock/
 seed/ews/*.html
 !seed/ews/page_src.html
 seed/calc/in/

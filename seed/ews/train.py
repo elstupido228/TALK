@@ -10,7 +10,8 @@ warnings.filterwarnings("ignore")
 
 D = Path(__file__).parent / "data"
 SPLIT = sys.argv[1] if len(sys.argv) > 1 else "2024-03-31"   # обучение: срезы по эту дату включительно
-rows = pd.DataFrame(json.loads((D / "snapshots.json").read_text()))
+SNAP = Path(sys.argv[2]) if len(sys.argv) > 2 else D / "snapshots.json"   # срезы из build_features.js
+rows = pd.DataFrame(json.loads(SNAP.read_text()))
 FEATS = [f for f in ["dpd_now", "max_dpd_6m", "late_cnt_6m", "delay_trend", "share_paid", "ltv", "guarantee", "restruct_12m",
                      "tenure_m", "tax_12m", "suits_12m", "fssp_12m", "ceo_12m", "eq_ratio", "net_margin", "rev_growth",
                      "debt_rev", "not_filed", "sector"]]
@@ -131,7 +132,7 @@ valid = {"split": SPLIT, "train": {"rows": int(len(tr)), "clients": int(tr.clien
 allr = rows[rows.status == "оценивается"].copy()
 allr["score"] = sc.score(X(allr)[sel]); allr["zone"] = zone(allr.score.values)
 allr.loc[allr.stop_bankr == 1, "zone"] = "red"
-first_def = json.loads((D / "defaults.json").read_text())  # общее правило из features.js
+first_def = json.loads((SNAP.parent / SNAP.name.replace("snapshots.json", "defaults.json")).read_text())  # общее правило из features.js
 lead = []
 mdiff = lambda a, b: (int(b[:4]) - int(a[:4])) * 12 + int(b[5:7]) - int(a[5:7])
 for c, d in first_def.items():
@@ -155,7 +156,7 @@ cands = [{"name": v, "label": LABELS[v], "group": GROUPS[v], "iv": round(float(i
           "reason": "в модели" if v in sel else ("слабый фактор (IV < 0,02)" if iv[v] < 0.02 else
                     ("вес получил противоположный знак при совместной оценке" if v in banned else why.get(v, "")))} for v in iv.index]
 valid["p_max"] = {"value": int(P_MAX), "clients": int(n_cl), "event_clients": int(e_cl)}
-model = {"version": dt.date.today().isoformat(), "data": "Демонстрационные данные (условный портфель)",
+model = {"version": dt.date.today().isoformat(), "data": f"Демонстрационные данные (условный портфель, обучение на {int(rows.client.nunique())} клиентах)",
          "target": "Просрочка 60+ дней или расторжение договора в течение 12 месяцев после даты оценки",
          "scaling": {"pdo": 20, "odds": 50, "points": 600}, "zones": {"red": red, "yellow": yellow},
          "vars": vars_, "candidates": cands, "validation": valid}

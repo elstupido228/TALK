@@ -1,11 +1,17 @@
 """Условный портфель лизинговой компании в структуре запроса к ТАЛК.
 Данные выдуманы: клиенты обозначены кодами, отрасли и регионы — для правдоподобия.
-Выход: data/demo.json (для расчёта) и data/demo_portfolio.xlsx (как выгрузка по шаблону).
+Выход: data/<out> (по умолчанию data/demo.json).
+Запуск: python gen_data.py                                   # демо-портфель для страницы (420 клиентов)
+        python gen_data.py --clients 2500 --out pool.json     # обучающий пул
 """
-import json, math, random, datetime as dt
+import json, math, random, argparse, datetime as dt
 from pathlib import Path
 import numpy as np
 
+ap = argparse.ArgumentParser(description="Условный портфель лизинговой компании")
+ap.add_argument("--clients", type=int, default=420, help="число клиентов (демо для страницы — 420, обучающий пул — 2500)")
+ap.add_argument("--out", default="demo.json", help="имя файла в data/")
+args = ap.parse_args()
 SEED = 20261014
 rng = np.random.default_rng(SEED); random.seed(SEED)
 TODAY = dt.date(2026, 9, 30)
@@ -42,7 +48,7 @@ def sector_shock(sector, m):
     if dt.date(2020, 4, 1) <= d <= dt.date(2020, 9, 1): s -= 0.03  # общий спад
     return s
 
-N_CLI = 420
+N_CLI = args.clients  # первые 420 клиентов одинаковы при любом N: генератор идёт по клиентам последовательно
 M_END = month_index(TODAY)
 clients, contracts, schedule, payments, events, reports = [], [], [], [], [], []
 n_contract = 0
@@ -146,7 +152,7 @@ for i in range(N_CLI):
 
 data = {"today": TODAY.isoformat(), "clients": clients, "contracts": contracts, "schedule": schedule,
         "payments": payments, "events": events, "reports": reports}
-(OUT / "demo.json").write_text(json.dumps(data, ensure_ascii=False))
+(OUT / args.out).write_text(json.dumps(data, ensure_ascii=False))
 print({k: len(v) for k, v in data.items() if isinstance(v, list)})
 from collections import Counter
 print(Counter(e["type"] for e in events))

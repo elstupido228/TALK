@@ -2,6 +2,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
 const vm = require("node:vm");
+const fs = require("node:fs");
 const zlib = require("node:zlib");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
@@ -13,11 +14,15 @@ const { createConnectors } = require("../app/connectors/core");
 const cbr = require("../app/connectors/cbr");
 const { build } = require("../app/monitoring/build");
 
-test("check_parity.js: баллы страницы совпадают с баллами Python", () => {
-  const out = execFileSync(process.execPath, ["check_parity.js"], { cwd: path.join(__dirname, "..", "seed", "ews"), encoding: "utf8" });
+// Пул и баллы Python в git не хранятся: создаются командами из seed/ews/README.md (gen_data.py --clients 2500, train.py).
+const EWS = path.join(__dirname, "..", "seed", "ews");
+const hasPool = ["pool.json", "py_scores_test.csv"].every((f) => fs.existsSync(path.join(EWS, "data", f)));
+
+test("check_parity.js: баллы страницы совпадают с баллами Python", { skip: !hasPool && "нет data/pool.json и py_scores_test.csv — сначала обучение по seed/ews/README.md" }, () => {
+  const out = execFileSync(process.execPath, ["check_parity.js", "data/pool.json"], { cwd: EWS, encoding: "utf8" });
   const m = out.match(/сравнено (\d+) срезов, максимальное расхождение ([\d.]+) балла/);
   assert.ok(m, out);
-  assert.strictEqual(+m[1], 4048);
+  assert.strictEqual(+m[1], 24232);
   assert.ok(+m[2] <= 0.01, out);
   assert.ok(!out.includes("нет среза"), out);
 });
