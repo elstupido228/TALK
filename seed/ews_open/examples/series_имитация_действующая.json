@@ -1,0 +1,1659 @@
+{
+ "note": "Пример ответа GET /api/open/company/{inn}/series на ИМИТАЦИИ (mock_rfsd.py), не реальная компания",
+ "inn": "7700000000",
+ "series": [
+  {
+   "date": "2022-01-31",
+   "score": 655,
+   "zone": "green",
+   "report_year": 2020,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-02-28",
+   "score": 655,
+   "zone": "green",
+   "report_year": 2020,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-03-31",
+   "score": 655,
+   "zone": "green",
+   "report_year": 2020,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-04-30",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-05-31",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-06-30",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-07-31",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-08-31",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-09-30",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-10-31",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-11-30",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2022-12-31",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-01-31",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-02-28",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-03-31",
+   "score": 656,
+   "zone": "green",
+   "report_year": 2021,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-04-30",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-05-31",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-06-30",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-07-31",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-08-31",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-09-30",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-10-31",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-11-30",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2023-12-31",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-01-31",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-02-29",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-03-31",
+   "score": 665,
+   "zone": "green",
+   "report_year": 2022,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "rev_growth",
+     "label": "Изменение выручки за год",
+     "lost": 9
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-04-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-05-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-06-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-07-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-08-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-09-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-10-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-11-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2024-12-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-01-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-02-28",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-03-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2023,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-04-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-05-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-06-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-07-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-08-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-09-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-10-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-11-30",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2025-12-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-01-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-02-28",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-03-31",
+   "score": 669,
+   "zone": "green",
+   "report_year": 2024,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 25
+    },
+    {
+     "name": "assets_growth",
+     "label": "Изменение активов за год",
+     "lost": 12
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-04-30",
+   "score": 663,
+   "zone": "green",
+   "report_year": 2025,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-05-31",
+   "score": 663,
+   "zone": "green",
+   "report_year": 2025,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-06-30",
+   "score": 663,
+   "zone": "green",
+   "report_year": 2025,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-07-31",
+   "score": 663,
+   "zone": "green",
+   "report_year": 2025,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-08-31",
+   "score": 663,
+   "zone": "green",
+   "report_year": 2025,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  },
+  {
+   "date": "2026-09-30",
+   "score": 663,
+   "zone": "green",
+   "report_year": 2025,
+   "reasons": [
+    {
+     "name": "log_revenue",
+     "label": "Размер (логарифм выручки)",
+     "lost": 42
+    },
+    {
+     "name": "sales_margin",
+     "label": "Рентабельность продаж",
+     "lost": 40
+    },
+    {
+     "name": "eq_ratio",
+     "label": "Доля собственного капитала в активах",
+     "lost": 8
+    }
+   ],
+   "class285": 2,
+   "status": {
+    "status": "ACTIVE",
+    "label": "Действует",
+    "known": false
+   }
+  }
+ ]
+}
