@@ -43,6 +43,7 @@ header.top .meta{display:flex;flex-direction:column;gap:6px;min-width:0;max-widt
 .panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:baseline}
 .btn{font:500 14px var(--f-body);border-radius:var(--r);padding:9px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:transparent;color:var(--accent)}
+a.btn{display:inline-block;text-decoration:none}
 .btn.sm{font-size:13px;padding:6px 12px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn:focus-visible,.seg button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible,tr.rowlink:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -330,18 +331,17 @@ details.explain .body p{color:var(--ink)}
   <section class="tabpane" id="tab-upload" hidden>
     <div class="panel">
       <div class="panel-head"><h2>Шаблон выгрузки</h2>
-        <div class="filters"><button class="btn ghost sm" id="dlTpl">Скачать шаблон (xlsx)</button><button class="btn ghost sm" id="dlDemo">Скачать пример заполненной выгрузки (xlsx)</button></div></div>
+        <div class="filters"><a class="btn ghost sm" id="dlTpl" href="/api/ews/template" download>Скачать шаблон (xlsx)</a><a class="btn ghost sm" id="dlDemo" href="/api/ews/template?example=1" download>Скачать пример заполненной выгрузки (xlsx)</a></div></div>
       <p class="lead">Шесть листов в структуре запроса к ТАЛК. Названия клиентов не нужны: достаточно кодов. Внешние события и отчётность подтягиваются по ИНН до замены ИНН кодами.</p>
       <div class="tscroll"><table id="tplTbl"></table></div>
-      <p class="status" id="dlStatus"></p>
     </div>
     <div class="panel">
       <div class="panel-head"><h2>Расчёт по своей выгрузке</h2></div>
       <div class="drop" id="drop">
         <strong>Перетащите файл выгрузки (xlsx) сюда</strong>
-        <span class="muted small">Файл обрабатывается в браузере и никуда не передаётся. Баллы считаются по текущей балльной карте; переобучение модели выполняется отдельно, скриптом на Python.</span>
+        <span class="muted small">Файл передаётся только на сервер портала для расчёта: на диск не записывается, в журнал не попадает, хранится в памяти 30 минут. Баллы считаются по текущей балльной карте; переобучение модели выполняется отдельно, скриптом на Python.</span>
         <label class="btn ghost" for="fileIn" style="cursor:pointer">Выбрать файл</label>
-        <input type="file" id="fileIn" accept=".xlsx,.xls" hidden>
+        <input type="file" id="fileIn" accept=".xlsx" hidden>
       </div>
       <p class="status" id="upStatus"></p>
       <div id="upReport" hidden>
@@ -357,14 +357,15 @@ details.explain .body p{color:var(--ink)}
 </div>
 <div id="tip" hidden></div>
 
-<script src="/vendor/xlsx.full.min.js"></script>
 <script>
-/*FEATURES_JS*/
-</script>
-<script>
-const MODEL = __MODEL_JSON__;
-const DEMO_GZ = "__DATA_GZ__";
-const F = window.TalkEWS;
+// Данные и расчёт — на сервере: /api/ews/* (features.js + model.json). Страница только показывает.
+let MODEL = null; // GET /api/ews/model
+const api = async (url, opt) => {
+  const r = await fetch(url, opt);
+  const j = await r.json().catch(() => null);
+  if (!r.ok) throw Object.assign(new Error((j && j.error && j.error.message) || "ошибка " + r.status), { status: r.status });
+  return j;
+};
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const nf = (x, d = 0) => (x === null || x === undefined || !isFinite(x)) ? "—" : Number(x).toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -378,7 +379,6 @@ const zoneChip = (z) => `<span class="zone ${z}">${ZN[z]}</span>`;
 const INT_VARS = new Set(["dpd_now", "max_dpd_6m", "late_cnt_6m", "suits_12m", "fssp_12m", "restruct_12m", "tenure_m", "tax_12m", "ceo_12m", "not_filed", "guarantee"]);
 const PCT_VARS = new Set(["share_paid", "eq_ratio", "net_margin", "rev_growth"]);
 const BOOL_VARS = new Set(["tax_12m", "ceo_12m", "not_filed", "guarantee"]);
-const LABEL = Object.fromEntries(F.FEATURES.map((f) => [f.name, f.label]));
 function fmtVal(name, x) {
   if (x === null || x === undefined) return "нет данных";
   if (BOOL_VARS.has(name)) return x ? "да" : "нет";
@@ -425,85 +425,52 @@ function showTab(name) {
 document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
 // ---------- данные ----------
-function expandCols(d) {
-  const ex = (c) => {
-    if (Array.isArray(c)) return c;
-    const ks = Object.keys(c);
-    return c[ks[0]].map((_, i) => Object.fromEntries(ks.map((k) => [k, c[k][i]])));
-  };
-  return { ...d, schedule: ex(d.schedule), payments: ex(d.payments) };
+// STATE: портфель на дату из /api/ews/portfolio (+ набор данных: demo или id загруженной выгрузки)
+let STATE = null;
+const qs = (o) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== null && v !== undefined && v !== "")).toString();
+async function loadPortfolio(dataset, label, fname, date) {
+  const port = await api("/api/ews/portfolio?" + qs({ dataset, date }));
+  STATE = { ...port, dataset, label, fname };
+  STATE.ends = [port.months.length ? addMonthIso(port.months[0].date, -1) : port.date, ...port.months.map((m) => m.date)];
+  STATE.monthCounts = Object.fromEntries(port.months.map((m) => [m.date, m]));
+  STATE.today = port.date;
+  STATE.cards = new Map();
 }
-async function loadDemo() {
-  const bin = Uint8Array.from(atob(DEMO_GZ), (c) => c.charCodeAt(0));
-  const ds = new DecompressionStream("gzip");
-  const txt = await new Response(new Blob([bin]).stream().pipeThrough(ds)).text();
-  return expandCols(JSON.parse(txt));
-}
-
-let STATE = null; // {data, idx, ends, clients:[{cl, hist:[{date, f, s, zone}], now}], label}
-function zoneOf(f, status) {
-  if (!f) return null;
-  if (status !== "оценивается") return { zone: "grey", score: F.score(MODEL, f).score, parts: F.score(MODEL, f).parts };
-  return F.score(MODEL, f);
-}
-function compute(data, label) {
-  const idx = F.prepare(data);
-  const ends = idx.ends.slice(-25);
-  const fromIso = F.diso(ends[0]);
-  const snaps = F.snapshots(idx, { from: fromIso });
-  const by = new Map(); const monthCounts = {};
-  for (const r of snaps) {
-    if (!by.has(r.client)) by.set(r.client, []);
-    const z = zoneOf(r, r.status);
-    by.get(r.client).push({ date: r.date, f: r, score: z.score, zone: z.zone, parts: z.parts });
-    const mc = monthCounts[r.date] || (monthCounts[r.date] = { red: 0, yellow: 0, green: 0, grey: 0 }); mc[z.zone]++;
-  }
-  const today = F.diso(idx.today);
-  const clients = [];
-  for (const [cid, hist] of by) {
-    const cl = idx.clients.get(cid);
-    const now = hist[hist.length - 1];
-    if (now.date !== today) continue; // нет действующих договоров на дату оценки
-    const prev = hist.length > 1 && hist[hist.length - 2].date === F.diso(ends[ends.length - 2]) ? hist[hist.length - 2] : null;
-    clients.push({ cl, hist, now, prev });
-  }
-  STATE = { data, idx, ends: ends.map(F.diso), clients, label, today, monthCounts };
-}
+function addMonthIso(iso, k) { const y = +iso.slice(0, 4), m = +iso.slice(5, 7) - 1 + k; return new Date(Date.UTC(y, m + 1, 0)).toISOString().slice(0, 10); }
 
 // ---------- портфель ----------
 const ZORD = { red: 0, yellow: 1, green: 2, grey: 3 };
 function renderPortfolio() {
-  const C = STATE.clients;
-  const sum = (arr) => arr.reduce((s, c) => s + c.now.f.exposure, 0);
-  const g = (z) => C.filter((c) => c.now.zone === z);
-  const total = sum(C);
-  const tile = (cls, label, list, note) => `<div class="tile ${cls}"><span class="eyebrow">${label}</span><span class="v">${nf(list.length)}</span><span class="muted small">${mln(sum(list))} млн руб. остатка · ${pct(sum(list) / (total || 1), 0)}</span>${note ? `<span class="muted small">${note}</span>` : ""}</div>`;
-  const worse = C.filter((c) => c.prev && ZORD[c.now.zone] < ZORD[c.prev.zone] && c.now.zone !== "grey").length;
+  const C = STATE.clients, Z = STATE.zones;
+  const total = STATE.total.exposure;
+  const tile = (cls, label, z, note) => `<div class="tile ${cls}"><span class="eyebrow">${label}</span><span class="v">${nf(Z[z].clients)}</span><span class="muted small">${mln(Z[z].exposure)} млн руб. остатка · ${pct(Z[z].exposure / (total || 1), 0)}</span>${note ? `<span class="muted small">${note}</span>` : ""}</div>`;
+  const worse = STATE.worsened;
   $("tiles").innerHTML =
     `<div class="tile"><span class="eyebrow">Клиентов на ${fdate(STATE.today)}</span><span class="v">${nf(C.length)}</span><span class="muted small">${mln(total)} млн руб. остатка платежей</span></div>` +
-    tile("red", "Красная зона", g("red"), worse ? `${nf(worse)} ухудшили зону за месяц` : "") + tile("yellow", "Жёлтая зона", g("yellow")) + tile("green", "Зелёная зона", g("green")) +
-    tile("", "Просрочка 30+ и дефолт", g("grey"), 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>, модель не оценивает');
+    tile("red", "Красная зона", "red", worse ? `${nf(worse)} ухудшили зону за месяц` : "") + tile("yellow", "Жёлтая зона", "yellow") + tile("green", "Зелёная зона", "green") +
+    tile("", "Просрочка 30+ и дефолт", "grey", 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>, модель не оценивает');
   // график зон
   const months = STATE.ends.slice(1);
   const cnt = months.map((m) => STATE.monthCounts[m] || { red: 0, yellow: 0, green: 0, grey: 0 });
   $("zoneChart").innerHTML = stackChart(months, cnt);
   // переходы
   const zs = ["green", "yellow", "red", "grey"]; const short = { green: "Зелёная", yellow: "Жёлтая", red: "Красная", grey: "30+ / дефолт" };
-  const M = {}; zs.forEach((a) => zs.forEach((b) => (M[a + b] = 0)));
-  let nm = 0; for (const c of C) if (c.prev) { M[c.prev.zone + c.now.zone]++; nm++; }
-  $("migMeta").textContent = `${fdate(STATE.ends[STATE.ends.length - 2])} → ${fdate(STATE.today)}, клиентов ${nf(nm)}`;
-  $("migTbl").innerHTML = `<thead><tr><th>Месяц назад \\ сейчас</th>${zs.map((z) => `<th class="c">${short[z]}</th>`).join("")}</tr></thead><tbody>` +
-    zs.map((a) => `<tr><td>${zoneChip(a)}</td>${zs.map((b) => { const v = M[a + b]; const worseCell = ZORD[b] < ZORD[a] || (b === "grey" && a !== "grey");
+  const M = STATE.migration;
+  const nm = zs.reduce((s, a) => s + zs.reduce((t, b) => t + M[a][b], 0), 0);
+  $("migMeta").textContent = STATE.prev_date ? `${fdate(STATE.prev_date)} → ${fdate(STATE.today)}, клиентов ${nf(nm)}` : "";
+  $("migTbl").innerHTML = `<thead><tr><th>Месяц назад \ сейчас</th>${zs.map((z) => `<th class="c">${short[z]}</th>`).join("")}</tr></thead><tbody>` +
+    zs.map((a) => `<tr><td>${zoneChip(a)}</td>${zs.map((b) => { const v = M[a][b]; const worseCell = ZORD[b] < ZORD[a] || (b === "grey" && a !== "grey");
       return `<td class="cell ${a === b ? "diag" : ""}" ${v ? `data-tip="${esc(short[a] + " → " + short[b] + ": " + v + " клиентов")}"` : ""} style="${worseCell && v && a !== b ? "color:var(--bad);font-weight:600" : ""}">${v || "·"}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
   // покрытие
-  const cov = (c) => { const l = c.now.f.ltv; return l === null ? "n" : l < 0.8 ? "a" : l <= 1.0 ? "b" : "c"; };
+  const sum = (arr) => arr.reduce((s, c) => s + c.exposure, 0);
+  const cov = (c) => { const l = c.ltv; return l === null ? "n" : l < 0.8 ? "a" : l <= 1.0 ? "b" : "c"; };
   const covN = { a: "Остаток < 0,8 стоимости", b: "0,8–1,0", c: "Остаток > стоимости" };
   const zr = ["red", "yellow", "green"];
   $("covTbl").innerHTML = `<thead><tr><th>Зона</th>${["a", "b", "c"].map((k) => `<th class="c">${covN[k]}</th>`).join("")}</tr></thead><tbody>` +
-    zr.map((z) => `<tr><td>${zoneChip(z)}</td>${["a", "b", "c"].map((k) => { const l = C.filter((c) => c.now.zone === z && cov(c) === k);
+    zr.map((z) => `<tr><td>${zoneChip(z)}</td>${["a", "b", "c"].map((k) => { const l = C.filter((c) => c.zone === z && cov(c) === k);
       const hot = z === "red" && k === "c"; return `<td class="cell" style="${hot && l.length ? "background:var(--bad-soft);color:var(--bad);font-weight:600" : ""}">${l.length ? `${l.length}<br><span class="small muted">${mln(sum(l))}</span>` : "·"}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
   // фильтры
-  const secs = [...new Set(C.map((c) => c.cl.sector))].sort();
+  const secs = [...new Set(C.map((c) => c.sector))].sort();
   const fs = $("fSector"); const cur = fs.value;
   fs.innerHTML = `<option value="">Все</option>` + secs.map((s) => `<option>${esc(s)}</option>`).join(""); fs.value = secs.includes(cur) ? cur : "";
   renderList();
@@ -511,26 +478,27 @@ function renderPortfolio() {
 // Сортировка таблицы клиентов по щелчку на заголовок; по умолчанию — зона, затем балл (самые рискованные сверху)
 const LIST_SORT = { key: null, dir: 1 };
 const SORT_KEY = {
-  client: (c) => c.cl.client, sector: (c) => c.cl.sector, zone: (c) => ZORD[c.now.zone], score: (c) => c.now.score,
-  move: (c) => (c.prev ? c.now.score - c.prev.score : 0), exposure: (c) => c.now.f.exposure, dpd: (c) => c.now.f.dpd_now, ltv: (c) => c.now.f.ltv ?? -1,
+  client: (c) => c.client, sector: (c) => c.sector, zone: (c) => ZORD[c.zone], score: (c) => c.score,
+  move: (c) => c.delta ?? 0, exposure: (c) => c.exposure, dpd: (c) => c.dpd, ltv: (c) => c.ltv ?? -1,
 };
+const worsened = (c) => c.prev_zone && ZORD[c.zone] < ZORD[c.prev_zone];
 function renderList() {
   // «KL-01», «kl01» латиницей — то же, что «КЛ-01»
   const z = $("fZone").value, s = $("fSector").value, mv = $("fMove").value, q = $("fSearch").value.trim().toLowerCase().replace(/^kl/, "кл");
-  let L = STATE.clients.filter((c) => (!z || c.now.zone === z) && (!s || c.cl.sector === s) && (!q || c.cl.client.toLowerCase().includes(q) || c.cl.client.toLowerCase().replace("-", "").includes(q.replace("-", ""))) &&
-    (!mv || (c.prev && ZORD[c.now.zone] < ZORD[c.prev.zone])));
+  let L = STATE.clients.filter((c) => (!z || c.zone === z) && (!s || c.sector === s) && (!q || c.client.toLowerCase().includes(q) || c.client.toLowerCase().replace("-", "").includes(q.replace("-", ""))) &&
+    (!mv || worsened(c)));
   const k = SORT_KEY[LIST_SORT.key];
-  L.sort((a, b) => (k ? ((k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0) * LIST_SORT.dir) : 0) || ZORD[a.now.zone] - ZORD[b.now.zone] || a.now.score - b.now.score);
+  L.sort((a, b) => (k ? ((k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0) * LIST_SORT.dir) : 0) || ZORD[a.zone] - ZORD[b.zone] || a.score - b.score);
   $("listMeta").textContent = `${nf(L.length)} из ${nf(STATE.clients.length)}`;
   const rows = L.slice(0, 300).map((c) => {
-    const rs = c.now.zone === "grey" ? [] : F.reasons(MODEL, c.now.parts, 2);
-    const d = c.prev ? c.now.score - c.prev.score : null;
-    const stop = c.now.f.stop_bankr ? ` <span class="chip bad">стоп-фактор</span>` : "";
-    return `<tr class="rowlink" tabindex="0" data-client="${esc(c.cl.client)}"><td class="code">${esc(c.cl.client)}</td><td>${esc(c.cl.sector)}</td>
-      <td>${zoneChip(c.now.zone)}${stop}</td><td class="r num">${c.now.zone === "grey" ? "—" : nf(c.now.score)}</td>
-      <td class="r num" style="${d !== null && d < 0 ? "color:var(--bad)" : ""}">${d === null || c.now.zone === "grey" ? "—" : (d > 0 ? "+" : "") + nf(d)}</td>
-      <td class="r num">${mln(c.now.f.exposure)}</td><td class="r num">${nf(c.now.f.dpd_now)}</td><td class="r num">${c.now.f.ltv === null ? "—" : nf(c.now.f.ltv, 2)}</td>
-      <td class="small" style="min-width:300px">${rs.map((r) => esc(r.label)).join("; ") || (c.now.zone === "grey" ? 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>' : "—")}</td></tr>`;
+    const rs = c.reasons.slice(0, 2);
+    const d = c.delta;
+    const stop = c.stop_bankr ? ` <span class="chip bad">стоп-фактор</span>` : "";
+    return `<tr class="rowlink" tabindex="0" data-client="${esc(c.client)}"><td class="code">${esc(c.client)}</td><td>${esc(c.sector)}</td>
+      <td>${zoneChip(c.zone)}${stop}</td><td class="r num">${c.zone === "grey" ? "—" : nf(c.score)}</td>
+      <td class="r num" style="${d !== null && d < 0 ? "color:var(--bad)" : ""}">${d === null || c.zone === "grey" ? "—" : (d > 0 ? "+" : "") + nf(d)}</td>
+      <td class="r num">${mln(c.exposure)}</td><td class="r num">${nf(c.dpd)}</td><td class="r num">${c.ltv === null ? "—" : nf(c.ltv, 2)}</td>
+      <td class="small" style="min-width:300px">${rs.map((r) => esc(r.label)).join("; ") || (c.zone === "grey" ? 'в работе <abbr title="СПА — подразделение по работе с проблемными активами">СПА</abbr>' : "—")}</td></tr>`;
   }).join("");
   const th = (key, label, cls = "") => `<th class="${cls}"${LIST_SORT.key === key ? ` aria-sort="${LIST_SORT.dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" class="th-sort" data-sort="${key}">${label}${LIST_SORT.key === key ? (LIST_SORT.dir > 0 ? " ↑" : " ↓") : ""}</button></th>`;
   $("clientTbl").innerHTML = `<thead><tr>${th("client", "Клиент")}${th("sector", "Отрасль")}${th("zone", "Зона")}${th("score", "Балл", "r")}${th("move", "За месяц", "r")}${th("exposure", "Остаток, млн", "r")}${th("dpd", "Просрочка, дн.", "r")}${th("ltv", "Остаток / предмет", "r")}<th>Основные причины</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="muted">Нет клиентов по выбранным условиям. Измените зону, отрасль или поиск.</td></tr>`}</tbody>`;
@@ -621,95 +589,68 @@ const ACTIONS = {
   grey: ["Клиент в работе отдела по работе с проблемными активами; порядок действий — по стратегии, утверждённой коллегиальным органом по проблемным активам (КПА)."],
 };
 let CARD_CLIENT = null;
+// клиенты демо-портфеля — КЛ-0001…КЛ-0420; клиенты пула из таблицы заблаговременности в демо не входят
+const inDemo = (code) => +String(code).slice(3) <= 420;
 function cardOptions() {
-  const C = STATE.clients.slice().sort((a, b) => ZORD[a.now.zone] - ZORD[b.now.zone] || a.now.score - b.now.score);
-  const grp = (z, title) => { const l = C.filter((c) => c.now.zone === z); return l.length ? `<optgroup label="${title} (${l.length})">${l.map((c) => `<option value="${esc(c.cl.client)}">${esc(c.cl.client)} · ${esc(c.cl.sector)} · ${c.now.zone === "grey" ? "просрочка " + nf(c.now.f.dpd_now) + " дн." : "балл " + nf(c.now.score)}</option>`).join("")}</optgroup>` : ""; };
+  const C = STATE.clients.slice().sort((a, b) => ZORD[a.zone] - ZORD[b.zone] || a.score - b.score);
+  const grp = (z, title) => { const l = C.filter((c) => c.zone === z); return l.length ? `<optgroup label="${title} (${l.length})">${l.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · ${esc(c.sector)} · ${c.zone === "grey" ? "просрочка " + nf(c.dpd) + " дн." : "балл " + nf(c.score)}</option>`).join("")}</optgroup>` : ""; };
   let html = grp("red", "Красная зона") + grp("yellow", "Жёлтая зона") + grp("green", "Зелёная зона") + grp("grey", "Просрочка 30+ и дефолт");
-  if (STATE.label === "demo" && MODEL.validation.lead.cases.length) {
-    html += `<optgroup label="Дефолт после даты разделения выборки (проверка)">${MODEL.validation.lead.cases.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · дефолт ${fdate(c.default)} · красная зона за ${c.red} мес.</option>`).join("")}</optgroup>`;
-  }
+  const cases = STATE.label === "demo" ? MODEL.validation.lead.cases.filter((c) => inDemo(c.client)) : [];
+  if (cases.length) html += `<optgroup label="Дефолт после даты разделения выборки (проверка)">${cases.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · дефолт ${fdate(c.default)} · красная зона за ${c.red} мес.</option>`).join("")}</optgroup>`;
   $("cardSel").innerHTML = html;
-  $("cardList").innerHTML = C.map((c) => `<option value="${esc(c.cl.client)}">${esc(c.cl.sector)}</option>`).join("");
+  $("cardList").innerHTML = C.map((c) => `<option value="${esc(c.client)}">${esc(c.sector)}</option>`).join("");
 }
+const knownClient = (code) => STATE.clients.some((c) => c.client === code) || (STATE.label === "demo" && inDemo(code) && MODEL.validation.lead.cases.some((c) => c.client === code));
 // поиск клиента по коду: «кл-130», «KL0130», «0130» — к виду «КЛ-0130»; найден — сразу карточка
 $("cardFind").addEventListener("input", () => {
   const raw = $("cardFind").value.trim().toUpperCase().replace(/^(KL|КЛ)-?/, ""), code = raw ? "КЛ-" + raw.padStart(4, "0") : "";
-  if (STATE.clients.some((c) => c.cl.client === code)) { $("cardSel").value = code; renderCard(code); }
+  if (knownClient(code)) { $("cardSel").value = code; renderCard(code); }
 });
 $("cardSel").addEventListener("change", () => renderCard($("cardSel").value));
 function openCard(cid) { showTab("card"); $("cardSel").value = cid; renderCard(cid); window.scrollTo({ top: 0, behavior: "smooth" }); }
-function renderCard(cid) {
+async function renderCard(cid) {
   CARD_CLIENT = cid;
   if (!$("tab-card").hidden) history.replaceState(null, "", "#card=" + encodeURIComponent(cid));
-  const cl = STATE.idx.clients.get(cid); if (!cl) return;
-  // история: 24 месяца до даты оценки, а для дефолта — 15 месяцев до и 3 после
-  const ends = STATE.idx.ends; let endI = ends.length - 1;
-  const fd = F.firstDefault(STATE.idx, cl);
-  const defIdx = fd === null ? null : ends.indexOf(fd);
-  if (defIdx !== null) endI = Math.min(ends.length - 1, defIdx + 3);
-  const startI = Math.max(0, endI - (defIdx !== null ? 18 : 24));
-  const pts = [];
-  for (let i = startI; i <= endI; i++) {
-    const t = ends[i], date = F.diso(t);
-    const f = t >= cl.since_d ? F.features(STATE.idx, cl, t) : null;
-    if (!f) { pts.push({ date, v: null, dpd: F.clientDpd(cl, t), zone: null, tip: `<b>${fdate(date)}</b><br>нет действующих договоров` }); continue; }
-    const st = defIdx !== null && i > defIdx ? "дефолт" : f.dpd_now >= 30 ? "просрочка 30+" : "оценивается";
-    const sc = F.score(MODEL, f); const zone = st === "оценивается" ? sc.zone : "grey";
-    pts.push({ date, v: sc.score, dpd: f.dpd_now, zone, f, parts: sc.parts,
-      tip: `<b>${fdate(date)}</b><br>Балл: ${nf(sc.score)}<br>${st === "оценивается" ? ZN[zone] : st === "дефолт" ? "после дефолта" : "просрочка 30+ — в работе подразделения по проблемным активам (СПА)"}<br>Просрочка: ${nf(f.dpd_now)} дн.` });
+  let D = STATE.cards.get(cid);
+  if (!D) {
+    try { D = await api(`/api/ews/clients/${encodeURIComponent(cid)}?` + qs({ dataset: STATE.dataset, date: STATE.today, months: 24 })); }
+    catch (e) { if (CARD_CLIENT === cid) $("cardHead").innerHTML = `<div class="who grey"><h2>${esc(cid)}</h2><p class="status err">${esc(e.message)}</p></div>`; return; }
+    STATE.cards.set(cid, D);
   }
-  const cur = STATE.clients.find((c) => c.cl.client === cid);
-  const last = cur ? cur.now : [...pts].reverse().find((p) => p.f) || null;
-  const zone = cur ? cur.now.zone : last ? last.zone : "grey";
-  const score = last ? (last.score ?? last.v) : null;
-  const f = last ? last.f : null;
-  const asOf = cur ? STATE.today : last ? last.date : null;
-  const defDate = defIdx !== null ? F.diso(ends[defIdx]) : null;
-  const d1 = cur && cur.prev ? cur.now.score - cur.prev.score : null;
-  $("cardHead").innerHTML = `<div class="who ${zone}"><span class="eyebrow">${esc(cl.sector)} · ${esc(cl.region || "")} · клиент с ${fdate(cl.since)}</span>
+  if (CARD_CLIENT !== cid) return; // пока ждали ответ, выбрали другого клиента
+  const zone = D.zone, score = D.score, f = D.facts, asOf = D.as_of, defDate = D.default_date, d1 = D.delta;
+  const pts = D.history.map((h) => ({ date: h.date, v: h.score, dpd: h.dpd, zone: h.zone,
+    tip: h.score === null ? `<b>${fdate(h.date)}</b><br>нет действующих договоров` : `<b>${fdate(h.date)}</b><br>Балл: ${nf(h.score)}<br>${h.status === "оценивается" ? ZN[h.zone] : h.status === "дефолт" ? "после дефолта" : "просрочка 30+ — в работе подразделения по проблемным активам (СПА)"}<br>Просрочка: ${nf(h.dpd)} дн.` }));
+  $("cardHead").innerHTML = `<div class="who ${zone}"><span class="eyebrow">${esc(D.sector)} · ${esc(D.region || "")} · клиент с ${fdate(D.since)}</span>
       <h2 style="font:600 22px var(--f-num)">${esc(cid)}</h2>
       <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span class="score-big">${score === null ? "—" : nf(score)}</span><span class="muted small">баллов на ${fdate(asOf)}</span>${d1 !== null && zone !== "grey" ? `<span class="small num" style="color:${d1 < 0 ? "var(--bad)" : "var(--good)"}">${d1 > 0 ? "+" : ""}${nf(d1)} за месяц</span>` : ""}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${zoneChip(zone)}${f && f.stop_bankr ? `<span class="chip bad">стоп-фактор: намерение о банкротстве</span>` : ""}${defDate ? `<span class="chip bad">дефолт ${fdate(defDate)}</span>` : ""}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${zoneChip(zone)}${D.stop_bankr ? `<span class="chip bad">стоп-фактор: намерение о банкротстве</span>` : ""}${defDate ? `<span class="chip bad">дефолт ${fdate(defDate)}</span>` : ""}</div></div>
     <div class="facts">
       <div class="fact"><span class="eyebrow">Остаток платежей</span><span class="v">${f ? mln(f.exposure) : "—"}</span><span class="muted small">млн руб.</span></div>
-      <div class="fact"><span class="eyebrow">Просрочка</span><span class="v">${f ? nf(f.dpd_now) : "—"}</span><span class="muted small">дней на дату оценки</span></div>
+      <div class="fact"><span class="eyebrow">Просрочка</span><span class="v">${f ? nf(f.dpd) : "—"}</span><span class="muted small">дней на дату оценки</span></div>
       <div class="fact"><span class="eyebrow">Остаток / предмет</span><span class="v">${f && f.ltv !== null ? nf(f.ltv, 2) : "—"}</span><span class="muted small">${f && f.ltv !== null ? (f.ltv < 0.8 ? "покрытие с запасом" : f.ltv <= 1 ? "покрытие на грани" : "покрытие недостаточное") : ""}</span></div>
       <div class="fact"><span class="eyebrow">Макс. просрочка за 6 мес.</span><span class="v">${f ? nf(f.max_dpd_6m) : "—"}</span><span class="muted small">дней</span></div>
-      <div class="fact"><span class="eyebrow">Договоров</span><span class="v">${nf(cl.contracts.length)}</span><span class="muted small">всего с компанией</span></div>
+      <div class="fact"><span class="eyebrow">Договоров</span><span class="v">${nf(D.contracts.length)}</span><span class="muted small">всего с компанией</span></div>
       <div class="fact"><span class="eyebrow">Выплачено</span><span class="v">${f && f.share_paid !== null ? pct(f.share_paid) : "—"}</span><span class="muted small">по действующим договорам</span></div>
     </div>`;
-  // причины
-  if (f && last.parts) {
-    const rows = MODEL.vars.map((v) => { const p = last.parts[v.name]; const best = Math.max(...v.points, v.missing); return { v, p, best, lost: best - p.points }; })
-      .sort((a, b) => b.lost - a.lost);
-    $("cardReasons").innerHTML = rows.map(({ v, p, best, lost }) => `<div class="reason"><div><div>${esc(v.label)}</div><div class="muted small">значение: <span class="num">${esc(fmtVal(v.name, f[v.name]))}</span> · интервал «${esc(p.bin === -1 ? "нет данных" : binLabels(v)[p.bin])}»</div></div>
-      <div class="r num" style="text-align:right"><div>${nf(p.points)} из ${nf(best)}</div><div class="small" style="color:${lost > 0.5 ? "var(--bad)" : "var(--muted)"}">${lost > 0.5 ? "−" + nf(lost) : "лучший интервал"}</div></div></div>`).join("");
-  } else $("cardReasons").innerHTML = `<p class="muted">Нет действующих договоров на дату оценки.</p>`;
+  // причины: вклад каждого фактора — баллы из возможных
+  const VARS = Object.fromEntries(MODEL.vars.map((v) => [v.name, v]));
+  $("cardReasons").innerHTML = D.contributions.length ? D.contributions.map((p) => `<div class="reason"><div><div>${esc(p.label)}</div><div class="muted small">значение: <span class="num">${esc(fmtVal(p.name, p.value))}</span> · интервал «${esc(p.bin === -1 ? "нет данных" : binLabels(VARS[p.name])[p.bin])}»</div></div>
+      <div class="r num" style="text-align:right"><div>${nf(p.points)} из ${nf(p.best)}</div><div class="small" style="color:${p.lost > 0.5 ? "var(--bad)" : "var(--muted)"}">${p.lost > 0.5 ? "−" + nf(p.lost) : "лучший интервал"}</div></div></div>`).join("")
+    : `<p class="muted">Нет действующих договоров на дату оценки.</p>`;
   $("cardActions").innerHTML = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">${zoneChip(zone)}</div><ol class="actions">${ACTIONS[zone].map((a) => `<li>${esc(a)}</li>`).join("")}</ol>`;
-  const t12 = asOf ? F.addMonths(F.dnum(asOf), -12) : 0;
-  const sig = cl.events.filter((e) => e.d > t12 && e.d <= (asOf ? F.dnum(asOf) : 0)).slice().reverse();
-  const sev = (t) => t === F.EV.bankr ? "bad" : [F.EV.term, F.EV.seize].includes(t) ? "bad" : [F.EV.fssp, F.EV.tax, F.EV.suit].includes(t) ? "warn" : "";
-  $("cardSignals").innerHTML = sig.length ? sig.map((e) => `<div class="signal"><span class="num muted">${fdate(e.date)}</span><span>${esc(e.type)}${e.amount ? ` · <span class="num">${nf(e.amount / 1e3)}</span> тыс. руб.` : ""}</span><span class="chip ${sev(e.type)}">${MODEL.vars.some((v) => (v.name === "fssp_12m" && e.type === F.EV.fssp) || (v.name === "tax_12m" && e.type === F.EV.tax) || (v.name === "suits_12m" && e.type === F.EV.suit)) ? "в балле" : e.type === F.EV.bankr ? "стоп-фактор" : "сигнал"}</span></div>`).join("") : `<p class="muted small">Событий не найдено.</p>`;
+  const sev = (e) => e.role === "стоп-фактор" || ["Расторжение договора", "Изъятие предмета лизинга"].includes(e.type) ? "bad" : ["Исполнительное производство", "Налоговая недоимка", "Иск к клиенту"].includes(e.type) ? "warn" : "";
+  $("cardSignals").innerHTML = D.events.length ? D.events.map((e) => `<div class="signal"><span class="num muted">${fdate(e.date)}</span><span>${esc(e.type)}${e.amount ? ` · <span class="num">${nf(e.amount / 1e3)}</span> тыс. руб.` : ""}</span><span class="chip ${sev(e)}">${esc(e.role)}</span></div>`).join("") : `<p class="muted small">Событий не найдено.</p>`;
   const red = MODEL.zones.red, yel = MODEL.zones.yellow;
-  $("histMeta").textContent = defDate ? `месяцы вокруг дефолта ${fdate(defDate)}` : `${fdate(pts[0].date)} — ${fdate(pts[pts.length - 1].date)}`;
+  $("histMeta").textContent = defDate ? `месяцы вокруг дефолта ${fdate(defDate)}` : pts.length ? `${fdate(pts[0].date)} — ${fdate(pts[pts.length - 1].date)}` : "";
   $("histChart").innerHTML = lineChart(pts, { refs: [{ v: red, label: "красная", color: "var(--z-red)" }, { v: yel, label: "жёлтая", color: "var(--z-yellow)" }], aria: "Балл клиента по месяцам" });
   $("dpdChart").innerHTML = barChart(pts.map((p) => ({ date: p.date, v: p.dpd })), { aria: "Просрочка клиента по месяцам" });
   // договоры
-  const tNow = asOf ? F.dnum(asOf) : STATE.idx.today;
-  const DEPR = { "Грузовой транспорт": 0.15, "Спецтехника": 0.12, "Легковой транспорт": 0.18, "Оборудование": 0.20 };
   $("conMeta").textContent = `на ${fdate(asOf)}`;
   $("conTbl").innerHTML = `<thead><tr><th>Договор</th><th>Предмет</th><th>Дата</th><th class="r">Срок, мес.</th><th class="r">Стоимость предмета, млн</th><th class="r">Остаток платежей, млн</th><th class="r">Просрочка, дн.</th><th class="r">Остаток / предмет</th><th>Поручительство</th><th>Статус</th></tr></thead><tbody>` +
-    cl.contracts.map((o) => {
-      let k = 0; while (k < o.paid.length && o.paid[k] !== null && o.paid[k] <= tNow) k++;
-      const out = o.total - (k > 0 ? o.cum[k - 1] : 0);
-      const val = o.asset_value * Math.pow(1 - (DEPR[o.asset] ?? 0.15), Math.max(0, (tNow - o.start) / 365.25));
-      const closed = o.closed !== null && o.closed <= tNow, term = cl.term_d !== null && cl.term_d <= tNow;
-      const st = o.start > tNow ? "не начат" : term ? "расторгнут" : closed ? "исполнен" : "действует";
-      const dp = st === "действует" || st === "расторгнут" ? F.contractDpd(o, tNow) : 0;
-      return `<tr><td class="code">${esc(o.contract)}</td><td>${esc(o.asset)}</td><td class="num">${fdate(o.date)}</td><td class="r num">${nf(o.term)}</td><td class="r num">${mln(o.asset_value)}</td>
-        <td class="r num">${st === "исполнен" ? "0,0" : mln(out)}</td><td class="r num" style="${dp >= 30 ? "color:var(--bad);font-weight:600" : ""}">${nf(dp)}</td><td class="r num">${st === "действует" ? nf(out / val, 2) : "—"}</td>
-        <td>${o.guarantee === true || o.guarantee === "да" ? "да" : "нет"}</td><td><span class="chip ${st === "расторгнут" ? "bad" : st === "действует" ? "acc" : ""}">${st}</span></td></tr>`;
-    }).join("") + "</tbody>";
+    D.contracts.map((o) => `<tr><td class="code">${esc(o.contract)}</td><td>${esc(o.asset)}</td><td class="num">${fdate(o.date)}</td><td class="r num">${nf(o.term)}</td><td class="r num">${mln(o.asset_value)}</td>
+        <td class="r num">${o.status === "исполнен" ? "0,0" : mln(o.outstanding)}</td><td class="r num" style="${o.dpd >= 30 ? "color:var(--bad);font-weight:600" : ""}">${nf(o.dpd)}</td><td class="r num">${o.ltv === null ? "—" : nf(o.ltv, 2)}</td>
+        <td>${o.guarantee ? "да" : "нет"}</td><td><span class="chip ${o.status === "расторгнут" ? "bad" : o.status === "действует" ? "acc" : ""}">${o.status}</span></td></tr>`).join("") + "</tbody>";
 }
 
 // ---------- модель ----------
@@ -783,137 +724,72 @@ function leadChart(a, b) {
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Распределение заблаговременности сигнала">${g}</svg>`;
 }
 $("leadTbl").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-client]"); if (!tr) return;
-  if (STATE && STATE.idx.clients.has(tr.dataset.client)) openCard(tr.dataset.client);
+  if (STATE && (STATE.label !== "demo" || inDemo(tr.dataset.client))) openCard(tr.dataset.client);
   else $("leadNote").textContent = `Клиента ${tr.dataset.client} нет в показанном портфеле: он из обучающего пула. Карточку можно открыть для клиентов с кодом до КЛ-0420.`; });
 
 // ---------- шаблон и загрузка ----------
-const SHEETS = [
-  { name: "Клиенты", key: "clients", src: "1С:Лизинг", cols: [["Код клиента", "client", "s", "Внутренний код вместо названия и ИНН"], ["Отрасль", "sector", "s", "Отрасль по основному ОКВЭД"], ["Регион", "region", "s", ""], ["Дата начала отношений", "since", "d", "Дата первого договора"]] },
-  { name: "Договоры", key: "contracts", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", "Код договора"], ["Код клиента", "client", "s", ""], ["Дата договора", "date", "d", ""], ["Тип предмета лизинга", "asset", "s", "Грузовой транспорт, Спецтехника, Легковой транспорт, Оборудование"], ["Стоимость предмета, руб.", "asset_value", "n", "Стоимость при передаче"], ["Аванс, руб.", "advance", "n", ""], ["Срок, мес.", "term", "n", ""], ["Поручительство (да/нет)", "guarantee", "b", ""]] },
-  { name: "График", key: "schedule", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата платежа", "due", "d", "Действующая версия графика"], ["Сумма платежа, руб.", "amount", "n", ""]] },
-  { name: "Платежи", key: "payments", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата оплаты", "date", "d", "Дата поступления"], ["Сумма оплаты, руб.", "amount", "n", "Без пеней"]] },
-  { name: "События", key: "events", src: "1С:Лизинг, протоколы КПА (коллегиального органа по проблемным активам), внешние источники по ИНН", cols: [["Код клиента", "client", "s", ""], ["Дата", "date", "d", "Дата события, не дата его обнаружения"], ["Тип события", "type", "s", Object.values(F.EV).join("; ")], ["Сумма, руб.", "amount", "n", "Для исков, недоимки, исполнительных производств"]] },
-  { name: "Отчётность", key: "reports", src: "ГИР БО, СПАРК или Контур по ИНН", cols: [["Код клиента", "client", "s", ""], ["Год", "year", "n", "Отчётный год"], ["Дата представления", "filed", "d", "Дата сдачи в ФНС"], ["Выручка, тыс. руб.", "revenue", "n", "стр. 2110"], ["Чистая прибыль, тыс. руб.", "net_profit", "n", "стр. 2400"], ["Капитал, тыс. руб.", "equity", "n", "стр. 1300"], ["Активы, тыс. руб.", "assets", "n", "стр. 1600"], ["Долг, тыс. руб.", "debt", "n", "стр. 1410 + 1510"]] },
-];
-$("tplTbl").innerHTML = `<thead><tr><th>Лист</th><th>Столбец</th><th>Пояснение</th><th>Источник</th></tr></thead><tbody>` +
-  SHEETS.map((s) => s.cols.map((c, i) => `<tr><td>${i === 0 ? `<b>${esc(s.name)}</b>` : ""}</td><td>${esc(c[0])}</td><td class="small muted">${esc(c[3])}</td><td class="small muted">${i === 0 ? esc(s.src) : ""}</td></tr>`).join("")).join("") + "</tbody>";
-
-async function saveFile(name, wb) {
-  const st = $("dlStatus");
-  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  try {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-    a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    st.textContent = "Файл сформирован."; st.className = "status";
-  } catch (e) { st.textContent = "Не удалось сформировать файл: " + (e && e.message || e); st.className = "status err"; }
+// Шаблон и пример — файлы с сервера (GET /api/ews/template, ответ с Content-Disposition): работают в любом браузере
+function renderTemplate(sheets) {
+  $("tplTbl").innerHTML = `<thead><tr><th>Лист</th><th>Столбец</th><th>Пояснение</th><th>Источник</th></tr></thead><tbody>` +
+    sheets.map((s) => s.cols.map((c, i) => `<tr><td>${i === 0 ? `<b>${esc(s.name)}</b>` : ""}</td><td>${esc(c.title)}</td><td class="small muted">${esc(c.note)}</td><td class="small muted">${i === 0 ? esc(s.src) : ""}</td></tr>`).join("")).join("") + "</tbody>";
 }
-function buildWorkbook(data) {
-  const wb = XLSX.utils.book_new();
-  const desc = [["Лист", "Столбец", "Пояснение", "Источник"]];
-  SHEETS.forEach((s) => s.cols.forEach((c, i) => desc.push([i === 0 ? s.name : "", c[0], c[3], i === 0 ? s.src : ""])));
-  desc.push([], ["Даты — в формате ДД.ММ.ГГГГ или как даты Excel. Суммы — числами, без пробелов-разделителей."]);
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(desc), "Описание");
-  for (const s of SHEETS) {
-    const rows = [s.cols.map((c) => c[0])];
-    if (data) for (const r of data[s.key]) rows.push(s.cols.map(([, k, t]) => { const v = r[k]; if (v === null || v === undefined) return ""; if (t === "d") return fdate(v); if (t === "b") return v ? "да" : "нет"; return v; }));
-    const ws = XLSX.utils.aoa_to_sheet(rows); ws["!cols"] = s.cols.map((c) => ({ wch: Math.max(14, c[0].length + 2) }));
-    XLSX.utils.book_append_sheet(wb, ws, s.name);
-  }
-  return wb;
-}
-let DEMO = null;
-$("dlTpl").addEventListener("click", () => saveFile("ТАЛК_шаблон_выгрузки.xlsx", buildWorkbook(null)));
-$("dlDemo").addEventListener("click", () => saveFile("ТАЛК_пример_выгрузки_условные_данные.xlsx", buildWorkbook(DEMO)));
-
-function normDate(v) {
-  if (v === null || v === undefined || v === "") return null;
-  if (v instanceof Date && !isNaN(v)) return new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate())).toISOString().slice(0, 10);
-  if (typeof v === "number") { const d = XLSX.SSF.parse_date_code(v); return d ? `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}` : null; }
-  const s = String(v).trim(); let m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/); if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
-}
-function normNum(v) { if (v === null || v === undefined || v === "") return null; if (typeof v === "number") return v; const x = parseFloat(String(v).replace(/\s/g, "").replace(",", ".")); return isFinite(x) ? x : null; }
-function normBool(v) { const s = String(v ?? "").trim().toLowerCase(); return s === "да" || s === "1" || s === "true" || s === "yes"; }
-let UPLOAD = null;
+let UPLOAD = null; // {dataset, name, suggested}
 async function handleFile(file) {
-  const st = $("upStatus"); st.className = "status"; st.textContent = "Чтение файла…"; $("upReport").hidden = true;
+  const st = $("upStatus"); st.className = "status"; st.textContent = "Проверка файла на сервере…"; $("upReport").hidden = true;
   try {
-    const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-    const checks = []; const data = {}; let fatal = false;
-    for (const s of SHEETS) {
-      const ws = wb.Sheets[s.name];
-      if (!ws) { checks.push(["no", `Лист «${s.name}» не найден`, ""]); fatal = true; data[s.key] = []; continue; }
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
-      const head = rows.length ? Object.keys(rows[0]) : (XLSX.utils.sheet_to_json(ws, { header: 1 })[0] || []);
-      const miss = s.cols.filter((c) => !head.includes(c[0])).map((c) => c[0]);
-      const req = s.cols.filter((c) => ["client", "contract", "date", "due", "amount", "year", "filed", "type"].includes(c[1]) && miss.includes(c[0]));
-      let bad = 0;
-      data[s.key] = rows.map((r) => { const o = {}; for (const [h, k, t] of s.cols) { const v = r[h];
-        o[k] = t === "d" ? normDate(v) : t === "n" ? normNum(v) : t === "b" ? normBool(v) : v === null ? null : String(v).trim(); }
-        return o; }).filter((o) => { const ok = s.cols.every(([h, k, t]) => !(t === "d" && ["date", "due", "filed", "since"].includes(k) && !o[k] && k !== "since")); if (!ok) bad++; return ok; });
-      if (req.length) { fatal = true; checks.push(["no", `Лист «${s.name}»: нет обязательных столбцов`, req.map((c) => c[0]).join(", ")]); }
-      else checks.push([bad ? "na" : "ok", `Лист «${s.name}»: ${nf(data[s.key].length)} строк`, (miss.length ? `нет столбцов: ${miss.join(", ")}. ` : "") + (bad ? `пропущено строк без даты: ${bad}` : "")]);
-    }
-    if (!fatal) {
-      const conIds = new Set(data.contracts.map((c) => c.contract)), cliIds = new Set(data.clients.map((c) => c.client));
-      const orphanPay = data.payments.filter((p) => !conIds.has(p.contract)).length, orphanCon = data.contracts.filter((c) => !cliIds.has(c.client)).length;
-      const schIds = new Set(data.schedule.map((s) => s.contract));
-      const noSched = data.contracts.filter((c) => !schIds.has(c.contract)).length;
-      checks.push([orphanCon || orphanPay || noSched ? "na" : "ok", "Связи между листами", `договоров без клиента: ${orphanCon}; платежей без договора: ${orphanPay}; договоров без графика: ${noSched}`]);
-      const unknownEv = data.events.filter((e) => !Object.values(F.EV).includes(e.type));
-      checks.push([unknownEv.length ? "na" : "ok", "Типы событий", unknownEv.length ? `не распознано ${unknownEv.length} событий: ${[...new Set(unknownEv.map((e) => e.type))].slice(0, 4).join(", ")}` : "все типы распознаны"]);
-      data.clients.forEach((c) => { if (!c.since) { const ds = data.contracts.filter((o) => o.client === c.client).map((o) => o.date).filter(Boolean).sort(); c.since = ds[0] || null; } });
-      const maxD = [...data.payments.map((p) => p.date), ...data.events.map((e) => e.date)].filter(Boolean).sort().pop();
-      if (maxD) { const d = F.dnum(maxD); const dt = new Date(d * 864e5); let me = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + 1, 0) / 864e5;
-        if (me > d) me = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), 0) / 864e5; $("upDate").value = F.diso(me); }
-    }
-    $("upChecks").innerHTML = checks.map(([m, t, d]) => `<div class="check"><span class="mark ${m}">${m === "ok" ? "✓" : m === "no" ? "!" : "?"}</span><div><div>${esc(t)}</div>${d ? `<div class="muted small">${esc(d)}</div>` : ""}</div><span></span></div>`).join("");
-    $("upReport").hidden = false; $("upRun").disabled = fatal;
-    UPLOAD = fatal ? null : { data, name: file.name };
-    st.textContent = fatal ? "Файл не подходит под шаблон: исправьте отмеченное и загрузите снова." : "Файл прочитан. Проверьте дату оценки и запустите расчёт.";
-    if (fatal) st.className = "status err";
-  } catch (e) { st.textContent = "Не удалось прочитать файл: " + (e && e.message || e); st.className = "status err"; }
+    if (!/\.xlsx$/i.test(file.name)) throw new Error("нужен файл xlsx по шаблону");
+    const r = await api("/api/ews/upload?" + qs({ name: file.name }), { method: "POST", headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }, body: file });
+    const mark = { ok: ["ok", "✓"], warn: ["na", "?"], error: ["no", "!"] };
+    $("upChecks").innerHTML = r.checks.map((c) => `<div class="check"><span class="mark ${mark[c.status][0]}">${mark[c.status][1]}</span><div><div>${esc(c.title)}</div>${c.detail ? `<div class="muted small">${esc(c.detail)}</div>` : ""}</div><span></span></div>`).join("");
+    $("upReport").hidden = false; $("upRun").disabled = r.fatal;
+    if (r.suggested_date) { $("upDate").value = r.suggested_date; $("upDate").max = r.suggested_date; }
+    UPLOAD = r.fatal ? null : { dataset: r.dataset, name: file.name, suggested: r.suggested_date };
+    st.textContent = r.fatal ? "Файл не подходит под шаблон: исправьте отмеченное и загрузите снова." : "Файл проверен. Проверьте дату оценки и запустите расчёт.";
+    if (r.fatal) st.className = "status err";
+  } catch (e) { st.textContent = "Не удалось обработать файл: " + (e && e.message || e); st.className = "status err"; }
 }
 $("fileIn").addEventListener("change", (e) => e.target.files[0] && handleFile(e.target.files[0]));
 const drop = $("drop");
 drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
 drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
-$("upRun").addEventListener("click", () => {
+$("upRun").addEventListener("click", async () => {
   if (!UPLOAD) return; const d = $("upDate").value; if (!d) { $("upStatus").textContent = "Укажите дату оценки."; return; }
   try {
-    const data = { ...UPLOAD.data, today: d };
-    useData(data, "upload", UPLOAD.name);
+    await useData(UPLOAD.dataset, "upload", UPLOAD.name, d);
     $("upStatus").textContent = "Готово: портфель и карточки пересчитаны по загруженной выгрузке."; showTab("portfolio");
   } catch (e) { $("upStatus").textContent = "Ошибка расчёта: " + (e && e.message || e); $("upStatus").className = "status err"; }
 });
-$("backDemo").addEventListener("click", () => useData(DEMO, "demo"));
+$("backDemo").addEventListener("click", () => useData("demo", "demo"));
 
-function useData(data, label, fname) {
-  compute(data, label);
+async function useData(dataset, label, fname, date) {
+  await loadPortfolio(dataset, label, fname, date);
   $("srcChip").textContent = label === "demo" ? "Демонстрационные данные" : "Загруженная выгрузка";
   $("srcChip").className = "chip " + (label === "demo" ? "warn" : "acc");
   $("srcMeta").textContent = `Дата оценки ${fdate(STATE.today)} · клиентов с действующими договорами ${nf(STATE.clients.length)} · балльная карта от ${fdate(MODEL.version)}`;
   $("loadedBanner").hidden = label === "demo";
-  if (label !== "demo") $("loadedText").textContent = `Показаны данные из файла «${fname}». Баллы рассчитаны по балльной карте, обученной на демонстрационных данных.`;
+  if (label !== "demo") $("loadedText").textContent = `Показаны данные из файла «${fname}». Баллы рассчитаны по балльной карте, обученной на демонстрационных данных. Файл хранится в памяти сервера 30 минут, на диск не записывается.`;
   renderPortfolio(); cardOptions();
-  const first = STATE.clients.filter((c) => c.now.zone === "red").sort((a, b) => a.now.score - b.now.score)[0] || STATE.clients[0];
-  if (first) { $("cardSel").value = first.cl.client; renderCard(first.cl.client); }
+  const first = STATE.clients.filter((c) => c.zone === "red").sort((a, b) => a.score - b.score)[0] || STATE.clients[0];
+  if (first && !(location.hash || "").startsWith("#card=")) { $("cardSel").value = first.client; renderCard(first.client); }
 }
 // Адрес: #вкладка или #card=<код клиента> (ссылки «Требуют внимания» с главной, из карточки сделки)
 const TABS = ["portfolio", "card", "model", "upload"];
 function applyHash() {
   const h = decodeURIComponent((location.hash || "").slice(1));
-  if (h.startsWith("card=") && STATE.clients.some((c) => c.cl.client === h.slice(5))) { $("cardSel").value = h.slice(5); CARD_CLIENT = h.slice(5); showTab("card"); renderCard(h.slice(5)); return true; }
+  if (h.startsWith("card=") && knownClient(h.slice(5))) { $("cardSel").value = h.slice(5); CARD_CLIENT = h.slice(5); showTab("card"); renderCard(h.slice(5)); return true; }
   if (TABS.includes(h)) { showTab(h); return true; }
   return false;
 }
 (async function boot() {
   try {
-    DEMO = await loadDemo();
+    const [model, tpl] = await Promise.all([api("/api/ews/model"), api("/api/ews/template?format=json")]);
+    MODEL = model;
     renderModel();
-    useData(DEMO, "demo");
+    renderTemplate(tpl.sheets);
+    // загрузка выгрузки — только администратор, команда проекта и ТАЛК; остальным — шаблон и пояснение
+    if (!MODEL.can_upload) { $("drop").innerHTML = `<strong>Загрузка выгрузки недоступна для вашей роли</strong><span class="muted small">Рассчитать портфель по своей выгрузке могут администратор, команда проекта и ТАЛК. Шаблон можно скачать выше.</span>`; }
+    await useData("demo", "demo");
     restoreFilters();
     // пришли из карточки сделки (/monitoring?deal=…) — ссылка обратно
     const fromDeal = new URLSearchParams(location.search).get("deal");

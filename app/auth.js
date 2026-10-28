@@ -18,6 +18,7 @@ const PERMISSIONS = {
   "deals.edit": ["admin", "team", "talk"], // создание сделок и смена стадий; кураторы и Sber2B — просмотр
   "calc.extract": ROLES, // расход ограничен дневным лимитом шлюза
   "connectors.log": ["admin", "sber2b", "team"],
+  "ews.upload": ["admin", "team", "talk"], // загрузка выгрузки в «Мониторинг»; просмотр портфеля и карты — всем ролям
   "users.view": ["admin"],
 };
 const can = (user, perm) => !!user && (PERMISSIONS[perm] || []).includes(user.role);

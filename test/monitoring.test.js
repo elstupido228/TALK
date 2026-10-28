@@ -3,7 +3,6 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert");
 const vm = require("node:vm");
 const fs = require("node:fs");
-const zlib = require("node:zlib");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { open } = require("../app/db");
@@ -27,16 +26,13 @@ test("check_parity.js: баллы страницы совпадают с бал�
   assert.ok(!out.includes("нет среза"), out);
 });
 
-test("сборка «Мониторинга»: плейсхолдеры, без CDN и claude.ai, данные портфеля внутри", () => {
+test("сборка «Мониторинга»: без встроенного портфеля, без CDN и claude.ai, данные — из /api/ews", () => {
   const html = build();
-  for (const ph of ["/*FEATURES_JS*/", "__MODEL_JSON__", "__DATA_GZ__"]) assert.ok(!html.includes(ph), ph);
-  assert.ok(!/window\.claude|cdnjs/.test(html));
-  assert.ok(html.includes('src="/vendor/xlsx.full.min.js"'));
+  for (const ph of ["/*FEATURES_JS*/", "__MODEL_JSON__", "__DATA_GZ__", "DEMO_GZ", "TalkEWS"]) assert.ok(!html.includes(ph), ph);
+  assert.ok(!/window\.claude|cdnjs|xlsx\.full/.test(html));
+  for (const u of ["/api/ews/model", "/api/ews/portfolio", "/api/ews/clients/", "/api/ews/upload", "/api/ews/template"]) assert.ok(html.includes(u), u);
+  assert.match(html, /Демонстрационные данные/);
   [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].forEach((s) => new vm.Script(s[1]));
-  const gz = html.match(/const DEMO_GZ = "([^"]+)"/)[1];
-  const data = JSON.parse(zlib.gunzipSync(Buffer.from(gz, "base64")));
-  assert.strictEqual(data.clients.length, 420);
-  assert.strictEqual(data.contracts.length, 607);
 });
 
 test("коннекторы: кэш, устаревший кэш при сбое, запасной ответ песочницы, режим из окружения, журнал", async () => {

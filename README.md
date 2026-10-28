@@ -95,9 +95,13 @@ docker compose exec app node scripts/bench-extract.js --models gpt-5.4-mini,gpt-
 
 ## Мониторинг — раннее предупреждение (`/monitoring`)
 
-Страница собирается сервером (`app/monitoring/build.js`, как `build_page.py`) из `seed/ews`: шаблон `page_src.html`,
-расчёт признаков и баллов `features.js` (тот же код, что при обучении), балльная карта `data/model.json`, условный
-портфель `data/demo.json` (420 клиентов, 607 договоров). В шапке — ключевая ставка Банка России (коннектор `cbr`).
+Расчёт — на сервере, без Python: `app/monitoring/ews.js` применяет `seed/ews/features.js` (тот же код, что при
+обучении) и карту `seed/ews/data/model.json` (другая карта — переменная `EWS_MODEL`) к условному портфелю
+`data/demo.json` (420 клиентов, 607 договоров, дата оценки 30.09.2026). Страница `app/monitoring/page.html` берёт
+данные из API: `GET /api/ews/model`, `/portfolio?date=`, `/clients/{code}?months=`, `/template` (xlsx с
+`Content-Disposition`), `POST /api/ews/upload` (xlsx; только admin, team, talk; файл не пишется на диск, живёт в памяти
+30 минут, `EWS_UPLOADS_MAX` — сколько выгрузок держать одновременно, по умолчанию 2). В шапке — ключевая ставка
+Банка России (коннектор `cbr`).
 Карта — 13 признаков, обучена на условном пуле из 2 500 клиентов; метрики (Gini 0,64 на проверочном периоде)
 получены на условных данных и подаются только с этой оговоркой. Портфель `data/demo.json` в git не хранится —
 создаётся генератором при сборке образа (стадия `ews-demo` в `Dockerfile`).

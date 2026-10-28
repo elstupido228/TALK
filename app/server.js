@@ -10,6 +10,7 @@ const { calcPage } = require("./calc/build");
 const { createGateway } = require("./extract/gateway");
 const { monitoringPage } = require("./monitoring/build");
 const { portfolioSummary } = require("./monitoring/summary");
+const { defaultEws } = require("./monitoring/ews");
 const { createDeals } = require("./deals");
 const { createClients, norm } = require("./clients");
 const W = require("./views-work");
@@ -79,7 +80,8 @@ function createApp(db, opts = {}) {
     });
   }
   const clients = createClients(db);
-  const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary(), clients });
+  const ews = opts.ews || defaultEws();
+  const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary(ews), clients });
   const tasks = createTasks(db, deals);
   // просроченные задачи: всего и у пользователя (плитка главной)
   const lateTasks = (user) => { const late = tasks.open().filter((t) => t.due < taskToday()); return { lateTasks: late.length, myLate: late.filter((t) => t.assignee_id === user.id).length }; };
@@ -94,7 +96,7 @@ function createApp(db, opts = {}) {
     // к следующему открытию). Без сохранённого значения ждём источник не дольше 1,5 с.
     const fresh = connectors.call("cbr", "key-rate", {}, { userId: user.id }).catch(() => null);
     const keyRate = connectors.peek("cbr", "key-rate", {}) || (await Promise.race([fresh, new Promise((r) => setTimeout(() => r(null), 1500))]));
-    return { summary: portfolioSummary(), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit"), myTasks: tasks.open().filter((t) => t.assignee_id === user.id), ...lateTasks(user) };
+    return { summary: portfolioSummary(ews), keyRate, deals: deals.list(), canEdit: can(user, "deals.edit"), myTasks: tasks.open().filter((t) => t.assignee_id === user.id), ...lateTasks(user) };
   }
 
   // Поля сделки из формы (запуск и правка). Ошибка — {status: 400, field}
@@ -230,6 +232,37 @@ function createApp(db, opts = {}) {
     "/admin/users": ["users.view", (u) => V.usersPage(u, auth.listUsers())],
   };
 
+  // Раннее предупреждение (/api/ews/*): расчёт на сервере — features.js + model.json, без Python.
+  // dataset — «demo» (условный портфель) или id загруженной выгрузки (живёт в памяти 30 мин, виден только загрузившему).
+  async function ewsApi(req, res, user, url) {
+    const p = url.pathname, q = url.searchParams, ds = q.get("dataset") || "demo";
+    try {
+      if (p === "/api/ews/model" && req.method === "GET") return H.sendJson(res, 200, { ...ews.modelInfo(), can_upload: can(user, "ews.upload") });
+      if (p === "/api/ews/portfolio" && req.method === "GET") return H.sendJson(res, 200, ews.portfolio(ds, q.get("date"), user));
+      const cm = p.match(/^\/api\/ews\/clients\/([^/]+)$/);
+      if (cm && req.method === "GET") return H.sendJson(res, 200, ews.client(ds, decodeURIComponent(cm[1]), { months: q.get("months"), date: q.get("date") }, user));
+      if (p === "/api/ews/template" && req.method === "GET") {
+        if (q.get("format") === "json") return H.sendJson(res, 200, { sheets: ews.SHEETS, events: ews.modelInfo().events });
+        const ex = q.get("example") === "1";
+        const name = ex ? "ТАЛК_пример_выгрузки_условные_данные.xlsx" : "ТАЛК_шаблон_выгрузки.xlsx";
+        return H.send(res, 200, ews.template({ example: ex }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          { "content-disposition": `attachment; filename="${ex ? "talk_example.xlsx" : "talk_template.xlsx"}"; filename*=UTF-8''${encodeURIComponent(name)}` });
+      }
+      if (p === "/api/ews/upload" && req.method === "POST") {
+        if (!can(user, "ews.upload")) return H.sendJson(res, 403, { error: { code: "forbidden", message: "Загружать выгрузку могут администратор, команда проекта и ТАЛК." } });
+        // тело — сам файл xlsx; на диск не пишется и в журнал не попадает (в журнале запросов только факт вызова)
+        const buf = await H.readBody(req, 20 * 1024 * 1024);
+        if (!buf.length) return H.sendJson(res, 400, { error: { code: "bad_request", message: "Пустой файл." } });
+        const date = q.get("date") || undefined;
+        return H.sendJson(res, 200, ews.upload(buf, user, { name: q.get("name") || "", date }));
+      }
+      return H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такого метода." } });
+    } catch (e) {
+      if (!e.status) throw e;
+      return H.sendJson(res, e.status, { error: { code: e.code || "error", message: e.message } });
+    }
+  }
+
   async function handle(req, res) {
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
@@ -307,6 +340,7 @@ function createApp(db, opts = {}) {
         if (!d) return H.sendJson(res, 404, { error: { code: "not_found", message: "Нет такой сделки." } });
         return H.sendJson(res, 200, { deal: { id: d.id, title: d.title, inn: d.inn }, files: files.byDeal(d.id).map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, url: `/files/${f.id}` })) });
       }
+      if (p.startsWith("/api/ews/")) return ewsApi(req, res, user, url);
       if (p === "/api/connectors" && req.method === "GET") return H.sendJson(res, 200, { connectors: connectors.describe() });
       const m = p.match(/^\/api\/connectors\/([a-z0-9_-]+)\/([a-z0-9_-]+)$/);
       if (m && req.method === "GET" && connectors.has(m[1])) {
