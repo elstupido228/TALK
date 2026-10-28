@@ -66,6 +66,7 @@ def process_year(year, files, out, unit_check):
                 r = [x for x in t["line_2110"].to_pylist()[:50_000] if x and x > 0]; revs += r
             if writer is None: writer = pq.ParquetWriter(out.with_suffix(".tmp"), t.schema, compression="zstd")
             writer.write_table(t); kept += t.num_rows
+        pf.close()  # Windows не даёт удалить открытый файл
         if remove:
             os.remove(path)
     if writer: writer.close(); os.replace(out.with_suffix(".tmp"), out)
