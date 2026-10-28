@@ -1,0 +1,11 @@
+# Разовое обучение и сверка раннего предупреждения (seed/ews) и модели на открытых данных (seed/ews_open).
+# Не постоянный сервис: запускается `docker compose run --rm ews-train ...` и удаляется после завершения.
+# Версии — эталонные из задания 28.10.2026. pyarrow — только в образе ews-open (OPEN=1): с ним pandas 3 подписывает
+# интервалы отрасли в model.json иначе («ArrowStringArray») и карта seed/ews формально перестаёт совпадать с эталоном.
+FROM python:3.13-slim
+ARG OPEN=0
+ENV PYTHONUTF8=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/* \
+ && pip install numpy==2.5.3 pandas==3.0.5 scikit-learn==1.9.1 optbinning==1.0.0 scipy==1.18.1 ortools==9.15.6755 openpyxl==3.1.5 \
+ && if [ "$OPEN" = "1" ]; then pip install pyarrow==26.0.0 huggingface_hub==2.3.0 requests; fi
+WORKDIR /work/seed/ews

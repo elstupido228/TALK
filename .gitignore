@@ -40,6 +40,8 @@ seed/ews/data/*
 seed/ews_open/data/*
 !seed/ews_open/data/model_open.json
 seed/ews_open/data_mock/
+# выгрузки заказчика для переобучения (EWS_CUSTOMER_DIR по умолчанию)
+/customer/
 seed/ews/*.html
 !seed/ews/page_src.html
 seed/calc/in/

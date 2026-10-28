@@ -1,0 +1,275 @@
+openapi: 3.1.0
+info:
+  title: Контур контроля лизинговой сделки — API портала
+  version: 0.1.0
+  description: |
+    API прототипа. Здесь — раннее предупреждение (/api/ews/*); остальные модули добавляются отдельно.
+    Все методы — для вошедших пользователей (cookie-сессия `sid`), без входа — 401.
+    Карта раннего предупреждения обучена на условных данных: метрики показывают работу метода, а не реальные зависимости.
+servers:
+  - url: https://talk.perveev.com
+  - url: https://staging.talk.perveev.com
+security:
+  - session: []
+tags:
+  - name: ews
+    description: Раннее предупреждение о просрочке — расчёт на сервере (features.js + model.json)
+paths:
+  /api/ews/model:
+    get:
+      tags: [ews]
+      summary: Действующая балльная карта
+      description: Карта из файла `seed/ews/data/<EWS_MODEL>` (по умолчанию model.json).
+      responses:
+        "200":
+          description: Карта
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Model" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/ews/portfolio:
+    get:
+      tags: [ews]
+      summary: Портфель на дату
+      parameters:
+        - { $ref: "#/components/parameters/Dataset" }
+        - name: date
+          in: query
+          description: Дата оценки ГГГГ-ММ-ДД; берётся ближайший конец месяца не позже даты. По умолчанию — дата набора данных (демо — 2026-09-30).
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Клиенты, сводка по зонам, переходы, история зон за 24 месяца
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Portfolio" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/ews/clients/{code}:
+    get:
+      tags: [ews]
+      summary: Карточка клиента
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string, example: КЛ-0130 }
+        - { $ref: "#/components/parameters/Dataset" }
+        - name: months
+          in: query
+          description: Месяцев истории (3–60, по умолчанию 24). Для клиента с дефолтом — до 18 месяцев до и 3 после дефолта.
+          schema: { type: integer, default: 24 }
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Карточка
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Client" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/ews/upload:
+    post:
+      tags: [ews]
+      summary: Загрузка выгрузки по шаблону и расчёт по текущей карте
+      description: |
+        Только роли admin, team, talk. Тело — сам файл xlsx (до 20 МБ). Файл не пишется на диск и не логируется;
+        разобранные данные живут в памяти 30 минут и доступны только загрузившему (параметр `dataset` других методов).
+        При ошибке шаблона (`fatal: true`) набор данных не создаётся.
+      parameters:
+        - name: name
+          in: query
+          description: Имя файла для показа на странице
+          schema: { type: string }
+        - name: date
+          in: query
+          description: Дата оценки; по умолчанию — последний полный месяц по платежам и событиям
+          schema: { type: string, format: date }
+      requestBody:
+        required: true
+        content:
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Отчёт проверки и id набора данных
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+  /api/ews/template:
+    get:
+      tags: [ews]
+      summary: Шаблон выгрузки (xlsx) или его описание
+      parameters:
+        - name: example
+          in: query
+          description: "1 — пример, заполненный демонстрационными данными"
+          schema: { type: string, enum: ["1"] }
+        - name: format
+          in: query
+          description: "json — описание листов и столбцов вместо файла"
+          schema: { type: string, enum: [json] }
+      responses:
+        "200":
+          description: Файл xlsx с Content-Disposition attachment (или JSON с описанием листов)
+          headers:
+            Content-Disposition: { schema: { type: string } }
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sheets: { type: array, items: { $ref: "#/components/schemas/Sheet" } }
+                  events: { type: array, items: { type: string } }
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: sid }
+  parameters:
+    Dataset:
+      name: dataset
+      in: query
+      description: "demo (условный портфель, по умолчанию) или id загруженной выгрузки"
+      schema: { type: string, default: demo }
+  responses:
+    Unauthorized:
+      description: Требуется вход
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Error:
+      description: Ошибка
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties: { code: { type: string }, message: { type: string } }
+    Zone: { type: string, enum: [red, yellow, green, grey], description: "grey — просрочка 30+ или дефолт ранее, модель не оценивает" }
+    Reason:
+      type: object
+      properties: { name: { type: string }, label: { type: string }, lost: { type: number, description: "потеря баллов к лучшему интервалу" } }
+    Model:
+      type: object
+      properties:
+        version: { type: string, format: date }
+        file: { type: string }
+        data: { type: string, description: Источник данных обучения }
+        zones: { type: object, properties: { red: { type: number }, yellow: { type: number } }, description: "балл ≤ red — красная, ≤ yellow — жёлтая" }
+        scaling: { type: object }
+        vars:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              label: { type: string }
+              group: { type: string }
+              cat: { type: boolean }
+              splits: { type: array, items: { type: number }, description: "интервал i: splits[i-1] ≤ x < splits[i]" }
+              groups: { type: array, items: { type: array, items: { type: string } } }
+              points: { type: array, items: { type: number } }
+              missing: { type: number }
+              bins: { type: array, items: { type: object } }
+        candidates: { type: array, items: { type: object }, description: "19 кандидатов с IV и причиной исключения" }
+        validation: { type: object, description: "Gini на обучении и проверке с интервалом, правило, зоны на проверке, заблаговременность (lead), p_max" }
+        features: { type: array, items: { type: object } }
+        events: { type: array, items: { type: string } }
+        disclaimer: { type: string }
+        can_upload: { type: boolean }
+    Portfolio:
+      type: object
+      properties:
+        dataset: { type: string }
+        label: { type: string, enum: [demo, upload] }
+        demo: { type: boolean }
+        disclaimer: { type: string }
+        date: { type: string, format: date }
+        prev_date: { type: string, format: date }
+        model_version: { type: string }
+        total: { type: object, properties: { clients: { type: integer }, exposure: { type: number } } }
+        zones: { type: object, additionalProperties: { type: object, properties: { clients: { type: integer }, exposure: { type: number } } } }
+        migration: { type: object, description: "зона месяц назад → зона сейчас → число клиентов" }
+        worsened: { type: integer }
+        months:
+          type: array
+          items: { type: object, properties: { date: { type: string, format: date }, red: { type: integer }, yellow: { type: integer }, green: { type: integer }, grey: { type: integer } } }
+        clients:
+          type: array
+          items:
+            type: object
+            properties:
+              client: { type: string }
+              sector: { type: string }
+              region: { type: string }
+              zone: { $ref: "#/components/schemas/Zone" }
+              score: { type: number }
+              prev_zone: { oneOf: [{ $ref: "#/components/schemas/Zone" }, { type: "null" }] }
+              delta: { type: [number, "null"], description: изменение балла за месяц }
+              exposure: { type: number, description: остаток лизинговых платежей, руб. }
+              dpd: { type: integer }
+              ltv: { type: [number, "null"], description: остаток к текущей стоимости предмета }
+              status: { type: string }
+              stop_bankr: { type: boolean }
+              reasons: { type: array, maxItems: 3, items: { $ref: "#/components/schemas/Reason" } }
+    Client:
+      type: object
+      properties:
+        client: { type: string }
+        sector: { type: string }
+        region: { type: string }
+        since: { type: string, format: date }
+        as_of: { type: string, format: date }
+        zone: { $ref: "#/components/schemas/Zone" }
+        score: { type: [number, "null"] }
+        delta: { type: [number, "null"] }
+        default_date: { type: [string, "null"], format: date }
+        stop_bankr: { type: boolean }
+        facts: { type: [object, "null"] }
+        reasons: { type: array, items: { $ref: "#/components/schemas/Reason" } }
+        contributions:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              label: { type: string }
+              value: {}
+              bin: { type: integer, description: "-1 — нет данных" }
+              bin_label: { type: string }
+              points: { type: number }
+              best: { type: number }
+              lost: { type: number }
+        history:
+          type: array
+          items: { type: object, properties: { date: { type: string, format: date }, score: { type: [number, "null"] }, zone: { type: [string, "null"] }, status: { type: string }, dpd: { type: [integer, "null"] } } }
+        events:
+          type: array
+          items: { type: object, properties: { date: { type: string, format: date }, type: { type: string }, amount: { type: [number, "null"] }, role: { type: string, enum: [в балле, сигнал, стоп-фактор] } } }
+        contracts: { type: array, items: { type: object } }
+    UploadResult:
+      type: object
+      properties:
+        fatal: { type: boolean }
+        checks:
+          type: array
+          items: { type: object, properties: { status: { type: string, enum: [ok, warn, error] }, title: { type: string }, detail: { type: string } } }
+        counts: { type: object, additionalProperties: { type: integer } }
+        suggested_date: { type: [string, "null"], format: date }
+        dataset: { type: string, description: "id для dataset= (нет при fatal)" }
+        date: { type: string, format: date }
+        expires_in_s: { type: integer }
+    Sheet:
+      type: object
+      properties:
+        name: { type: string }
+        key: { type: string }
+        src: { type: string }
+        cols: { type: array, items: { type: object, properties: { title: { type: string }, field: { type: string }, type: { type: string, enum: [s, d, n, b] }, note: { type: string } } } }

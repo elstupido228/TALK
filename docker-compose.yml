@@ -38,6 +38,33 @@ services:
     memswap_limit: 100m
     networks: [talk]
 
+  # Разовое обучение раннего предупреждения (профиль train — не поднимается `docker compose up`):
+  #   docker compose run --rm ews-train python gen_data.py --clients 2500 --out pool.json
+  # Код и данные — из ./seed (данные в git не попадают), выгрузка заказчика — каталог EWS_CUSTOMER_DIR (права 700).
+  ews-train:
+    profiles: [train]
+    build: { context: seed/ews, dockerfile: Dockerfile.train }
+    image: talk-proto-ews-train
+    volumes:
+      - ./seed:/work/seed
+      - ${EWS_CUSTOMER_DIR:-./customer}:/data/customer
+    network_mode: none
+    mem_limit: 900m
+    memswap_limit: 900m
+
+  # То же с pyarrow и доступом в сеть: выгрузка RFSD и разметка DaData (seed/ews_open)
+  ews-open:
+    profiles: [train]
+    build: { context: seed/ews, dockerfile: Dockerfile.train, args: { OPEN: "1" } }
+    image: talk-proto-ews-open
+    working_dir: /work/seed/ews_open
+    environment:
+      DADATA_TOKEN: ${DADATA_TOKEN:-}   # из .env; другие ключи в контейнер не передаются
+    volumes:
+      - ./seed:/work/seed
+    mem_limit: 900m
+    memswap_limit: 900m
+
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
