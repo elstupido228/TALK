@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const F = require("../../seed/ews/features.js");
+const { openBook } = require("./xlsx-read");
 
 const DATA = path.join(__dirname, "..", "..", "seed", "ews", "data");
 const XLSX_LIB = path.join(__dirname, "..", "public", "vendor", "xlsx.full.min.js");
@@ -36,14 +37,16 @@ function createEws(opts = {}) {
   // выгрузок в памяти одновременно: индекс выгрузки размером с демо-портфель — около 15 МБ, память стенда — 100 МБ
   const uploadMax = Math.max(1, Number(env.EWS_UPLOADS_MAX) || 2);
   const model = JSON.parse(fs.readFileSync(modelFile, "utf8"));
-  const sets = new Map(); // id -> {data, idx, label, name, owner, expires, cache}
+  const sets = new Map(); // id -> {idx, assets, label, name, owner, expires, cache}
   let xlsx = null;
   const X = () => (xlsx ??= require(XLSX_LIB));
 
   function demoSet() {
     if (!sets.has("demo")) {
       const data = JSON.parse(fs.readFileSync(path.join(DATA, "demo.json"), "utf8"));
-      sets.set("demo", { id: "demo", data, idx: F.prepare(data), label: "demo", cache: new Map() });
+      // сырой JSON после подготовки индекса не держим (память стенда); тип предмета — для сводки на главной
+      const assets = new Map(data.contracts.map((c) => [c.client, c.asset])); // последний договор клиента
+      sets.set("demo", { id: "demo", idx: F.prepare(data), assets, label: "demo", cache: new Map() });
     }
     return sets.get("demo");
   }
@@ -210,7 +213,7 @@ function createEws(opts = {}) {
   const normDate = (v) => {
     if (v === null || v === undefined || v === "") return null;
     if (v instanceof Date && !isNaN(v)) return new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate())).toISOString().slice(0, 10);
-    if (typeof v === "number") { const d = X().SSF.parse_date_code(v); return d ? `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}` : null; }
+    if (typeof v === "number") return isFinite(v) && v > 60 && v < 2958466 ? new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 864e5).toISOString().slice(0, 10) : null; // серийная дата Excel
     const s = String(v).trim(); let m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/); if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
   };
@@ -220,20 +223,16 @@ function createEws(opts = {}) {
   // Проверка файла: листы и столбцы, связи между листами, нераспознанные события. Файл не пишется на диск и не логируется.
   function parseUpload(input) {
     const buf = Buffer.from(input.buffer ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength) : input);
-    let names;
-    // xlsx — zip-архив; текст и csv SheetJS тоже «прочитал» бы как книгу из одного листа
     if (buf.subarray(0, 2).toString("latin1") !== "PK") throw err(400, "bad_file", "Нужен файл xlsx по шаблону.");
-    try { names = X().read(buf, { type: "buffer", bookSheets: true }).SheetNames; } catch { throw err(400, "bad_file", "Файл не читается как xlsx."); }
+    let book;
+    try { book = openBook(buf); } catch { throw err(400, "bad_file", "Файл не читается как xlsx."); }
+    const names = book.names;
     const checks = [], data = {};
     let fatal = false;
     for (const s of SHEETS) {
       if (!names.includes(s.name)) { checks.push({ status: "error", title: `Лист «${s.name}» не найден`, detail: "" }); fatal = true; data[s.key] = []; continue; }
-      // по одному листу, плотное представление: пик памяти ~25 МБ на выгрузку размером с демо-портфель
-      let wb = X().read(buf, { type: "buffer", cellDates: true, dense: true, sheets: s.name });
-      const ws = wb.Sheets[s.name];
-      const rows = X().utils.sheet_to_json(ws, { defval: null, raw: true });
-      const head = rows.length ? Object.keys(rows[0]) : X().utils.sheet_to_json(ws, { header: 1 })[0] || [];
-      wb = null;
+      // по одному листу (xlsx-read.js): SheetJS на выгрузке размером с демо-портфель не помещается в 100 МБ стенда
+      let { head, rows } = book.rows(s.name);
       const miss = s.cols.filter((c) => !head.includes(c[0])).map((c) => c[0]);
       const req = s.cols.filter((c) => REQUIRED.includes(c[1]) && miss.includes(c[0]));
       let bad = 0;
@@ -280,7 +279,7 @@ function createEws(opts = {}) {
     for (const [id, s] of sets) if (s.owner === user.id) sets.delete(id); // одна выгрузка на пользователя
     while ([...sets.values()].filter((s) => s.owner).length >= uploadMax) sets.delete([...sets.keys()].find((k) => k !== "demo"));
     const id = crypto.randomBytes(9).toString("base64url");
-    sets.set(id, { id, data: null, idx, label: "upload", name: String(name).slice(0, 120), owner: user.id, expires: Date.now() + UPLOAD_TTL_MS, cache: new Map() });
+    sets.set(id, { id, idx, label: "upload", name: String(name).slice(0, 120), owner: user.id, expires: Date.now() + UPLOAD_TTL_MS, cache: new Map() });
     return { ...out, dataset: id, date: today, expires_in_s: UPLOAD_TTL_MS / 1000 };
   }
 
@@ -301,14 +300,19 @@ function createEws(opts = {}) {
     }
     return Buffer.from(XL.write(wb, { bookType: "xlsx", type: "buffer", compression: true }));
   }
-  let example = null;
-  const template = ({ example: ex } = {}) => (ex ? (example ??= workbook(demoSet().data)) : workbook(null));
+  // Шаблон и пример собираются при сборке образа (scripts/ews-templates.js): пример на 45 тыс. строк SheetJS
+  // в 100 МБ стенда не соберёт. Нет готового файла (разработка, тесты) — собираем здесь.
+  const template = ({ example: ex } = {}) => {
+    const file = path.join(DATA, ex ? "template_example.xlsx" : "template.xlsx");
+    if (fs.existsSync(file)) return fs.readFileSync(file);
+    return workbook(ex ? JSON.parse(fs.readFileSync(path.join(DATA, "demo.json"), "utf8")) : null);
+  };
 
   return {
     model, modelInfo, SHEETS: SHEETS.map(({ name, key, src, cols }) => ({ name, key, src, cols: cols.map(([title, field, type, note]) => ({ title, field, type, note })) })),
     portfolio: (id, date, user) => portfolio(dataset(id, user), date),
     client: (id, code, o, user) => client(dataset(id, user), code, o),
-    upload, parseUpload, template, dataset,
+    upload, parseUpload, template, workbook, dataset,
   };
 }
 

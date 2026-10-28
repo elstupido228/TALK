@@ -3,8 +3,7 @@ const { defaultEws } = require("./ews");
 
 function compute(ews) {
   const p = ews.portfolio("demo");
-  const assetOf = new Map();
-  for (const c of ews.dataset("demo").data.contracts) assetOf.set(c.client, c.asset); // последний договор клиента
+  const assetOf = ews.dataset("demo").assets;
   const zones = Object.fromEntries(Object.entries(p.zones).map(([z, v]) => [z, v.clients]));
   const exposure = Object.fromEntries(Object.entries(p.zones).map(([z, v]) => [z, v.exposure]));
   const clients = p.clients.map((c) => ({ client: c.client, sector: c.sector, zone: c.zone, score: c.score, dpd: c.dpd, status: c.status, exposure: c.exposure, asset: assetOf.get(c.client) || null }));

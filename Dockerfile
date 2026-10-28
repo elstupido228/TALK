@@ -26,6 +26,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY app ./app
 COPY seed ./seed
 COPY --from=ews-demo /ews/data/demo.json ./seed/ews/data/demo.json
+# шаблон выгрузки и пример на демо-портфеле — готовыми файлами (в памяти стенда пример не собрать)
+RUN node scripts/ews-templates.js
 COPY scripts ./scripts
 COPY bench/pdf ./bench/pdf
 
