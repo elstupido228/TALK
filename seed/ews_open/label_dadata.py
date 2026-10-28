@@ -66,16 +66,25 @@ if __name__ == "__main__":
     ap.add_argument("--mock", help="JSON {инн: data} вместо обращения к DaData (для проверки)")
     ap.add_argument("--since-year", type=int, default=2015, help="брать компании, сдававшие отчётность не раньше этого года")
     ap.add_argument("--plan-only", action="store_true", help="только посчитать, сколько запросов нужно")
+    ap.add_argument("--save-plan", help="записать план (порядок ИНН и группы) в JSON — для разметки на другой машине без панели")
+    ap.add_argument("--plan-file", help="взять план из JSON (--save-plan) вместо расчёта по панели")
     a = ap.parse_args()
     mult = 1.0 if a.unit == "thousand" else 0.001
-    pop, max_year = population(a.panel, a.min_revenue, mult, a.since_year)
-    todo = plan(pop, max_year, a.sample_share, 20261028)
+    if a.plan_file:
+        meta = json.loads(Path(a.plan_file).read_text(encoding="utf-8"))
+        todo, n_pop, max_year = [tuple(x) for x in meta["todo"]], meta["population"], meta["max_year"]
+    else:
+        pop, max_year = population(a.panel, a.min_revenue, mult, a.since_year)
+        todo, n_pop = plan(pop, max_year, a.sample_share, 20261028), len(pop)
+    if a.save_plan:
+        Path(a.save_plan).write_text(json.dumps({"population": n_pop, "max_year": max_year, "min_revenue": a.min_revenue,
+                                                 "sample_share": a.sample_share, "since_year": a.since_year, "todo": todo}, ensure_ascii=False), encoding="utf-8")
     con = db(a.db)
     done = {r[0] for r in con.execute("select inn from dadata")}
     left = [(k, g) for k, g in todo if k not in done]
     groups = {}
     for _, g in todo: groups[g] = groups.get(g, 0) + 1
-    print(f"компаний в выборке {len(pop)}, последний год отчётности {max_year}; к запросу {len(todo)}: {groups}; уже в кэше {len(done)}, осталось {len(left)}")
+    print(f"компаний в выборке {n_pop}, последний год отчётности {max_year}; к запросу {len(todo)}: {groups}; уже в кэше {len(done)}, осталось {len(left)}")
     print(f"при лимите {a.limit} в сутки потребуется около {-(-len(left) // max(a.limit, 1))} суток")
     if a.plan_only: sys.exit(0)
     since = (dt.datetime.now() - dt.timedelta(days=1)).isoformat()

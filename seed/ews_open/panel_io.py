@@ -18,21 +18,24 @@ def population(panel, min_rev, unit_mult, since_year=2015):
         m = pc.and_(pc.equal(pc.fill_null(pc.cast(b.column("filed"), pa.float64()), 0.0), 1.0), pc.greater_equal(rev, min_rev))
         keep.update(pc.unique(b.column("inn").filter(m)).to_pylist())
     inn_set = pa.array(sorted(x for x in keep if x is not None), pa.string())
-    g, max_year = None, None
+    # второй проход: строки только этих компаний, агрегат — одним group_by Arrow (в pandas со строковым индексом Arrow
+    # повторные concat + groupby по 44 частям панели шли больше часа)
+    parts, max_year = [], None
     for b in ds.dataset(panel, format="parquet").to_batches(columns=cols, **SCAN):
         y = pc.max(b.column("year")).as_py()
         if y is not None: max_year = y if max_year is None else max(max_year, y)
         b = b.filter(pc.is_in(b.column("inn"), value_set=inn_set))
         if not b.num_rows: continue
-        df = b.to_pandas(types_mapper=pd.ArrowDtype)
-        df["rev"] = df["line_2110"].astype("float64").fillna(0) * unit_mult
-        df["fy"] = df["year"].where(df["filed"] == 1)
-        df["frev"] = df["rev"].where(df["filed"] == 1, 0.0)
-        part = df.groupby("inn", observed=True).agg(max_rev=("frev", "max"), last_filed=("fy", "max"), dis=("dissolution_date", "max"))
-        del df
-        g = part if g is None else pd.concat([g, part]).groupby(level=0).agg(max_rev=("max_rev", "max"), last_filed=("last_filed", "max"), dis=("dis", "max"))
+        filed = pc.equal(pc.fill_null(pc.cast(b.column("filed"), pa.float64()), 0.0), 1.0)
+        rev = pc.multiply(pc.fill_null(pc.cast(b.column("line_2110"), pa.float64()), 0.0), unit_mult)
+        parts.append(pa.table({"inn": b.column("inn"), "frev": pc.if_else(filed, rev, 0.0),
+                               "fy": pc.if_else(filed, pc.cast(b.column("year"), pa.float64()), pa.scalar(None, pa.float64())),
+                               "dis": pc.cast(b.column("dissolution_date"), pa.string())}))
+    t = pa.concat_tables(parts).group_by("inn").aggregate([("frev", "max"), ("fy", "max"), ("dis", "max")])
+    g = pd.DataFrame({"max_rev": t["frev_max"].to_numpy(zero_copy_only=False), "last_filed": t["fy_max"].to_numpy(zero_copy_only=False),
+                      "dis": t["dis_max"].to_pandas(types_mapper=pd.ArrowDtype).array}, index=pd.Index(t["inn"].to_pylist(), name="inn"))
     max_year = int(max_year)
-    g = g[(g.max_rev >= min_rev) & g.last_filed.notna() & (g.last_filed >= since_year)]
+    g = g[(g.max_rev >= min_rev) & g.last_filed.notna() & (g.last_filed >= since_year)].copy()
     g["last_filed"] = g["last_filed"].astype(int)
     return g, max_year
 
