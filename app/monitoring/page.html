@@ -210,7 +210,7 @@ details.explain .body p{color:var(--ink)}
         <label class="f" for="fZone">Зона<select id="fZone"><option value="">Все</option><option value="red">Красная</option><option value="yellow">Жёлтая</option><option value="green">Зелёная</option><option value="grey">Просрочка 30+ и дефолт</option></select></label>
         <label class="f" for="fSector">Отрасль<select id="fSector"><option value="">Все</option></select></label>
         <label class="f" for="fMove">Изменение<select id="fMove"><option value="">Любое</option><option value="worse">Ухудшение зоны за месяц</option></select></label>
-        <label class="f" for="fSearch">Код клиента<input class="t" id="fSearch" placeholder="КЛ-0001"></label>
+        <label class="f" for="fSearch">Наименование или ИНН<input class="t" id="fSearch" placeholder="Пример-Транс или 0000010130"></label>
       </div>
       <div class="tscroll tall"><table id="clientTbl"></table></div>
       <p class="note">Нажмите на строку, чтобы открыть карточку клиента.</p>
@@ -220,7 +220,7 @@ details.explain .body p{color:var(--ink)}
   <!-- ===================== КАРТОЧКА ===================== -->
   <section class="tabpane" id="tab-card" hidden>
     <div class="filters">
-      <label class="f" for="cardFind">Найти по коду<input id="cardFind" list="cardList" placeholder="например, КЛ-0130" autocomplete="off"></label>
+      <label class="f" for="cardFind">Найти по наименованию или ИНН<input id="cardFind" list="cardList" placeholder="например, Пример-Транс 130" autocomplete="off"></label>
       <datalist id="cardList"></datalist>
       <label class="f" for="cardSel" style="min-width:min(100%,420px)">Клиент<select id="cardSel"></select></label>
     </div>
@@ -375,6 +375,8 @@ const fdate = (iso) => iso ? iso.slice(8, 10) + "." + iso.slice(5, 7) + "." + is
 const MONTHS = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 const mlabel = (iso) => MONTHS[+iso.slice(5, 7) - 1] + " " + iso.slice(2, 4);
 const ZN = { red: "Красная зона", yellow: "Жёлтая зона", green: "Зелёная зона", grey: "Просрочка 30+ / дефолт" };
+const who = (c) => c.name || "Клиент без наименования";
+const innTxt = (c) => (c.inn ? "ИНН " + c.inn : "ИНН не указан");
 const zoneChip = (z) => `<span class="zone ${z}">${ZN[z]}</span>`;
 const INT_VARS = new Set(["dpd_now", "max_dpd_6m", "late_cnt_6m", "suits_12m", "fssp_12m", "restruct_12m", "tenure_m", "tax_12m", "ceo_12m", "not_filed", "guarantee"]);
 const PCT_VARS = new Set(["share_paid", "eq_ratio", "net_margin", "rev_growth"]);
@@ -478,14 +480,13 @@ function renderPortfolio() {
 // Сортировка таблицы клиентов по щелчку на заголовок; по умолчанию — зона, затем балл (самые рискованные сверху)
 const LIST_SORT = { key: null, dir: 1 };
 const SORT_KEY = {
-  client: (c) => c.client, sector: (c) => c.sector, zone: (c) => ZORD[c.zone], score: (c) => c.score,
+  client: (c) => who(c), sector: (c) => c.sector, zone: (c) => ZORD[c.zone], score: (c) => c.score,
   move: (c) => c.delta ?? 0, exposure: (c) => c.exposure, dpd: (c) => c.dpd, ltv: (c) => c.ltv ?? -1,
 };
 const worsened = (c) => c.prev_zone && ZORD[c.zone] < ZORD[c.prev_zone];
 function renderList() {
-  // «KL-01», «kl01» латиницей — то же, что «КЛ-01»
-  const z = $("fZone").value, s = $("fSector").value, mv = $("fMove").value, q = $("fSearch").value.trim().toLowerCase().replace(/^kl/, "кл");
-  let L = STATE.clients.filter((c) => (!z || c.zone === z) && (!s || c.sector === s) && (!q || c.client.toLowerCase().includes(q) || c.client.toLowerCase().replace("-", "").includes(q.replace("-", ""))) &&
+  const z = $("fZone").value, s = $("fSector").value, mv = $("fMove").value, q = $("fSearch").value.trim().toLowerCase();
+  let L = STATE.clients.filter((c) => (!z || c.zone === z) && (!s || c.sector === s) && (!q || who(c).toLowerCase().includes(q) || (c.inn || "").includes(q)) &&
     (!mv || worsened(c)));
   const k = SORT_KEY[LIST_SORT.key];
   L.sort((a, b) => (k ? ((k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0) * LIST_SORT.dir) : 0) || ZORD[a.zone] - ZORD[b.zone] || a.score - b.score);
@@ -494,7 +495,7 @@ function renderList() {
     const rs = c.reasons.slice(0, 2);
     const d = c.delta;
     const stop = c.stop_bankr ? ` <span class="chip bad">стоп-фактор</span>` : "";
-    return `<tr class="rowlink" tabindex="0" data-client="${esc(c.client)}"><td class="code">${esc(c.client)}</td><td>${esc(c.sector)}</td>
+    return `<tr class="rowlink" tabindex="0" data-client="${esc(c.client)}"><td><div>${esc(who(c))}</div><div class="small muted num">${esc(innTxt(c))}</div></td><td>${esc(c.sector)}</td>
       <td>${zoneChip(c.zone)}${stop}</td><td class="r num">${c.zone === "grey" ? "—" : nf(c.score)}</td>
       <td class="r num" style="${d !== null && d < 0 ? "color:var(--bad)" : ""}">${d === null || c.zone === "grey" ? "—" : (d > 0 ? "+" : "") + nf(d)}</td>
       <td class="r num">${mln(c.exposure)}</td><td class="r num">${nf(c.dpd)}</td><td class="r num">${c.ltv === null ? "—" : nf(c.ltv, 2)}</td>
@@ -589,22 +590,24 @@ const ACTIONS = {
   grey: ["Клиент в работе отдела по работе с проблемными активами; порядок действий — по стратегии, утверждённой коллегиальным органом по проблемным активам (КПА)."],
 };
 let CARD_CLIENT = null;
-// клиенты демо-портфеля — КЛ-0001…КЛ-0420; клиенты пула из таблицы заблаговременности в демо не входят
-const inDemo = (code) => +String(code).slice(3) <= 420;
+// клиенты пула из таблицы заблаговременности в демо-портфель не входят (у них нет наименования)
+const inDemo = (code) => !MODEL.validation.lead.cases.some((c) => c.client === code && c.pool);
 function cardOptions() {
   const C = STATE.clients.slice().sort((a, b) => ZORD[a.zone] - ZORD[b.zone] || a.score - b.score);
-  const grp = (z, title) => { const l = C.filter((c) => c.zone === z); return l.length ? `<optgroup label="${title} (${l.length})">${l.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · ${esc(c.sector)} · ${c.zone === "grey" ? "просрочка " + nf(c.dpd) + " дн." : "балл " + nf(c.score)}</option>`).join("")}</optgroup>` : ""; };
+  const grp = (z, title) => { const l = C.filter((c) => c.zone === z); return l.length ? `<optgroup label="${title} (${l.length})">${l.map((c) => `<option value="${esc(c.client)}">${esc(who(c))} · ${esc(c.sector)} · ${c.zone === "grey" ? "просрочка " + nf(c.dpd) + " дн." : "балл " + nf(c.score)}</option>`).join("")}</optgroup>` : ""; };
   let html = grp("red", "Красная зона") + grp("yellow", "Жёлтая зона") + grp("green", "Зелёная зона") + grp("grey", "Просрочка 30+ и дефолт");
   const cases = STATE.label === "demo" ? MODEL.validation.lead.cases.filter((c) => inDemo(c.client)) : [];
-  if (cases.length) html += `<optgroup label="Дефолт после даты разделения выборки (проверка)">${cases.map((c) => `<option value="${esc(c.client)}">${esc(c.client)} · дефолт ${fdate(c.default)} · красная зона за ${c.red} мес.</option>`).join("")}</optgroup>`;
+  if (cases.length) html += `<optgroup label="Дефолт после даты разделения выборки (проверка)">${cases.map((c) => `<option value="${esc(c.client)}">${esc(who(c))} · дефолт ${fdate(c.default)} · красная зона за ${c.red} мес.</option>`).join("")}</optgroup>`;
   $("cardSel").innerHTML = html;
-  $("cardList").innerHTML = C.map((c) => `<option value="${esc(c.client)}">${esc(c.sector)}</option>`).join("");
+  $("cardList").innerHTML = C.map((c) => `<option value="${esc(who(c))}">${esc(innTxt(c))} · ${esc(c.sector)}</option>`).join("");
 }
 const knownClient = (code) => STATE.clients.some((c) => c.client === code) || (STATE.label === "demo" && inDemo(code) && MODEL.validation.lead.cases.some((c) => c.client === code));
-// поиск клиента по коду: «кл-130», «KL0130», «0130» — к виду «КЛ-0130»; найден — сразу карточка
+// поиск клиента по наименованию или ИНН: одно совпадение (или точное) — сразу карточка
 $("cardFind").addEventListener("input", () => {
-  const raw = $("cardFind").value.trim().toUpperCase().replace(/^(KL|КЛ)-?/, ""), code = raw ? "КЛ-" + raw.padStart(4, "0") : "";
-  if (knownClient(code)) { $("cardSel").value = code; renderCard(code); }
+  const q = $("cardFind").value.trim().toLowerCase(); if (q.length < 2) return;
+  const hits = STATE.clients.filter((c) => who(c).toLowerCase().includes(q) || (c.inn || "").includes(q));
+  const hit = hits.find((c) => who(c).toLowerCase() === q || c.inn === q) || (hits.length === 1 ? hits[0] : null);
+  if (hit) { $("cardSel").value = hit.client; renderCard(hit.client); }
 });
 $("cardSel").addEventListener("change", () => renderCard($("cardSel").value));
 function openCard(cid) { showTab("card"); $("cardSel").value = cid; renderCard(cid); window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -614,7 +617,7 @@ async function renderCard(cid) {
   let D = STATE.cards.get(cid);
   if (!D) {
     try { D = await api(`/api/ews/clients/${encodeURIComponent(cid)}?` + qs({ dataset: STATE.dataset, date: STATE.today, months: 24 })); }
-    catch (e) { if (CARD_CLIENT === cid) $("cardHead").innerHTML = `<div class="who grey"><h2>${esc(cid)}</h2><p class="status err">${esc(e.message)}</p></div>`; return; }
+    catch (e) { if (CARD_CLIENT === cid) $("cardHead").innerHTML = `<div class="who grey"><h2>Клиент не найден</h2><p class="status err">${esc(e.message)}</p></div>`; return; }
     STATE.cards.set(cid, D);
   }
   if (CARD_CLIENT !== cid) return; // пока ждали ответ, выбрали другого клиента
@@ -622,7 +625,7 @@ async function renderCard(cid) {
   const pts = D.history.map((h) => ({ date: h.date, v: h.score, dpd: h.dpd, zone: h.zone,
     tip: h.score === null ? `<b>${fdate(h.date)}</b><br>нет действующих договоров` : `<b>${fdate(h.date)}</b><br>Балл: ${nf(h.score)}<br>${h.status === "оценивается" ? ZN[h.zone] : h.status === "дефолт" ? "после дефолта" : "просрочка 30+ — в работе подразделения по проблемным активам (СПА)"}<br>Просрочка: ${nf(h.dpd)} дн.` }));
   $("cardHead").innerHTML = `<div class="who ${zone}"><span class="eyebrow">${esc(D.sector)} · ${esc(D.region || "")} · клиент с ${fdate(D.since)}</span>
-      <h2 style="font:600 22px var(--f-num)">${esc(cid)}</h2>
+      <h2 style="font:600 22px var(--f-body)" title="ID клиента: ${esc(cid)}">${esc(who(D))}</h2><span class="muted small num">${esc(innTxt(D))}${D.conditional ? " · условные реквизиты" : ""}</span>
       <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span class="score-big">${score === null ? "—" : nf(score)}</span><span class="muted small">баллов на ${fdate(asOf)}</span>${d1 !== null && zone !== "grey" ? `<span class="small num" style="color:${d1 < 0 ? "var(--bad)" : "var(--good)"}">${d1 > 0 ? "+" : ""}${nf(d1)} за месяц</span>` : ""}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${zoneChip(zone)}${D.stop_bankr ? `<span class="chip bad">стоп-фактор: намерение о банкротстве</span>` : ""}${defDate ? `<span class="chip bad">дефолт ${fdate(defDate)}</span>` : ""}</div></div>
     <div class="facts">
@@ -703,9 +706,9 @@ function renderModel() {
   const Ld = V.lead;
   $("leadMeta").textContent = `${Ld.clients} клиентов; медиана: красная зона за ${nf(Ld.red_median, 1)} мес., просрочка 30+ за ${nf(Ld.dpd30_median, 1)} мес. до дефолта`;
   $("leadChart").innerHTML = leadChart(Ld.hist_red, Ld.hist_dpd30);
-  $("leadNote").textContent = `Клиенты с пометкой «пул» — из обучающего набора, в демонстрационный портфель (КЛ-0001 — КЛ-0420) не входят.`;
+  $("leadNote").textContent = `Клиенты с пометкой «пул» — из обучающего набора, в демонстрационный портфель не входят.`;
   $("leadTbl").innerHTML = `<thead><tr><th>Клиент</th><th>Дефолт</th><th class="r">Красная зона, мес. до дефолта</th><th class="r">Просрочка 30+, мес. до дефолта</th><th class="r">Выигрыш, мес.</th></tr></thead><tbody>` +
-    Ld.cases.slice().sort((a, b) => a.default.localeCompare(b.default)).map((c) => `<tr class="rowlink" tabindex="0" data-client="${esc(c.client)}"><td class="code">${esc(c.client)}${+c.client.slice(3) > 420 ? ' <span class="chip">пул</span>' : ""}</td><td class="num">${fdate(c.default)}</td><td class="r num">${c.red || "не попал"}</td><td class="r num">${c.dpd30 || "—"}</td><td class="r num">${c.red ? nf(c.red - c.dpd30) : "—"}</td></tr>`).join("") + "</tbody>";
+    Ld.cases.slice().sort((a, b) => a.default.localeCompare(b.default)).map((c) => `<tr class="rowlink" tabindex="0" data-client="${esc(c.client)}"><td title="ID клиента: ${esc(c.client)}">${c.pool ? 'клиент обучающего пула <span class="chip">пул</span>' : esc(who(c))}</td><td class="num">${fdate(c.default)}</td><td class="r num">${c.red || "не попал"}</td><td class="r num">${c.dpd30 || "—"}</td><td class="r num">${c.red ? nf(c.red - c.dpd30) : "—"}</td></tr>`).join("") + "</tbody>";
 }
 function leadChart(a, b) {
   const W = 1100, H = 200, L = 36, R = 8, T = 10, B = 34, n = a.length;
@@ -725,7 +728,7 @@ function leadChart(a, b) {
 }
 $("leadTbl").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-client]"); if (!tr) return;
   if (STATE && (STATE.label !== "demo" || inDemo(tr.dataset.client))) openCard(tr.dataset.client);
-  else $("leadNote").textContent = `Клиента ${tr.dataset.client} нет в показанном портфеле: он из обучающего пула. Карточку можно открыть для клиентов с кодом до КЛ-0420.`; });
+  else $("leadNote").textContent = `Этого клиента нет в показанном портфеле: он из обучающего пула. Карточку можно открыть для клиентов демонстрационного портфеля.`; });
 
 // ---------- шаблон и загрузка ----------
 // Шаблон и пример — файлы с сервера (GET /api/ews/template, ответ с Content-Disposition): работают в любом браузере

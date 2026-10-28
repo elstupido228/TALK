@@ -38,6 +38,8 @@ CREATE INDEX IF NOT EXISTS deal_events_deal ON deal_events(deal_id, at);
 const DAY = 24 * 3600 * 1000;
 
 // Условные сделки. portfolio — сводка мониторинга ({clients:[{client, sector, zone, score, dpd, status, exposure, asset}]})
+const { demoParty } = require("./monitoring/directory");
+
 function demoDeals(portfolio) {
   const now = Date.now();
   const pick = (f, n) => portfolio.clients.filter(f).slice(0, n);
@@ -58,7 +60,7 @@ function demoDeals(portfolio) {
   const dpd = portfolio.clients.filter((c) => c.status === "оценивается" && c.dpd > 0 && c.dpd < 30 && !used.has(c.client)).sort((a, b) => b.dpd - a.dpd).slice(0, 2).map((c) => ({ ...c, stage: "overdue_30" }));
   const def = pick((c) => c.status !== "оценивается", 2).map((c) => ({ ...c, stage: "overdue_30plus" }));
   const fromPortfolio = [...late, ...dpd, ...def].map((c, i) => ({
-    title: `Клиент ${c.client} · ${c.sector}`, client_code: c.client, asset: c.asset || null, amount_mln: Math.round(c.exposure / 1e5) / 10,
+    title: demoParty(c.client, c.sector).name, client_code: c.client, asset: c.asset || null, amount_mln: Math.round(c.exposure / 1e5) / 10,
     stage: c.stage, note: c.stage === "monitoring" ? `Зона ${{ red: "красная", yellow: "жёлтая", green: "зелёная" }[c.zone]}, балл ${c.score}`
       : c.stage === "overdue_30" ? `Просрочка ${c.dpd} дн. на дату оценки` : "Дефолт ранее — работа с проблемной задолженностью",
     ago: 20 + i * 7,
@@ -129,6 +131,21 @@ function createDeals(db, { portfolio, clients = null } = {}) {
   }
 
   if (q.count.get().n === 0 && portfolio) for (const d of demoDeals(portfolio)) create({ ...d, demo: 1 });
+  // Клиенты условного портфеля мониторинга видны по наименованию и ИНН, ID (КЛ-…) — только связь с мониторингом.
+  // Базы, наполненные раньше («Клиент КЛ-0001 · отрасль»), получают условные реквизиты; переименованных вручную не трогаем.
+  if (portfolio) {
+    const sectorOf = new Map(portfolio.clients.map((c) => [c.client, c.sector]));
+    const rows = db.prepare("SELECT c.id, c.client_code, c.name, c.inn FROM clients c WHERE c.client_code IS NOT NULL AND (c.name LIKE 'Клиент %' OR c.inn IS NULL)").all();
+    for (const c of rows) {
+      const p = demoParty(c.client_code, sectorOf.get(c.client_code));
+      if (!p || !db.prepare("SELECT 1 FROM deals WHERE client_id = ? AND demo = 1").get(c.id)) continue;
+      const name = /^Клиент /.test(c.name) ? p.name : c.name;
+      const inn = c.inn || (db.prepare("SELECT 1 FROM clients WHERE inn = ?").get(p.inn) ? null : p.inn);
+      if (name === c.name && inn === c.inn) continue;
+      db.prepare("UPDATE clients SET name = ?, inn = ?, updated_at = ? WHERE id = ?").run(name, inn, Date.now(), c.id);
+      db.prepare("UPDATE deals SET title = ? WHERE client_id = ?").run(name, c.id);
+    }
+  }
   // базы до появления клиентов: связать сделки с клиентами (название сделки не меняется)
   if (linkOld && clients) for (const d of q.all.all()) if (!d.client_id) { const cid = clientFor(d); if (cid) q.setClient.run(cid, clients.get(cid).name, d.updated_at, d.id); }
 

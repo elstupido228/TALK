@@ -82,6 +82,9 @@ function createApp(db, opts = {}) {
   const clients = createClients(db);
   const ews = opts.ews || defaultEws();
   const deals = opts.deals || createDeals(db, { portfolio: portfolioSummary(ews), clients });
+  // «Мониторинг» показывает клиента наименованием и ИНН из справочника портала (связь — clients.client_code = ID)
+  const byCode = db.prepare("SELECT name, inn FROM clients WHERE client_code = ?");
+  ews.setLookup((id) => byCode.get(id) || null);
   const tasks = createTasks(db, deals);
   // просроченные задачи: всего и у пользователя (плитка главной)
   const lateTasks = (user) => { const late = tasks.open().filter((t) => t.due < taskToday()); return { lateTasks: late.length, myLate: late.filter((t) => t.assignee_id === user.id).length }; };

@@ -54,6 +54,7 @@ paths:
         - name: code
           in: path
           required: true
+          description: ID клиента — служебный идентификатор (на экране не показывается)
           schema: { type: string, example: КЛ-0130 }
         - { $ref: "#/components/parameters/Dataset" }
         - name: months
@@ -206,7 +207,10 @@ components:
           items:
             type: object
             properties:
-              client: { type: string }
+              client: { type: string, description: ID клиента (служебный) }
+              name: { type: [string, "null"], description: наименование — для показа }
+              inn: { type: [string, "null"] }
+              conditional: { type: boolean, description: условные реквизиты демо-портфеля }
               sector: { type: string }
               region: { type: string }
               zone: { $ref: "#/components/schemas/Zone" }
@@ -222,7 +226,10 @@ components:
     Client:
       type: object
       properties:
-        client: { type: string }
+        client: { type: string, description: ID клиента (служебный) }
+        name: { type: [string, "null"] }
+        inn: { type: [string, "null"] }
+        conditional: { type: boolean }
         sector: { type: string }
         region: { type: string }
         since: { type: string, format: date }

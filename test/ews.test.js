@@ -113,3 +113,37 @@ test("шаблон и пример выгрузки — файлы xlsx с Conte
   const bad = await up("admin", Buffer.from("не xlsx"));
   assert.strictEqual(bad.status, 400);
 });
+
+test("клиент на экране — наименование и ИНН, ID только служебный; условные реквизиты помечены", async () => {
+  const p = await json("/api/ews/portfolio");
+  for (const c of p.clients) {
+    assert.match(c.inn, /^000001\d{4}$/, c.client);
+    assert.match(c.name, /^ООО «Пример-/, c.client);
+  }
+  const c = await json("/api/ews/clients/" + encodeURIComponent(p.clients[0].client));
+  assert.deepStrictEqual([c.name, c.inn, c.conditional], [p.clients[0].name, p.clients[0].inn, true]);
+  // главная: «Требуют внимания» — наименования, без ID
+  const home = await (await get("/")).text();
+  assert.ok(home.includes(p.clients[0].name.replace(/"/g, "&quot;")) || home.includes(p.clients[0].name), "наименование на главной");
+  assert.doesNotMatch(home.replace(/href="[^"]*"/g, ""), /КЛ-\d{4}/);
+  // справочник портала важнее условного: сделка мониторинга ссылается на клиента по client_code
+  const row = db.prepare("SELECT c.name, c.inn, c.client_code FROM clients c WHERE c.client_code IS NOT NULL LIMIT 1").get();
+  assert.ok(row && !/^Клиент /.test(row.name), JSON.stringify(row));
+  db.prepare("UPDATE clients SET name = 'ООО «Переименован»' WHERE client_code = ?").run(row.client_code);
+  assert.strictEqual((await json("/api/ews/clients/" + encodeURIComponent(row.client_code))).name, "ООО «Переименован»");
+});
+
+test("выгрузка с наименованием и ИНН и со старым заголовком «Код клиента»", async () => {
+  const { createEws } = require("../app/monitoring/ews");
+  const e = createEws({ env: {} });
+  const small = { ...demo, clients: demo.clients.slice(0, 5).map((c, i) => ({ ...c, name: i === 0 ? "ООО «Своё имя»" : null, inn: i === 0 ? "7700000000" : null })) };
+  const keep = new Set(small.clients.map((c) => c.client));
+  for (const k of ["contracts", "events", "reports"]) small[k] = demo[k].filter((r) => keep.has(r.client));
+  const cons = new Set(small.contracts.map((c) => c.contract));
+  for (const k of ["schedule", "payments"]) small[k] = demo[k].filter((r) => cons.has(r.contract));
+  const r = e.upload(e.workbook(small), { id: 7 }, {});
+  assert.strictEqual(r.fatal, false, JSON.stringify(r.checks));
+  const c = e.client(r.dataset, small.clients[0].client, {}, { id: 7 });
+  assert.deepStrictEqual([c.name, c.inn, c.conditional], ["ООО «Своё имя»", "7700000000", false]);
+  assert.strictEqual(e.client(r.dataset, small.clients[1].client, {}, { id: 7 }).name, null); // у выгрузки заказчика условных имён нет
+});

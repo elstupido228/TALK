@@ -10,15 +10,15 @@ import pandas as pd
 
 # лист, ключ в JSON, столбцы: (заголовок в шаблоне, поле, тип: s строка, d дата, n число, b да/нет)
 SHEETS = [
-    ("Клиенты", "clients", [("Код клиента", "client", "s"), ("Отрасль", "sector", "s"), ("Регион", "region", "s"),
+    ("Клиенты", "clients", [("ID клиента", "client", "s"), ("Отрасль", "sector", "s"), ("Регион", "region", "s"),
                             ("Дата начала отношений", "since", "d")]),
-    ("Договоры", "contracts", [("Номер договора", "contract", "s"), ("Код клиента", "client", "s"), ("Дата договора", "date", "d"),
+    ("Договоры", "contracts", [("Номер договора", "contract", "s"), ("ID клиента", "client", "s"), ("Дата договора", "date", "d"),
                                ("Тип предмета лизинга", "asset", "s"), ("Стоимость предмета, руб.", "asset_value", "n"),
                                ("Аванс, руб.", "advance", "n"), ("Срок, мес.", "term", "n"), ("Поручительство (да/нет)", "guarantee", "b")]),
     ("График", "schedule", [("Номер договора", "contract", "s"), ("Дата платежа", "due", "d"), ("Сумма платежа, руб.", "amount", "n")]),
     ("Платежи", "payments", [("Номер договора", "contract", "s"), ("Дата оплаты", "date", "d"), ("Сумма оплаты, руб.", "amount", "n")]),
-    ("События", "events", [("Код клиента", "client", "s"), ("Дата", "date", "d"), ("Тип события", "type", "s"), ("Сумма, руб.", "amount", "n")]),
-    ("Отчётность", "reports", [("Код клиента", "client", "s"), ("Год", "year", "n"), ("Дата представления", "filed", "d"),
+    ("События", "events", [("ID клиента", "client", "s"), ("Дата", "date", "d"), ("Тип события", "type", "s"), ("Сумма, руб.", "amount", "n")]),
+    ("Отчётность", "reports", [("ID клиента", "client", "s"), ("Год", "year", "n"), ("Дата представления", "filed", "d"),
                                ("Выручка, тыс. руб.", "revenue", "n"), ("Чистая прибыль, тыс. руб.", "net_profit", "n"),
                                ("Капитал, тыс. руб.", "equity", "n"), ("Активы, тыс. руб.", "assets", "n"), ("Долг, тыс. руб.", "debt", "n")]),
 ]
@@ -58,6 +58,8 @@ def read_xlsx(path, date_arg):
         if sheet not in xl.sheet_names:
             report.append(f"ОШИБКА: нет листа «{sheet}»"); fatal = True; data[key] = []; continue
         df = xl.parse(sheet, dtype=object)
+        # прежний заголовок шаблона; «Наименование» и «ИНН» листа «Клиенты» — только для показа в портале, в JSON не идут
+        if "ID клиента" not in df.columns and "Код клиента" in df.columns: df = df.rename(columns={"Код клиента": "ID клиента"})
         miss = [h for h, f, _ in cols if h not in df.columns]
         miss_req = [h for h, f, _ in cols if h in miss and f in REQUIRED]
         if miss_req: report.append(f"ОШИБКА: лист «{sheet}», нет обязательных столбцов: {', '.join(miss_req)}"); fatal = True

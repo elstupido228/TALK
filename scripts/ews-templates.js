@@ -8,5 +8,5 @@ const DATA = path.join(__dirname, "..", "seed", "ews", "data");
 const ews = createEws();
 const demo = JSON.parse(fs.readFileSync(path.join(DATA, "demo.json"), "utf8"));
 fs.writeFileSync(path.join(DATA, "template.xlsx"), ews.workbook(null));
-fs.writeFileSync(path.join(DATA, "template_example.xlsx"), ews.workbook(demo));
+fs.writeFileSync(path.join(DATA, "template_example.xlsx"), ews.workbook(ews.withDemoParties(demo)));
 console.log("шаблон и пример выгрузки записаны в", DATA);

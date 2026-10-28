@@ -6,6 +6,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const F = require("../../seed/ews/features.js");
 const { openBook } = require("./xlsx-read");
+const { demoParty } = require("./directory");
 
 const DATA = path.join(__dirname, "..", "..", "seed", "ews", "data");
 const XLSX_LIB = path.join(__dirname, "..", "public", "vendor", "xlsx.full.min.js");
@@ -17,13 +18,15 @@ const DEPR = { "Грузовой транспорт": 0.15, "Спецтехни�
 
 // Шаблон выгрузки: 6 листов, [заголовок, поле, тип (s — строка, d — дата, n — число, b — да/нет), пояснение]
 const SHEETS = [
-  { name: "Клиенты", key: "clients", src: "1С:Лизинг", cols: [["Код клиента", "client", "s", "Внутренний код вместо названия и ИНН"], ["Отрасль", "sector", "s", "Отрасль по основному ОКВЭД"], ["Регион", "region", "s", ""], ["Дата начала отношений", "since", "d", "Дата первого договора"]] },
-  { name: "Договоры", key: "contracts", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", "Код договора"], ["Код клиента", "client", "s", ""], ["Дата договора", "date", "d", ""], ["Тип предмета лизинга", "asset", "s", "Грузовой транспорт, Спецтехника, Легковой транспорт, Оборудование"], ["Стоимость предмета, руб.", "asset_value", "n", "Стоимость при передаче"], ["Аванс, руб.", "advance", "n", ""], ["Срок, мес.", "term", "n", ""], ["Поручительство (да/нет)", "guarantee", "b", ""]] },
+  { name: "Клиенты", key: "clients", src: "1С:Лизинг", cols: [["ID клиента", "client", "s", "Служебный идентификатор клиента в учётной системе (обезличенный)"], ["Наименование", "name", "s", "Необязательно: показывается в портале, в расчёт не идёт"], ["ИНН", "inn", "s", "Необязательно: показывается в портале, в расчёт не идёт"], ["Отрасль", "sector", "s", "Отрасль по основному ОКВЭД"], ["Регион", "region", "s", ""], ["Дата начала отношений", "since", "d", "Дата первого договора"]] },
+  { name: "Договоры", key: "contracts", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", "Код договора"], ["ID клиента", "client", "s", ""], ["Дата договора", "date", "d", ""], ["Тип предмета лизинга", "asset", "s", "Грузовой транспорт, Спецтехника, Легковой транспорт, Оборудование"], ["Стоимость предмета, руб.", "asset_value", "n", "Стоимость при передаче"], ["Аванс, руб.", "advance", "n", ""], ["Срок, мес.", "term", "n", ""], ["Поручительство (да/нет)", "guarantee", "b", ""]] },
   { name: "График", key: "schedule", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата платежа", "due", "d", "Действующая версия графика"], ["Сумма платежа, руб.", "amount", "n", ""]] },
   { name: "Платежи", key: "payments", src: "1С:Лизинг", cols: [["Номер договора", "contract", "s", ""], ["Дата оплаты", "date", "d", "Дата поступления"], ["Сумма оплаты, руб.", "amount", "n", "Без пеней"]] },
-  { name: "События", key: "events", src: "1С:Лизинг, протоколы КПА (коллегиального органа по проблемным активам), внешние источники по ИНН", cols: [["Код клиента", "client", "s", ""], ["Дата", "date", "d", "Дата события, не дата его обнаружения"], ["Тип события", "type", "s", Object.values(F.EV).join("; ")], ["Сумма, руб.", "amount", "n", "Для исков, недоимки, исполнительных производств"]] },
-  { name: "Отчётность", key: "reports", src: "ГИР БО, СПАРК или Контур по ИНН", cols: [["Код клиента", "client", "s", ""], ["Год", "year", "n", "Отчётный год"], ["Дата представления", "filed", "d", "Дата сдачи в ФНС"], ["Выручка, тыс. руб.", "revenue", "n", "стр. 2110"], ["Чистая прибыль, тыс. руб.", "net_profit", "n", "стр. 2400"], ["Капитал, тыс. руб.", "equity", "n", "стр. 1300"], ["Активы, тыс. руб.", "assets", "n", "стр. 1600"], ["Долг, тыс. руб.", "debt", "n", "стр. 1410 + 1510"]] },
+  { name: "События", key: "events", src: "1С:Лизинг, протоколы КПА (коллегиального органа по проблемным активам), внешние источники по ИНН", cols: [["ID клиента", "client", "s", ""], ["Дата", "date", "d", "Дата события, не дата его обнаружения"], ["Тип события", "type", "s", Object.values(F.EV).join("; ")], ["Сумма, руб.", "amount", "n", "Для исков, недоимки, исполнительных производств"]] },
+  { name: "Отчётность", key: "reports", src: "ГИР БО, СПАРК или Контур по ИНН", cols: [["ID клиента", "client", "s", ""], ["Год", "year", "n", "Отчётный год"], ["Дата представления", "filed", "d", "Дата сдачи в ФНС"], ["Выручка, тыс. руб.", "revenue", "n", "стр. 2110"], ["Чистая прибыль, тыс. руб.", "net_profit", "n", "стр. 2400"], ["Капитал, тыс. руб.", "equity", "n", "стр. 1300"], ["Активы, тыс. руб.", "assets", "n", "стр. 1600"], ["Долг, тыс. руб.", "debt", "n", "стр. 1410 + 1510"]] },
 ];
+// прежние заголовки шаблона, которые по-прежнему принимаются
+const ALIASES = { "ID клиента": ["Код клиента"] };
 const REQUIRED = ["client", "contract", "date", "due", "amount", "year", "filed", "type"];
 
 const err = (status, code, message) => Object.assign(new Error(message), { status, code });
@@ -37,6 +40,7 @@ function createEws(opts = {}) {
   // выгрузок в памяти одновременно: индекс выгрузки размером с демо-портфель — около 15 МБ, память стенда — 100 МБ
   const uploadMax = Math.max(1, Number(env.EWS_UPLOADS_MAX) || 2);
   const model = JSON.parse(fs.readFileSync(modelFile, "utf8"));
+  let lookup = opts.lookup || (() => null); // ID → {name, inn} из справочника клиентов портала
   const sets = new Map(); // id -> {idx, assets, label, name, owner, expires, cache}
   let xlsx = null;
   const X = () => (xlsx ??= require(XLSX_LIB));
@@ -64,12 +68,22 @@ function createEws(opts = {}) {
     return s;
   }
 
+  // наименование и ИНН клиента; ID на экран не выводится
+  function party(ds, id) {
+    const demo = ds.label === "demo" ? demoParty(id, ds.idx.clients.get(id)?.sector) : null;
+    const p = lookup(id) || ds.parties?.get(id) || demo;
+    // условные — реквизиты демо-портфеля (в том числе перенесённые в справочник портала условными сделками)
+    return { name: p?.name || null, inn: p?.inn || null, conditional: !!demo && p.inn === demo.inn };
+  }
+  const named = (ds, out) => ({ ...out, clients: out.clients.map((c) => ({ ...c, ...party(ds, c.client) })) });
+
   // ---------- карта ----------
   function modelInfo() {
     const { lead, ...validation } = model.validation;
     return {
       version: model.version, file: path.basename(modelFile), data: model.data, target: model.target, scaling: model.scaling,
-      zones: model.zones, vars: model.vars, candidates: model.candidates, validation: { ...validation, lead },
+      zones: model.zones, vars: model.vars, candidates: model.candidates,
+      validation: { ...validation, lead: { ...lead, cases: lead.cases.map((c) => { const ds = demoSet(); return ds.idx.clients.has(c.client) ? { ...c, ...party(ds, c.client) } : { ...c, name: null, inn: null, pool: true }; }) } },
       features: F.FEATURES.map(({ name, label, group }) => ({ name, label, group })), events: Object.values(F.EV),
       disclaimer: DISCLAIMER,
     };
@@ -200,7 +214,7 @@ function createEws(opts = {}) {
         ltv: st === "действует" ? Math.round((out / val) * 100) / 100 : null, guarantee: o.guarantee === true || o.guarantee === "да", status: st };
     });
     return {
-      dataset: ds.id, client: code, sector: cl.sector || "", region: cl.region || "", since: cl.since, as_of: asOf,
+      dataset: ds.id, client: code, ...party(ds, code), sector: cl.sector || "", region: cl.region || "", since: cl.since, as_of: asOf,
       zone: cur ? cur.zone : last ? last.zone : "grey", score: last ? last.score : null, delta: cur ? cur.delta : null,
       default_date: defIdx !== null && defIdx >= 0 ? F.diso(ends[defIdx]) : null, stop_bankr: !!(f && f.stop_bankr),
       facts: f ? { exposure: f.exposure, dpd: f.dpd_now, ltv: f.ltv, max_dpd_6m: f.max_dpd_6m, share_paid: f.share_paid, contracts: cl.contracts.length } : null,
@@ -233,12 +247,13 @@ function createEws(opts = {}) {
       if (!names.includes(s.name)) { checks.push({ status: "error", title: `Лист «${s.name}» не найден`, detail: "" }); fatal = true; data[s.key] = []; continue; }
       // по одному листу (xlsx-read.js): SheetJS на выгрузке размером с демо-портфель не помещается в 100 МБ стенда
       let { head, rows } = book.rows(s.name);
-      const miss = s.cols.filter((c) => !head.includes(c[0])).map((c) => c[0]);
+      const col = (t) => [t, ...(ALIASES[t] || [])].find((h) => head.includes(h));
+      const miss = s.cols.filter((c) => !col(c[0])).map((c) => c[0]);
       const req = s.cols.filter((c) => REQUIRED.includes(c[1]) && miss.includes(c[0]));
       let bad = 0;
       data[s.key] = rows.map((r) => {
         const o = {};
-        for (const [h, k, t] of s.cols) { const v = r[h]; o[k] = t === "d" ? normDate(v) : t === "n" ? normNum(v) : t === "b" ? normBool(v) : v === null ? null : String(v).trim(); }
+        for (const [h, k, t] of s.cols) { const v = r[col(h)]; o[k] = t === "d" ? normDate(v) : t === "n" ? normNum(v) : t === "b" ? normBool(v) : v === null ? null : String(v).trim(); }
         return o;
       }).filter((o) => { const ok = s.cols.every(([, k, t]) => !(t === "d" && ["date", "due", "filed"].includes(k) && !o[k])); if (!ok) bad++; return ok; });
       if (req.length) { fatal = true; checks.push({ status: "error", title: `Лист «${s.name}»: нет обязательных столбцов`, detail: req.map((c) => c[0]).join(", ") }); }
@@ -279,11 +294,14 @@ function createEws(opts = {}) {
     for (const [id, s] of sets) if (s.owner === user.id) sets.delete(id); // одна выгрузка на пользователя
     while ([...sets.values()].filter((s) => s.owner).length >= uploadMax) sets.delete([...sets.keys()].find((k) => k !== "demo"));
     const id = crypto.randomBytes(9).toString("base64url");
-    sets.set(id, { id, idx, label: "upload", name: String(name).slice(0, 120), owner: user.id, expires: Date.now() + UPLOAD_TTL_MS, cache: new Map() });
+    const parties = new Map(data.clients.filter((c) => c.name || c.inn).map((c) => [c.client, { name: c.name || null, inn: c.inn ? String(c.inn).replace(/\D/g, "") : null }]));
+    sets.set(id, { id, idx, parties, label: "upload", name: String(name).slice(0, 120), owner: user.id, expires: Date.now() + UPLOAD_TTL_MS, cache: new Map() });
     return { ...out, dataset: id, date: today, expires_in_s: UPLOAD_TTL_MS / 1000 };
   }
 
   // ---------- шаблон ----------
+  // пример выгрузки: условные наименования и ИНН в необязательных столбцах листа «Клиенты»
+  const withDemoParties = (data) => ({ ...data, clients: data.clients.map((c) => ({ ...c, ...demoParty(c.client, c.sector), conditional: undefined })) });
   function workbook(data) {
     const XL = X(), wb = XL.utils.book_new();
     const desc = [["Лист", "Столбец", "Пояснение", "Источник"]];
@@ -305,14 +323,15 @@ function createEws(opts = {}) {
   const template = ({ example: ex } = {}) => {
     const file = path.join(DATA, ex ? "template_example.xlsx" : "template.xlsx");
     if (fs.existsSync(file)) return fs.readFileSync(file);
-    return workbook(ex ? JSON.parse(fs.readFileSync(path.join(DATA, "demo.json"), "utf8")) : null);
+    return workbook(ex ? withDemoParties(JSON.parse(fs.readFileSync(path.join(DATA, "demo.json"), "utf8"))) : null);
   };
 
   return {
     model, modelInfo, SHEETS: SHEETS.map(({ name, key, src, cols }) => ({ name, key, src, cols: cols.map(([title, field, type, note]) => ({ title, field, type, note })) })),
-    portfolio: (id, date, user) => portfolio(dataset(id, user), date),
+    portfolio: (id, date, user) => { const ds = dataset(id, user); return named(ds, portfolio(ds, date)); },
     client: (id, code, o, user) => client(dataset(id, user), code, o),
-    upload, parseUpload, template, workbook, dataset,
+    setLookup: (fn) => { lookup = fn; },
+    upload, parseUpload, template, workbook, withDemoParties, dataset,
   };
 }
 
