@@ -5,23 +5,33 @@ import pandas as pd
 
 def population(panel, min_rev, unit_mult, since_year=2015):
     """Компании выборки: выручка хотя бы в одном году ≥ min_rev (тыс. руб.), последняя сданная отчётность не раньше since_year.
-    Читаются 5 столбцов потоком; в памяти — агрегаты по компаниям."""
-    g = None
-    for b in ds.dataset(panel, format="parquet").to_batches(columns=["inn", "year", "filed", "line_2110", "dissolution_date"], batch_size=500_000):
+    Два прохода потоком: сначала ИНН, у которых в каком-то сданном отчёте выручка ≥ min_rev (их немного), затем агрегаты
+    только по ним. Результат тот же, что у агрегата по всем компаниям, а память не растёт с числом компаний панели
+    (полная панель RFSD — 21,8 млн строк, агрегат по всем ИНН не помещался в 900 МБ)."""
+    cols = ["inn", "year", "filed", "line_2110", "dissolution_date"]
+    keep = set()
+    for b in ds.dataset(panel, format="parquet").to_batches(columns=["inn", "filed", "line_2110"], batch_size=500_000):
+        rev = pc.multiply(pc.fill_null(pc.cast(b.column("line_2110"), pa.float64()), 0.0), unit_mult)
+        m = pc.and_(pc.equal(pc.fill_null(pc.cast(b.column("filed"), pa.float64()), 0.0), 1.0), pc.greater_equal(rev, min_rev))
+        keep.update(pc.unique(b.column("inn").filter(m)).to_pylist())
+    inn_set = pa.array(sorted(x for x in keep if x is not None), pa.string())
+    g, max_year = None, None
+    for b in ds.dataset(panel, format="parquet").to_batches(columns=cols, batch_size=500_000):
+        y = pc.max(b.column("year")).as_py()
+        if y is not None: max_year = y if max_year is None else max(max_year, y)
+        b = b.filter(pc.is_in(b.column("inn"), value_set=inn_set))
+        if not b.num_rows: continue
         df = b.to_pandas(types_mapper=pd.ArrowDtype)
         df["rev"] = df["line_2110"].astype("float64").fillna(0) * unit_mult
         df["fy"] = df["year"].where(df["filed"] == 1)
         df["frev"] = df["rev"].where(df["filed"] == 1, 0.0)
-        part = df.groupby("inn", observed=True).agg(max_rev=("frev", "max"), last_filed=("fy", "max"),
-                                                    dis=("dissolution_date", "max"), max_year=("year", "max"))
+        part = df.groupby("inn", observed=True).agg(max_rev=("frev", "max"), last_filed=("fy", "max"), dis=("dissolution_date", "max"))
         del df
-        # агрегат держится по числу компаний, а не по числу строк
-        g = part if g is None else pd.concat([g, part]).groupby(level=0).agg(
-            max_rev=("max_rev", "max"), last_filed=("last_filed", "max"), dis=("dis", "max"), max_year=("max_year", "max"))
-    max_year = int(g["max_year"].max())
+        g = part if g is None else pd.concat([g, part]).groupby(level=0).agg(max_rev=("max_rev", "max"), last_filed=("last_filed", "max"), dis=("dis", "max"))
+    max_year = int(max_year)
     g = g[(g.max_rev >= min_rev) & g.last_filed.notna() & (g.last_filed >= since_year)]
     g["last_filed"] = g["last_filed"].astype(int)
-    return g.drop(columns="max_year"), max_year
+    return g, max_year
 
 
 def buckets(n):
