@@ -2,6 +2,9 @@
 import pyarrow as pa, pyarrow.dataset as ds, pyarrow.compute as pc
 import pandas as pd
 
+# потоковое чтение без упреждения: с настройками Arrow по умолчанию один проход по 3 столбцам панели RFSD — 763 МБ, так — 357 МБ
+SCAN = dict(batch_size=500_000, batch_readahead=1, fragment_readahead=1)
+
 
 def population(panel, min_rev, unit_mult, since_year=2015):
     """Компании выборки: выручка хотя бы в одном году ≥ min_rev (тыс. руб.), последняя сданная отчётность не раньше since_year.
@@ -10,13 +13,13 @@ def population(panel, min_rev, unit_mult, since_year=2015):
     (полная панель RFSD — 21,8 млн строк, агрегат по всем ИНН не помещался в 900 МБ)."""
     cols = ["inn", "year", "filed", "line_2110", "dissolution_date"]
     keep = set()
-    for b in ds.dataset(panel, format="parquet").to_batches(columns=["inn", "filed", "line_2110"], batch_size=500_000):
+    for b in ds.dataset(panel, format="parquet").to_batches(columns=["inn", "filed", "line_2110"], **SCAN):
         rev = pc.multiply(pc.fill_null(pc.cast(b.column("line_2110"), pa.float64()), 0.0), unit_mult)
         m = pc.and_(pc.equal(pc.fill_null(pc.cast(b.column("filed"), pa.float64()), 0.0), 1.0), pc.greater_equal(rev, min_rev))
         keep.update(pc.unique(b.column("inn").filter(m)).to_pylist())
     inn_set = pa.array(sorted(x for x in keep if x is not None), pa.string())
     g, max_year = None, None
-    for b in ds.dataset(panel, format="parquet").to_batches(columns=cols, batch_size=500_000):
+    for b in ds.dataset(panel, format="parquet").to_batches(columns=cols, **SCAN):
         y = pc.max(b.column("year")).as_py()
         if y is not None: max_year = y if max_year is None else max(max_year, y)
         b = b.filter(pc.is_in(b.column("inn"), value_set=inn_set))
@@ -43,7 +46,7 @@ def read_bucket(panel, columns, suffixes=None, inns=None, years=None):
     """Потоковое чтение: в память попадают только строки нужной группы компаний."""
     keep = []
     inn_set = pa.array(sorted(inns), pa.string()) if inns is not None else None
-    for b in ds.dataset(panel, format="parquet").to_batches(columns=columns, batch_size=500_000):
+    for b in ds.dataset(panel, format="parquet").to_batches(columns=columns, **SCAN):
         m = None
         if suffixes is not None: m = pc.is_in(pc.utf8_slice_codeunits(b.column("inn"), -2), value_set=suffixes)
         if years is not None:
