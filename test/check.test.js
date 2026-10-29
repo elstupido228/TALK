@@ -158,3 +158,10 @@ test("без итоговых строк (НКО: нет выручки и ра�
   const [y] = annualClasses(f);
   assert.deepStrictEqual([y.cls, y.S, y.missing.sort()], [null, null, ["1300", "2110", "2200"]]);
 });
+
+test("проверка по ИНН: запас до смены класса по последнему году", async () => {
+  const h = await (await fetch(base + "/check?inn=0000000002", { headers: { cookie } })).text();
+  assert.match(h, /Запас до смены класса · 31\.12\.2025/);
+  assert.match(h, /Ближайшая угроза классу|Ни одно изменение одной строки/);
+  assert.match(h, /К3 текущая ликвидность/);
+});

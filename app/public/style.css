@@ -413,3 +413,6 @@ details.client-info[open] > summary { margin-bottom: 10px; }
 .client-edit > summary h3 { display: inline; margin: 0; color: var(--accent); font-size: 0.95rem; }
 .client-edit[open] > summary { margin-bottom: 10px; }
 [hidden] { display: none !important; }
+
+/* Запас до смены класса: строки, где ухудшение меняет класс */
+tr.flip td { background: var(--target-bg); }

@@ -56,6 +56,7 @@ abbr[title]{text-decoration:underline dotted;cursor:help}
 .v-date:last-child{border-right:0}
 .cls{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;font:600 20px var(--f-num)}
 .cls-1{background:var(--good-soft);color:var(--good)} .cls-2{background:var(--warn-soft);color:var(--warn)} .cls-3{background:var(--bad-soft);color:var(--bad)}
+.mg-lead{margin:0 0 10px} .mg-lead p{margin:4px 0} #mgTbl tr.flip td{background:var(--warn-soft)} #mgTbl .cls{width:24px;height:24px;font-size:12px;vertical-align:middle}
 /* Таблицы */
 .tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
 table{border-collapse:collapse;width:100%;font-size:13.5px}
@@ -210,6 +211,13 @@ input.t.num{font-family:var(--f-num)}
     <div class="tscroll"><table id="calcTbl"></table></div>
   </section>
 
+  <section class="panel" id="marginPanel">
+    <div class="panel-head"><h2>Запас до смены класса</h2><label class="muted small">на дату <select id="mgDate" aria-label="Дата для расчёта запаса"></select></label></div>
+    <p class="muted small">На сколько должна измениться одна строка отчётности при прочих равных, чтобы коэффициент перешёл порог своей категории. Класс после изменения считается по тем же формулам расчёта.</p>
+    <div id="mgLead" class="mg-lead"></div>
+    <div class="tscroll"><table id="mgTbl"></table></div>
+  </section>
+
   <section class="panel">
     <div class="panel-head"><h2>Условия п. 14.1 Регламента</h2>
       <button class="btn" id="dlBtn">Скачать заполненную «Пробивку»</button></div>
@@ -234,6 +242,7 @@ input.t.num{font-family:var(--f-num)}
 <script src="/vendor/pdf.min.js"></script>
 <script>
 /*__CORE__*/
+/*__SENS__*/
 const DEMO_PKGS = /*__DEMO__*/;   // условные пакеты: [{id, name, inn, expected_class, docs}]
 const TEMPLATE_B64 = "/*__TPL__*/";
 const DEMO_META = /*__META__*/;   // {note, refSrc}
@@ -431,6 +440,38 @@ function renderCalc(R){
   h+=`<tr><td><strong>Класс кредитоспособности</strong></td><td></td>`+R.res.map((r,i)=>`<td class="r" colspan="2">${R.empty[i]?`<span class="muted small">нет данных</span>`:`<span class="cls cls-${r.cls}" style="width:30px;height:30px;font-size:15px">${r.cls}</span>`}</td>`).join("")+"</tr>";
   t.innerHTML=h+"</tbody>";
 }
+// ---------- Запас до смены класса (seed/calc/sensitivity.js; формулы — calcColumn ядра) ----------
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const signed=v=>(v>0?"+":v<0?"−":"")+Math.abs(v).toLocaleString("ru-RU");
+const pctTxt=p=>p===null?"":` (${p>0?"+":p<0?"−":""}${Math.abs(Math.round(p*100))} %)`;
+function mgMove(c,mv,base){
+  if(c.noDen) return '<span class="muted small">делитель не положительный — не рассчитывается</span>';
+  if(!mv) return "";
+  return `<span class="num">${esc(c.label)} (стр. ${c.code}) ${signed(mv.delta)} тыс. руб.${pctTxt(mv.pct)}</span><br><span class="muted small">К = ${fk(mv.value)} · категория ${mv.cat} · класс </span><span class="cls cls-${mv.cls}">${mv.cls}</span>${mv.cls!==base?' <span class="chip warn">класс меняется</span>':""}`;
+}
+function renderMargins(R){
+  const sel=$("mgDate"), lead=$("mgLead"), t=$("mgTbl");
+  if(!R){sel.innerHTML=""; lead.innerHTML='<p class="muted small">Запас считается после расчёта класса.</p>'; t.innerHTML=""; return;}
+  const d=S.cons.dates, cols=CLASS_COLS.filter((c,i)=>!R.empty[i]);
+  if(!cols.length){sel.innerHTML=""; lead.innerHTML='<p class="muted small">Нет дат с данными.</p>'; t.innerHTML=""; return;}
+  const prev=sel.value; sel.innerHTML=cols.map(c=>`<option value="${c}">${fmtDate(d[TPL_COLS.indexOf(c)])}</option>`).join("");
+  sel.value=cols.includes(prev)?prev:cols[cols.length-1];
+  const c=sel.value, lease=$("indSel").value!=="other";
+  const m=classMargins.margins(S.V[c],S.M[c]||{},lease), base=m.cls;
+  const name=k=>m.coefs[k-1].name.split(" ")[0];
+  let h=`<p>Класс на ${fmtDate(d[TPL_COLS.indexOf(c)])}: <span class="cls cls-${base}">${base}</span> · сумма баллов S = ${m.S.toFixed(2).replace(".",",")}`+
+    (base===1?` — до границы класса 1 (1,25) ${m.toS1.toFixed(2).replace(".",",")}; класс 1 требует ещё К5 не ниже 0,10 (сейчас ${fk(m.K5)}).`:base===2?` — до границы класса 2 (2,35) ${m.toS2.toFixed(2).replace(".",",")}.`:".")+"</p>";
+  if(m.threat){const w=m.threat.worse; h+=`<p><b>Ближайшая угроза классу:</b> ${esc(m.threat.name)} — если ${esc(m.threat.label)} (стр. ${m.threat.code}) изменится на ${signed(w.delta)} тыс. руб.${pctTxt(w.pct)}, класс станет <span class="cls cls-${w.cls}">${w.cls}</span>.</p>`;}
+  else if(base<3) h+=`<p>Ни одно изменение одной строки до ближайшего порога класс не меняет.</p>`;
+  if(m.pairs.length) h+=`<p>В сочетании: ${m.pairs.map(p=>`${name(p.a)} и ${name(p.b)} вместе → класс ${p.cls} (S = ${p.S.toFixed(2).replace(".",",")})`).join("; ")}.</p>`;
+  if(m.chance){const b=m.chance.better; h+=`<p><b>Чтобы улучшить класс:</b> ${esc(m.chance.name)} — ${esc(m.chance.label)} (стр. ${m.chance.code}) ${signed(b.delta)} тыс. руб.${pctTxt(b.pct)} → класс <span class="cls cls-${b.cls}">${b.cls}</span>.</p>`;}
+  lead.innerHTML=h;
+  t.innerHTML=`<thead><tr><th>Коэффициент</th><th class="r">Значение</th><th class="r">Категория</th><th>Ухудшение до порога</th><th>Улучшение до порога</th></tr></thead><tbody>`+
+    m.coefs.map(x=>`<tr class="${x.worse&&x.worse.cls!==base?"flip":""}"><td>${esc(x.name)}${x.alt&&x.worse?`<br><span class="muted small">${esc(x.alt)}</span>`:""}</td><td class="r num">${fk(x.value)}</td><td class="r num">${x.cat}</td>`+
+      `<td>${x.cat===3&&!x.noDen?'<span class="muted small">уже худшая категория</span>':mgMove(x,x.worse,base)}</td><td>${x.cat===1&&!x.noDen?'<span class="muted small">лучшая категория</span>':mgMove(x,x.better,base)}</td></tr>`).join("")+"</tbody>";
+}
+$("mgDate").addEventListener("change",()=>renderMargins(compute()));
+
 function ruleVal(r){
   if(Array.isArray(r.value)) return r.value.map(x=>typeof x==="number"?(r.id.startsWith("14.1.11")?(x*100).toFixed(1).replace(".",",")+" %":fk(x,2)):fk(x)).join(" / ");
   if(typeof r.value==="number") return r.id.startsWith("14.1.11")?(r.value*100).toFixed(1).replace(".",",")+" %":fmt(r.value);
@@ -554,7 +595,7 @@ function renderAlerts(R){
 function renderAll(keepFocus){
   const act=document.activeElement?.id;
   renderDocs(); renderData(); renderChecks(); renderRef(); if(!keepFocus||!act?.startsWith("m_")) renderManual();
-  const R=compute(); renderCalc(R); renderRules(R); const AL=renderAlerts(R); renderVerdict(R,AL);
+  const R=compute(); renderCalc(R); renderMargins(R); renderRules(R); const AL=renderAlerts(R); renderVerdict(R,AL);
   if(S.sel) renderDetail();
   if(keepFocus&&act&&$(act)) $(act).focus();
 }

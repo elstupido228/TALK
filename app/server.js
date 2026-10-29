@@ -23,7 +23,7 @@ const { createTasks, today: taskToday } = require("./tasks");
 const { createFiles, sizeText } = require("./files");
 const { createConnectors } = require("./connectors/core");
 const CONNECTORS = [require("./connectors/cbr"), require("./connectors/dadata"), require("./connectors/fin"), ...require("./connectors/sandboxes")];
-const { toDocs, annualClasses } = require("./check");
+const { toDocs, annualClasses, annualMargins } = require("./check");
 
 const PUB = path.join(__dirname, "public");
 const JS = "text/javascript; charset=utf-8";
@@ -213,7 +213,7 @@ function createApp(db, opts = {}) {
     if (party.failed) return { ...m, error: `DaData: ${party.failed}` };
     const ok = (r) => (r.failed ? null : r);
     const portal = { client: clients.byInn(inn), deals: deals.list().filter((d) => d.inn === inn) };
-    return { ...m, party, fin: ok(fin), classes: fin.data?.reports ? annualClasses(fin.data) : [], docs: fin.data?.reports ? toDocs(fin.data) : [], side: { kontur: ok(kontur), spark: ok(spark), onec: ok(onec), crm: ok(crm) }, portal };
+    return { ...m, party, fin: ok(fin), classes: fin.data?.reports ? annualClasses(fin.data) : [], margins: fin.data?.reports ? annualMargins(fin.data) : null, docs: fin.data?.reports ? toDocs(fin.data) : [], side: { kontur: ok(kontur), spark: ok(spark), onec: ok(onec), crm: ok(crm) }, portal };
   }
 
   // Страницы для вошедших: [путь, право, рендер]

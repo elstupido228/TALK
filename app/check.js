@@ -2,6 +2,7 @@
 // В открытых источниках только годовая отчётность, поэтому это предварительная проверка: для заключения по п. 14.1.6
 // калькулятору нужны четыре квартальные даты, их запрашивают у клиента.
 const C = require("../seed/calc/core.js");
+const { margins } = require("../seed/calc/sensitivity.js");
 
 // В ГИР БО пустая строка формы приходит как null (в документе — прочерк, то есть 0). Отсутствием данных считаются
 // только пропуски итоговых строк; прочие пустые строки — нули, иначе калькулятор пометит их «не найдено».
@@ -45,4 +46,19 @@ function annualClasses(fin, { lease = true } = {}) {
   });
 }
 
-module.exports = { toDocs, annualClasses };
+// Запас до смены класса — по последнему году с полной отчётностью (seed/calc/sensitivity.js)
+function annualMargins(fin, { lease = true } = {}) {
+  for (const r of (fin.reports || []).slice(0, 3)) {
+    const bal = zeroFill(r.balance.current), pnl = zeroFill(r.pnl.current), V = {};
+    let full = true;
+    for (const [row, code] of Object.entries(C.TPL_ROWS)) {
+      const v = (code < "2000" ? bal : pnl)[code];
+      if (v === null || v === undefined) { full = false; break; }
+      V[row] = v;
+    }
+    if (full) return { year: r.year, ...margins(V, {}, lease) };
+  }
+  return null;
+}
+
+module.exports = { toDocs, annualClasses, annualMargins };
