@@ -73,3 +73,24 @@ test("делитель 0 или отрицательный — сдвиг не �
   const m = margins(V, {}, true);
   for (const c of m.coefs) { assert.strictEqual(c.noDen, true); assert.strictEqual(c.worse, null); assert.strictEqual(c.better, null); }
 });
+
+test("путь наверх: сочетание улучшений действительно улучшает класс, и одной строкой этого не добиться", () => {
+  let found = 0;
+  for (const { V, M, lease } of cases()) {
+    const m = margins(V, M, lease);
+    if (!m.up) continue;
+    const V2 = Object.assign({}, V);
+    for (const k of m.up.ks) { const row = COEF[k - 1].row; V2[row] = +(V2[row] ?? 0) + m.coefs[k - 1].better.delta; }
+    const r = C.calcColumn(V2, M, lease);
+    assert.ok(r.cls < m.cls);
+    assert.strictEqual(r.cls, m.up.cls);
+    if (m.up.ks.length > 1) assert.strictEqual(m.chance, null, "есть шаг одной строкой — сочетание не нужно");
+    found++;
+  }
+  assert.ok(found > 10, `путей наверх: ${found}`);
+  // условный пример класса 2: оборотные активы и прибыль от продаж вместе дают класс 1 (S = 1,25, К5 = 0,10)
+  const V = { 10: 840000, 11: 50400, 12: 25200, 18: 150000, 19: 0, 20: 23000, 21: 375000, 25: 300000, 27: 0, 28: 0, 29: 306000, 30: 857000 };
+  const m = margins(V, {}, true);
+  assert.deepStrictEqual([m.cls, m.S, m.chance], [2, 1.8, null]);
+  assert.deepStrictEqual(m.up, { ks: [3, 5], cls: 1, S: 1.25 });
+});

@@ -12,6 +12,8 @@ function build() {
     fill(fs.readFileSync(path.join(SEED, "page.src.html"), "utf8"), {
       "/*__CORE__*/": fs.readFileSync(path.join(SEED, "core.js"), "utf8"),
       "/*__SENS__*/": fs.readFileSync(path.join(SEED, "sensitivity.js"), "utf8"),
+      "/*__MGVIEW__*/": fs.readFileSync(path.join(SEED, "margins-view.js"), "utf8"),
+      "/*__MGCSS__*/": require(path.join(SEED, "margins-view.js")).CSS,
       "/*__DEMO__*/": js(demo.packages.map(({ id, name, inn, expected_class, docs }) => ({ id, name, inn, expected_class, docs }))),
       "/*__TPL__*/": fs.readFileSync(path.join(SEED, "template_clean.xlsx")).toString("base64"),
       "/*__META__*/": js({ note: demo.note, refSrc: null }),

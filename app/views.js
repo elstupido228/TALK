@@ -3,6 +3,7 @@ const { esc } = require("./http");
 const { can, ROLE_TITLES } = require("./auth");
 const STAGES = require("./stages");
 const shell = require("./shell");
+const marginsView = require("../seed/calc/margins-view.js");
 
 const PROJECT = "Контур контроля лизинговой сделки";
 
@@ -143,30 +144,15 @@ ${journal}`,
   });
 }
 
-// m: {inn, error, demo:[inn], party, fin, classes, docs, side:{kontur, spark, onec, crm}} — ответы коннекторов {data, source, …}
-// Запас до смены класса (годовая отчётность): что и на сколько должно измениться, чтобы класс сменился
+// Запас до смены класса (годовая отчётность): лестница классов и шкала запаса — общий рендер с калькулятором
 function marginsBlock(mg) {
   if (!mg) return "";
-  const num = (v) => v.toFixed(2).replace(".", ",");
-  const signed = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toLocaleString("ru-RU")}`;
-  const pct = (p) => (p === null ? "" : ` (${p > 0 ? "+" : p < 0 ? "−" : ""}${Math.abs(Math.round(p * 100))} %)`);
-  const kv = (v) => (typeof v === "number" ? v.toLocaleString("ru-RU", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : "—");
-  const mv = (c, x) => (c.noDen ? '<span class="muted small">делитель не положительный</span>' : x
-    ? `${esc(c.label)} (стр. ${c.code}) ${signed(x.delta)} тыс. руб.${pct(x.pct)}<br><span class="muted small">класс</span> ${clsBadge(x.cls)}${x.cls !== mg.cls ? ' <span class="badge target">класс меняется</span>' : ""}`
-    : "");
-  const short = (k) => mg.coefs[k - 1].name.split(" ")[0];
-  const t = mg.threat?.worse, b = mg.chance?.better;
-  return `<h2>Запас до смены класса · 31.12.${mg.year}</h2>
-<p class="muted small">На сколько должна измениться одна строка отчётности при прочих равных, чтобы коэффициент перешёл порог своей категории. Класс после изменения считается по формулам калькулятора. По годовой отчётности; поквартально запас может быть другим.</p>
-<p>Класс ${clsBadge(mg.cls)} · сумма баллов S = ${num(mg.S)}${mg.cls === 1 ? ` — до границы класса 1 (1,25) ${num(mg.toS1)}; класс 1 требует ещё К5 не ниже 0,10 (сейчас ${kv(mg.K5)})` : mg.cls === 2 ? ` — до границы класса 2 (2,35) ${num(mg.toS2)}` : ""}.</p>
-${t ? `<p><b>Ближайшая угроза классу:</b> ${esc(mg.threat.name)} — если ${esc(mg.threat.label)} (стр. ${mg.threat.code}) изменится на ${signed(t.delta)} тыс. руб.${pct(t.pct)}, класс станет ${clsBadge(t.cls)}.</p>` : mg.cls < 3 ? "<p>Ни одно изменение одной строки до ближайшего порога класс не меняет.</p>" : ""}
-${mg.pairs.length ? `<p>В сочетании: ${mg.pairs.map((p) => `${short(p.a)} и ${short(p.b)} вместе → класс ${p.cls} (S = ${num(p.S)})`).join("; ")}.</p>` : ""}
-${b ? `<p><b>Чтобы улучшить класс:</b> ${esc(mg.chance.name)} — ${esc(mg.chance.label)} (стр. ${mg.chance.code}) ${signed(b.delta)} тыс. руб.${pct(b.pct)} → класс ${clsBadge(b.cls)}.</p>` : ""}
-<div class="scroll"><table><thead><tr><th>Коэффициент</th><th class="r">Значение</th><th class="r">Категория</th><th>Ухудшение до порога</th><th>Улучшение до порога</th></tr></thead><tbody>
-${mg.coefs.map((c) => `<tr${c.worse && c.worse.cls !== mg.cls ? ' class="flip"' : ""}><td>${esc(c.name)}${c.alt && c.worse ? `<br><span class="muted small">${esc(c.alt)}</span>` : ""}</td><td class="r">${kv(c.value)}</td><td class="r">${c.cat}</td><td>${c.cat === 3 && !c.noDen ? '<span class="muted small">уже худшая категория</span>' : mv(c, c.worse)}</td><td>${c.cat === 1 && !c.noDen ? '<span class="muted small">лучшая категория</span>' : mv(c, c.better)}</td></tr>`).join("\n")}
-</tbody></table></div>`;
+  return `<h2>Запас до смены класса</h2>
+<style>${marginsView.CSS}</style>
+${marginsView.html(mg, { caption: `По годовой отчётности за ${mg.year} год. Поквартально запас может быть другим.` })}`;
 }
 
+// m: {inn, error, demo:[inn], party, fin, classes, docs, side:{kontur, spark, onec, crm}} — ответы коннекторов {data, source, …}
 function checkPage(user, m) {
   const SRC = { live: "получено из источника", cache: "из кэша", sandbox: "песочница — условные значения" };
   const srcLine = (r) => r ? `<p class="muted small">${esc(r.data?.sandbox_note ? SRC.sandbox : SRC[r.source])}${r.stale ? ", источник недоступен — показан сохранённый ответ" : ""}${r.fallback ? ", источник недоступен" : ""} · ${new Date(r.fetched_at).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })}</p>` : "";

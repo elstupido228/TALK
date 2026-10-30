@@ -61,7 +61,25 @@
       if (r.cls > base.cls) pairs.push({ a: a.k, b: b.k, cls: r.cls, S: r.S, size: Math.max(Math.abs(a.worse.pct ?? 1), Math.abs(b.worse.pct ?? 1)) });
     }
     pairs.sort((x, y) => x.size - y.size);
-    return { cls: base.cls, S: base.S, K5: base.K[4], coefs, threat: threats[0] || null, chance: chances[0] || null, pairs: pairs.slice(0, 3),
+    // путь наверх: если одной строкой класс не улучшить — наименьшее сочетание улучшений (2–3 строки одновременно),
+    // при равном числе шагов — с наименьшим наибольшим относительным изменением
+    let up = chances[0] ? { ks: [chances[0].k], cls: chances[0].better.cls, S: chances[0].better.S } : null;
+    if (!up && base.cls > 1) {
+      const cand = coefs.filter((c) => c.better);
+      const combos = (n, from = 0, acc = []) => (acc.length === n ? [acc] : cand.slice(from).flatMap((c, i) => combos(n, from + i + 1, [...acc, c])));
+      for (let n = 2; n <= 3 && !up; n++) {
+        let best = null;
+        for (const set of combos(n)) {
+          const V2 = Object.assign({}, V);
+          for (const c of set) { const row = COEF[c.k - 1].row; V2[row] = g(V2, row) + c.better.delta; }
+          const r = calcColumn(V2, M, lease);
+          const size = Math.max(...set.map((c) => Math.abs(c.better.pct ?? 1)));
+          if (r.cls < base.cls && (!best || size < best.size)) best = { ks: set.map((c) => c.k), cls: r.cls, S: r.S, size };
+        }
+        if (best) up = { ks: best.ks, cls: best.cls, S: best.S };
+      }
+    }
+    return { cls: base.cls, S: base.S, K5: base.K[4], coefs, threat: threats[0] || null, threats: threats.map((c) => c.k), chance: chances[0] || null, up, pairs: pairs.slice(0, 3),
       toS1: +(1.25 - base.S).toFixed(2), toS2: +(2.35 - base.S).toFixed(2) };
   }
 

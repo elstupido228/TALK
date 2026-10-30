@@ -414,5 +414,5 @@ details.client-info[open] > summary { margin-bottom: 10px; }
 .client-edit[open] > summary { margin-bottom: 10px; }
 [hidden] { display: none !important; }
 
-/* Запас до смены класса: строки, где ухудшение меняет класс */
-tr.flip td { background: var(--target-bg); }
+/* Запас до смены класса (seed/calc/margins-view.js): цвета классов */
+.mg { --mg-1: var(--accent); --mg-1-bg: var(--accent-bg); --mg-2: var(--target); --mg-2-bg: var(--target-bg); --mg-3: var(--error); --mg-3-bg: var(--error-bg); --mg-ink: var(--text); --mg-muted: var(--muted); --mg-line: var(--line); --mg-track: var(--line); }
